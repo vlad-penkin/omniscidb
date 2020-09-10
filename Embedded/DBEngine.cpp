@@ -121,6 +121,11 @@ class DBEngineImpl : public DBEngine {
           return false;
         }
       }
+
+      logger::LogOptions log_options("DBE");
+      log_options.set_base_path(db_path);
+      logger::init(log_options);
+
       auto data_path = db_path + +"/mapd_data";
       data_mgr_ =
           std::make_shared<Data_Namespace::DataMgr>(data_path, mapd_parms, false, 0);
@@ -134,10 +139,6 @@ class DBEngineImpl : public DBEngine {
 
       auto& sys_cat = Catalog_Namespace::SysCatalog::instance();
       sys_cat.init(db_path, data_mgr_, {}, calcite_, is_new_db, false, {});
-
-      logger::LogOptions log_options("DBE");
-      log_options.set_base_path(db_path);
-      logger::init(log_options);
 
       if (!sys_cat.getSqliteConnector()) {
         std::cerr << "DBE:init: SqliteConnector is null" << std::endl;
