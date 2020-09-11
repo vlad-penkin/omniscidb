@@ -31,6 +31,7 @@ class Cursor {
   Row getNextRow();
   ColumnType getColType(uint32_t col_num);
   std::shared_ptr<arrow::RecordBatch> getArrowRecordBatch();
+
  protected:
   Cursor() {}
   Cursor(const Cursor&) = delete;
@@ -44,7 +45,9 @@ class DBEngine {
   void executeDDL(const std::string& query);
   std::unique_ptr<Cursor> executeDML(const std::string& query);
   std::unique_ptr<Cursor> executeRA(const std::string& query);
-  void createArrowTable(const std::string&, std::shared_ptr<arrow::Table>& table);
+  void importArrowTable(const std::string& name,
+                        std::shared_ptr<arrow::Table>& table,
+                        uint64_t fragment_size = 0);
   static DBEngine* create(const std::string& path = "", int port = DEFAULT_CALCITE_PORT);
   static DBEngine* create(const std::map<std::string, std::string>& parameters);
   std::vector<std::string> getTables();
@@ -54,9 +57,7 @@ class DBEngine {
   void createDatabase(const std::string& db_name);
   void dropDatabase(const std::string& db_name);
   bool setDatabase(std::string& db_name);
-  bool login(std::string& db_name,
-             std::string& user_name,
-             const std::string& password);
+  bool login(std::string& db_name, std::string& user_name, const std::string& password);
 
  protected:
   DBEngine() {}

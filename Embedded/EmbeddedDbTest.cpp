@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
       auto arrow_table_result = table_reader->Read();
       ARROW_THROW_NOT_OK(arrow_table_result.status());
       arrowTable = arrow_table_result.ValueOrDie();
-      dbe->createArrowTable("test", arrowTable);
+      dbe->importArrowTable("test", arrowTable);
 
       auto schema = dbe->getTableDetails("test");
       for (auto& item : schema) {

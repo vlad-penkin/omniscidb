@@ -186,7 +186,9 @@ class DBEngineImpl : public DBEngine {
     }
   }
 
-  void createArrowTable(const std::string& name, std::shared_ptr<arrow::Table>& table) {
+  void importArrowTable(const std::string& name,
+                        std::shared_ptr<arrow::Table>& table,
+                        uint64_t fragment_size) {
     setArrowTable(name, table);
     try {
       auto session = QR::get()->getSession();
@@ -198,7 +200,7 @@ class DBEngineImpl : public DBEngine {
       td.isView = false;
       td.fragmenter = nullptr;
       td.fragType = Fragmenter_Namespace::FragmenterType::INSERT_ORDER;
-      td.maxFragRows = DEFAULT_FRAGMENT_ROWS;
+      td.maxFragRows = fragment_size > 0 ? fragment_size : DEFAULT_FRAGMENT_ROWS;
       td.maxChunkSize = DEFAULT_MAX_CHUNK_SIZE;
       td.fragPageSize = DEFAULT_PAGE_SIZE;
       td.maxRows = DEFAULT_MAX_ROWS;
@@ -568,10 +570,11 @@ std::unique_ptr<Cursor> DBEngine::executeRA(const std::string& query) {
   return engine->executeRA(query);
 }
 
-void DBEngine::createArrowTable(const std::string& name,
-                                std::shared_ptr<arrow::Table>& table) {
+void DBEngine::importArrowTable(const std::string& name,
+                                std::shared_ptr<arrow::Table>& table,
+                                uint64_t fragment_size) {
   DBEngineImpl* engine = getImpl(this);
-  return engine->createArrowTable(name, table);
+  return engine->importArrowTable(name, table, fragment_size);
 }
 
 std::vector<std::string> DBEngine::getTables() {

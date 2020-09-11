@@ -89,7 +89,7 @@ cdef extern from "DBEngine.h" namespace 'EmbeddedDatabase':
         unique_ptr[Cursor] executeRA(string)
         vector[string] getTables()
         vector[ColumnDetails] getTableDetails(string)
-        void createArrowTable(string, shared_ptr[CTable]&)
+        void importArrowTable(string, shared_ptr[CTable]&, uint64_t)
         void createUser(string user_name, string password)
         void dropUser(string user_name)
         void createDatabase(string db_name)
