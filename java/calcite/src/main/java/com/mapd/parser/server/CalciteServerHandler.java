@@ -289,6 +289,7 @@ public class CalciteServerHandler implements CalciteServer.Iface {
           RelRoot relR = RelRoot.of(reader.read(sqlText), SqlKind.SELECT);
           planner.applyQueryOptimizationRules(relR);
           planner.applyFilterPushdown(relR);
+
           ProjectMergeRule projectMergeRule =
                   new ProjectMergeRule(true, RelFactories.LOGICAL_BUILDER);
           final Program program = Programs.hep(
@@ -349,7 +350,10 @@ public class CalciteServerHandler implements CalciteServer.Iface {
             // there must be a better way to compare these
           } while (!RelOptUtil.toString(oldRel).equals(RelOptUtil.toString(newRel)));
 
-          jsonResult = MapDSerializer.toString(newRel);
+          RelRoot optRel = RelRoot.of(newRel, relR.kind);
+          optRel = parser.replaceIsTrue(typeFactory, optRel);
+
+          jsonResult = MapDSerializer.toString(optRel.project());
         }
       } catch (ValidationException ex) {
         String msg = "Validation: " + ex.getMessage();
