@@ -801,7 +801,7 @@ public final class MapDParser {
     }
   }
 
-  private RelRoot replaceIsTrue(final RelDataTypeFactory typeFactory, RelRoot root) {
+  public RelRoot replaceIsTrue(final RelDataTypeFactory typeFactory, RelRoot root) {
     final RexShuttle callShuttle = new RexShuttle() {
       RexBuilder builder = new RexBuilder(typeFactory);
 
