@@ -210,13 +210,18 @@ cdef class PyDbEngine:
         obj.c_cursor = self.c_dbe.executeRA(bytes(query, 'utf-8'));
         return obj
 
-    def consumeArrowTable(self, name, table):
+    def importArrowTable(self, name, table, **kwargs):
         assert not self.closed
         cdef shared_ptr[CTable] t = pyarrow_unwrap_table(table)
         cdef string n = bytes(name, 'utf-8')
+        cdef uint64_t fragment_size = kwargs.get("fragment_size", 0)
         assert t.get() and not n.empty()
         assert not self.closed
-        self.c_dbe.createArrowTable(n, t)
+        self.c_dbe.importArrowTable(n, t, fragment_size)
+
+    # TODO: remove this legacy alias.
+    def consumeArrowTable(self, name, table, **kwargs):
+        return self.importArrowTable(name, table, **kwargs)
 
     def select_df(self, query):
         obj = PyCursor();
