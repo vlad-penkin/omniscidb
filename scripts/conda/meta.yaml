@@ -1,7 +1,7 @@
 {% set version = GIT_DESCRIBE_TAG %}
 {% set number = GIT_DESCRIBE_NUMBER|int %}
 {% set build_ext = "cpu" %}
-{% set build_string = "h{}_{}_{}".format(GIT_DESCRIBE_HASH, number, build_ext) %}
+{% set build_string = "{}_{}_{}".format(PKG_HASH, GIT_DESCRIBE_HASH, number) %}
 
 package:
   name: omniscidb
@@ -12,7 +12,7 @@ source:
 
 build:
   number: {{ number }}
-  string: "{{ build_string }}"
+  string: h{{ build_string }}
   script_env:
     - http_proxy
     - https_proxy
@@ -52,7 +52,7 @@ requirements:
     - openssl
     - snappy
     - thrift-cpp
-    - tbb-devel =2020.1
+    - tbb-devel
   # no need in run: section when using multiple outputs
 
 outputs:
@@ -76,7 +76,7 @@ outputs:
         - xz
         - zlib
         - arrow-cpp =0.16
-        - tbb =2020.1
+        - tbb
         - llvm 9
 
     about:
@@ -117,7 +117,7 @@ outputs:
         - xz
         - zlib
         - arrow-cpp =0.16
-        - tbb =2020.1
+        - tbb
         - {{ pin_subpackage('omniscidb-common', exact=True) }}
       run_constrained:
         - arrow-cpp-proc * {{ build_ext }}
@@ -172,6 +172,8 @@ outputs:
 
   - name: omniscidbe4py
     script: install-omniscidbe4py.sh
+    build:
+      string: py{{ py }}h{{ build_string }}
     requirements:
       build:
         - {{ compiler('cxx') }}   # this section really builds
@@ -182,8 +184,6 @@ outputs:
         - make
         - maven
       host:
-        - numpy
-        - cython
         # omniscidb <=5.2.2 is not arrow-cpp 0.17+ ready
         - arrow-cpp =0.16
         - bisonpp
@@ -207,15 +207,16 @@ outputs:
         - openssl
         - snappy
         - thrift-cpp
-        - tbb-devel =2020.1
+        - tbb-devel
         - python
         - cython
         - numpy
         - pyarrow =0.16
         - {{ pin_subpackage('omniscidbe', exact=True) }}
       run:
+        - python
         - pyarrow =0.16
-        - tbb4py =2020.1
+        - tbb4py
         - {{ pin_subpackage('omniscidbe', exact=True) }}
         - {{ pin_subpackage('omniscidb-common', exact=True) }}
     test:
