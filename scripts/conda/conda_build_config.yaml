@@ -4,7 +4,7 @@ ignore_build_only_deps:
 - numpy
 - python
 numpy: '1.18'
-tbb: '2020.1'
+tbb: '2021.1b9'
 python:
 - 3.7
 - 3.8
