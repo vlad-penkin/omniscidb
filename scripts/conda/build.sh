@@ -77,7 +77,7 @@ cmake -Wno-dev \
     $EXTRA_CMAKE_OPTIONS \
     ..
 
-make -j ${CPU_COUNT:-`nproc`}
+make -j ${CPU_COUNT:-`nproc`} || make
 
 
 if [[ "$RUN_TESTS" == "2" ]]

@@ -53,6 +53,7 @@ requirements:
     - snappy
     - thrift-cpp
     - tbb-devel
+    - tiledb =2.0.8 =h3effe38_0
   # no need in run: section when using multiple outputs
 
 outputs:
