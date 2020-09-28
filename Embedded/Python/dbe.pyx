@@ -106,7 +106,7 @@ cdef class PyRow:
 
 
 cdef class PyCursor:
-    cdef unique_ptr[_Cursor] c_cursor  #Hold a C++ instance which we're wrapping
+    cdef shared_ptr[_Cursor] c_cursor  #Hold a C++ instance which we're wrapping
     cdef shared_ptr[CRecordBatch] c_batch
 
     def colCount(self):
@@ -159,30 +159,15 @@ ColumnDetailsTp = namedtuple("ColumnDetails", ["name", "type", "nullable",
                                              "comp_param", "encoding",
                                              "is_array"])
 cdef class PyDbEngine:
-    cdef DBEngine* c_dbe  #Hold a C++ instance which we're wrapping
+    cdef shared_ptr[DBEngine] c_dbe  #Hold a C++ instance which we're wrapping
     cdef map[string, string] c_parameters
 
     def __cinit__(self, **kwargs):
-        try:
-            for key, value in kwargs.items():
-                self.c_parameters[key] = str(value)
-            self.c_dbe = DBEngine.create(self.c_parameters)
-            assert not self.closed
-        except OSError as err:
-            print("DBEngine: OS error: {0}".format(err))
-            raise
-        except ValueError:
-            print("DBEngine: ValueError: Could not convert data to string")
-            raise
-        except:
-            print("DBEngine: Unexpected error while constructing", sys.exc_info()[0], sys.exc_info()[1])
-            raise
-
-    def __dealloc__(self):
-        assert not self.closed
-        self.c_dbe.reset()
-        del self.c_dbe
-        self.c_dbe = NULL
+        for key, value in kwargs.items():
+            self.c_parameters[key] = str(value)
+        self.c_dbe = DBEngine.create(self.c_parameters)
+        if self.closed:
+            raise RuntimeError('Initialization failed')
 
     @property
     def closed(self):
@@ -191,47 +176,50 @@ cdef class PyDbEngine:
     def close(self):
         pass
 
+    def check_closed(self):
+        if self.closed:
+            raise RuntimeError('DB engine uninitialized')
+
     def executeDDL(self, query):
-        try:
-            assert not self.closed
-            self.c_dbe.executeDDL(bytes(query, 'utf-8'))
-        except Exception, e:
-            os.abort()
+        self.check_closed()
+        self.c_dbe.get().executeDDL(bytes(query, 'utf-8'))
 
     def executeDML(self, query):
+        self.check_closed()
         obj = PyCursor();
-        assert not self.closed
-        obj.c_cursor = self.c_dbe.executeDML(bytes(query, 'utf-8'));
+        obj.c_cursor = self.c_dbe.get().executeDML(bytes(query, 'utf-8'));
         return obj;
 
     def executeRA(self, query):
+        self.check_closed()
         obj = PyCursor();
-        assert not self.closed
-        obj.c_cursor = self.c_dbe.executeRA(bytes(query, 'utf-8'));
+        obj.c_cursor = self.c_dbe.get().executeRA(bytes(query, 'utf-8'));
         return obj
 
     def importArrowTable(self, name, table, **kwargs):
-        assert not self.closed
+        self.check_closed()
         cdef shared_ptr[CTable] t = pyarrow_unwrap_table(table)
         cdef string n = bytes(name, 'utf-8')
         cdef uint64_t fragment_size = kwargs.get("fragment_size", 0)
-        assert t.get() and not n.empty()
-        assert not self.closed
-        self.c_dbe.importArrowTable(n, t, fragment_size)
+        if n.empty() or not t.get():
+            raise RuntimeError('Table initialization failed')
+        self.check_closed()
+        self.c_dbe.get().importArrowTable(n, t, fragment_size)
 
     # TODO: remove this legacy alias.
     def consumeArrowTable(self, name, table, **kwargs):
         return self.importArrowTable(name, table, **kwargs)
 
     def select_df(self, query):
-        obj = PyCursor();
-        assert not self.closed
-        obj.c_cursor = self.c_dbe.executeDML(bytes(query, 'utf-8'));
+        obj = self.executeDML(query)
+        if not obj:
+            raise RuntimeError("Cursor uninitialized")
         prb = obj.getArrowRecordBatch()
         return prb.to_pandas()
 
     def get_table_details(self, table_name):
-        cdef vector[ColumnDetails] table_details = self.c_dbe.getTableDetails(bytes(table_name, 'utf-8'))
+        self.check_closed()
+        cdef vector[ColumnDetails] table_details = self.c_dbe.get().getTableDetails(bytes(table_name, 'utf-8'))
         return [
             ColumnDetailsTp(x.col_name, PyColumnType(<int>x.col_type).to_str(),
                             x.nullable, x.precision, x.scale, x.comp_param,
@@ -240,4 +228,5 @@ cdef class PyDbEngine:
         ]
 
     def get_tables(self):
-        return self.c_dbe.getTables()
+        self.check_closed()
+        return self.c_dbe.get().getTables()
