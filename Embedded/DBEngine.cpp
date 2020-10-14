@@ -119,6 +119,10 @@ class DBEngineImpl : public DBEngine {
         throw std::runtime_error("Database directory could not be created");
       }
     }
+    logger::LogOptions log_options(db_path.c_str());
+    log_options.set_base_path(db_path);
+    logger::init(log_options);
+
     auto data_path = db_path + +"/mapd_data";
     data_mgr_ =
         std::make_shared<Data_Namespace::DataMgr>(data_path, mapd_parms, false, 0);
@@ -363,6 +367,7 @@ class DBEngineImpl : public DBEngine {
     if (is_temp_db_) {
       boost::filesystem::remove_all(base_path_);
     }
+    logger::shutdown();
     base_path_.clear();
   }
 
