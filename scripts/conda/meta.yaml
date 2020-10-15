@@ -23,7 +23,7 @@ requirements:
     - clangdev
     - clangxx
     - cmake >3.14
-    - llvmdev 9
+    - llvmdev 9.*
     - make
     - maven
   host:
@@ -39,8 +39,8 @@ requirements:
     - flex
     - gflags
     - glog
-    - llvmdev 9
-    - llvm
+    - llvmdev 9.*
+    - llvm 9.*
     - libarchive
     - libgdal
     - libkml
@@ -53,6 +53,8 @@ requirements:
     - snappy
     - thrift-cpp
     - tbb-devel
+  # new tbb needs glibc >= 2.14
+    - sysroot_linux-64 >=2.14 # [linux]
   # no need in run: section when using multiple outputs
 
 outputs:
@@ -77,7 +79,7 @@ outputs:
         - zlib
         - arrow-cpp =0.16
         - tbb
-        - llvm 9
+        - llvm 9.*
 
     about:
       home: https://www.omnisci.com/
@@ -180,7 +182,7 @@ outputs:
         - clangdev
         - clangxx
         - cmake > 3.14
-        - llvmdev 9
+        - llvmdev 9.*
         - make
         - maven
       host:
@@ -194,8 +196,8 @@ outputs:
         - flex
         - gflags
         - glog
-        - llvmdev 9
-        - llvm
+        - llvmdev 9.*
+        - llvm 9.*
         - libarchive
         - libgdal
         - libkml
