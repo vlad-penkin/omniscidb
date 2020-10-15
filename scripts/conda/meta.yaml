@@ -54,7 +54,7 @@ requirements:
     - openssl
     - snappy
     - thrift-cpp
-    - tbb-devel ={{ tbb }}.*
+    - tbb-devel {{ tbb }}
   # no need in run: section when using multiple outputs
 
 outputs:
@@ -78,7 +78,8 @@ outputs:
         - xz
         - zlib
         - arrow-cpp =0.16
-        - tbb ={{ tbb }}.*
+        - tbb {{ tbb }}
+        #- sysroot_linux-64 >=2.14 # [linux]
         - llvm 9.*
 
     about:
@@ -119,7 +120,7 @@ outputs:
         - xz
         - zlib
         - arrow-cpp =0.16
-        - tbb ={{ tbb }}.*
+        - tbb {{ tbb }}
         - {{ pin_subpackage('omniscidb-common', exact=True) }}
       run_constrained:
         - arrow-cpp-proc * {{ build_ext }}
@@ -209,7 +210,7 @@ outputs:
         - openssl
         - snappy
         - thrift-cpp
-        - tbb-devel ={{ tbb }}.*
+        - tbb-devel {{ tbb }}
         - python
         - cython
         - numpy
@@ -218,7 +219,7 @@ outputs:
       run:
         - python
         - pyarrow =0.16
-        - tbb4py ={{ tbb }}.*
+        - tbb4py {{ tbb }}
         - {{ pin_subpackage('omniscidbe', exact=True) }}
         - {{ pin_subpackage('omniscidb-common', exact=True) }}
     test:
