@@ -125,6 +125,8 @@ outputs:
       run_constrained:
         - arrow-cpp-proc * {{ build_ext }}
     test:
+        # new tbb needs glibc >= 2.14
+        - sysroot_linux-64 >=2.14 # [linux]
       commands:
         - omnisql -v
         - which omnisci_initdb
