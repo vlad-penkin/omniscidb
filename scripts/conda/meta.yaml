@@ -186,6 +186,8 @@ outputs:
         - llvmdev 9.*
         - make
         - maven
+        # new tbb needs glibc >= 2.14
+        - sysroot_linux-64 >=2.14 # [linux]
       host:
         # omniscidb <=5.2.2 is not arrow-cpp 0.17+ ready
         - arrow-cpp =0.16
