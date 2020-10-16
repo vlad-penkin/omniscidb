@@ -156,6 +156,7 @@ auto CommonFileOperations::duplicateAndRenameCatalog(std::string const& current_
 };
 
 void SysCatalog::init(const std::string& basePath,
+                      std::shared_ptr<ForeignStorageInterface> fsi,
                       std::shared_ptr<Data_Namespace::DataMgr> dataMgr,
                       const AuthMetadata& authMetadata,
                       std::shared_ptr<Calcite> calcite,

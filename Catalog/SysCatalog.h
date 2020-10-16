@@ -150,6 +150,7 @@ class CommonFileOperations {
 class SysCatalog : private CommonFileOperations {
  public:
   void init(const std::string& basePath,
+            std::shared_ptr<ForeignStorageInterface> fsi,
             std::shared_ptr<Data_Namespace::DataMgr> dataMgr,
             const AuthMetadata& authMetadata,
             std::shared_ptr<Calcite> calcite,
@@ -289,12 +290,14 @@ class SysCatalog : private CommonFileOperations {
   void revokeDashboardSystemRole(const std::string roleName,
                                  const std::vector<std::string> grantees);
   bool isAggregator() const { return aggregator_; }
+
   static SysCatalog& instance() {
     if (!instance_) {
       instance_.reset(new SysCatalog());
     }
     return *instance_;
   }
+  static void destroy() { instance_.reset(); }
 
   static void destroy() { instance_.reset(); }
 
@@ -413,6 +416,7 @@ class SysCatalog : private CommonFileOperations {
   ObjectRoleDescriptorMap objectDescriptorMap_;
   std::unique_ptr<SqliteConnector> sqliteConnector_;
 
+  std::shared_ptr<ForeignStorageInterface> fsi_;
   std::shared_ptr<Data_Namespace::DataMgr> dataMgr_;
   std::unique_ptr<PkiServer> pki_server_;
   const AuthMetadata* authMetadata_;

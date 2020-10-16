@@ -29,6 +29,8 @@
 #endif
 
 extern bool g_enable_fsi;
+std::shared_ptr<ForeignStorageInterface> fsi;
+
 
 class ShowUserSessionsTest : public DBHandlerTestFixture {
  public:
@@ -46,6 +48,7 @@ class ShowUserSessionsTest : public DBHandlerTestFixture {
   }
 
   static void SetUpTestSuite() {
+    setupFSI(fsi);
     createDBHandler();
     users_ = {"user1", "user2"};
     superusers_ = {"super1", "super2"};
@@ -1167,7 +1170,7 @@ class ShowDiskCacheUsageForNormalTableTest : public ShowDiskCacheUsageTest {
       getCatalog().removeFragmenterForTable(table_it->tableId);
     }
     getCatalog().getDataMgr().resetPersistentStorage(
-        {cache_path_, cache_level}, 0, getSystemParameters());
+        {cache_path_, cache_level}, 0, fsi, getSystemParameters());
   }
 };
 

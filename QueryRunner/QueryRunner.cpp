@@ -18,6 +18,7 @@
 
 #include "Calcite/Calcite.h"
 #include "Catalog/Catalog.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "DistributedLoader.h"
 #include "Geospatial/Transforms.h"
 #include "ImportExport/CopyParams.h"
@@ -111,6 +112,7 @@ QueryRunner* QueryRunner::init(const char* db_path,
   LOG_IF(FATAL, !leaf_servers.empty()) << "Distributed test runner not supported.";
   CHECK(leaf_servers.empty());
   qr_instance_.reset(new QueryRunner(db_path,
+                                     fsi,
                                      user,
                                      pass,
                                      db_name,
@@ -126,6 +128,7 @@ QueryRunner* QueryRunner::init(const char* db_path,
 }
 
 QueryRunner::QueryRunner(const char* db_path,
+                         std::shared_ptr<ForeignStorageInterface> fsi,
                          const std::string& user_name,
                          const std::string& passwd,
                          const std::string& db_name,

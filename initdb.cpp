@@ -28,6 +28,8 @@
 #include "ImportExport/Importer.h"
 #include "Logger/Logger.h"
 #include "OSDependent/omnisci_path.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
+#include "Import/Importer.h"
 #include "QueryRunner/QueryRunner.h"
 
 #define CALCITEPORT 3279
@@ -149,7 +151,7 @@ int main(int argc, char* argv[]) {
         std::make_shared<Calcite>(-1, CALCITEPORT, base_path, 1024, 5000, true, "");
     g_base_path = base_path;
     auto& sys_cat = Catalog_Namespace::SysCatalog::instance();
-    sys_cat.init(base_path, dummy, {}, calcite, true, false, {});
+    sys_cat.init(base_path, fsi, dummy, {}, calcite, true, false, {});
 
     if (!skip_geo) {
       // Add geo samples to the system database using the root user

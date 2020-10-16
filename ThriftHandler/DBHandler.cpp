@@ -420,6 +420,7 @@ void DBHandler::initialize(const bool is_new_db) {
   try {
     g_base_path = base_data_path_;
     SysCatalog::instance().init(base_data_path_,
+                                fsi_,
                                 data_mgr_,
                                 authMetadata_,
                                 calcite_,
