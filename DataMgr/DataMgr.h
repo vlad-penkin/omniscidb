@@ -36,6 +36,8 @@
 #include <unordered_map>
 #include <vector>
 
+class ForeignStorageInterface;
+
 namespace File_Namespace {
 class FileBuffer;
 class GlobalFileMgr;
@@ -100,6 +102,7 @@ class DataMgr {
 
  public:
   DataMgr(const std::string& dataDir,
+          std::shared_ptr<ForeignStorageInterface> fsi,
           const SystemParameters& system_parameters,
           const bool useGpus,
           const int numGpus,
@@ -164,7 +167,8 @@ class DataMgr {
 
  private:
   void populateMgrs(const SystemParameters& system_parameters,
-                    const size_t userSpecifiedNumReaderThreads);
+                    const size_t userSpecifiedNumReaderThreads,
+                    std::shared_ptr<ForeignStorageInterface> fsi);
   void convertDB(const std::string basePath);
   void checkpoint();  // checkpoint for whole DB, called from convertDB proc only
   void createTopLevelMetadata() const;

@@ -75,6 +75,7 @@ std::string hash_with_bcrypt(const std::string& pwd) {
 namespace Catalog_Namespace {
 
 thread_local bool SysCatalog::thread_holds_read_lock = false;
+std::unique_ptr<SysCatalog> SysCatalog::instance_;
 
 using sys_read_lock = read_lock<SysCatalog>;
 using sys_write_lock = write_lock<SysCatalog>;
@@ -110,6 +111,7 @@ auto CommonFileOperations::duplicateAndRenameCatalog(std::string const& current_
 };
 
 void SysCatalog::init(const std::string& basePath,
+                      std::shared_ptr<ForeignStorageInterface> fsi,
                       std::shared_ptr<Data_Namespace::DataMgr> dataMgr,
                       const AuthMetadata& authMetadata,
                       std::shared_ptr<Calcite> calcite,
@@ -121,6 +123,7 @@ void SysCatalog::init(const std::string& basePath,
     sys_sqlite_lock sqlite_lock(this);
 
     basePath_ = basePath;
+    fsi_ = fsi;
     dataMgr_ = dataMgr;
     authMetadata_ = &authMetadata;
     ldap_server_.reset(new LdapServer(*authMetadata_));
@@ -726,7 +729,7 @@ std::shared_ptr<Catalog> SysCatalog::login(std::string& dbname,
   Catalog_Namespace::DBMetadata db_meta;
   getMetadataWithDefaultDB(dbname, username, db_meta, user_meta);
   return Catalog::get(
-      basePath_, db_meta, dataMgr_, string_dict_hosts_, calciteMgr_, false);
+      basePath_, fsi_, db_meta, dataMgr_, string_dict_hosts_, calciteMgr_, false);
 }
 
 // loginImpl() with no EE code and no SAML code
@@ -747,8 +750,8 @@ std::shared_ptr<Catalog> SysCatalog::switchDatabase(std::string& dbname,
 
   // NOTE(max): register database in Catalog that early to allow ldap
   // and saml create default user and role privileges on databases
-  auto cat =
-      Catalog::get(basePath_, db_meta, dataMgr_, string_dict_hosts_, calciteMgr_, false);
+  auto cat = Catalog::get(
+      basePath_, fsi_, db_meta, dataMgr_, string_dict_hosts_, calciteMgr_, false);
 
   DBObject dbObject(dbname, DatabaseDBObjectType);
   dbObject.loadKey();
@@ -1113,7 +1116,8 @@ void SysCatalog::createDatabase(const string& name, int owner) {
             ")",
         name);
     CHECK(getMetadataForDB(name, db));
-    cat = Catalog::get(basePath_, db, dataMgr_, string_dict_hosts_, calciteMgr_, true);
+    cat = Catalog::get(
+        basePath_, fsi_, db, dataMgr_, string_dict_hosts_, calciteMgr_, true);
     if (owner != OMNISCI_ROOT_USER_ID) {
       DBObject object(name, DBObjectType::DatabaseDBObjectType);
       object.loadKey(*cat);
@@ -1142,7 +1146,7 @@ void SysCatalog::dropDatabase(const DBMetadata& db) {
   sys_write_lock write_lock(this);
   sys_sqlite_lock sqlite_lock(this);
   auto cat =
-      Catalog::get(basePath_, db, dataMgr_, string_dict_hosts_, calciteMgr_, false);
+      Catalog::get(basePath_, fsi_, db, dataMgr_, string_dict_hosts_, calciteMgr_, false);
   sqliteConnector_->query("BEGIN TRANSACTION");
   try {
     // remove this database ID from any users that have it set as their default database

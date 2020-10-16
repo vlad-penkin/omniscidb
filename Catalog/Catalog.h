@@ -94,6 +94,7 @@ class Catalog final {
    * metadata - expects for this directory to already exist
    */
   Catalog(const std::string& basePath,
+          std::shared_ptr<ForeignStorageInterface> fsi,
           const DBMetadata& curDB,
           std::shared_ptr<Data_Namespace::DataMgr> dataMgr,
           const std::vector<LeafHostInfo>& string_dict_hosts,
@@ -219,12 +220,14 @@ class Catalog final {
   static std::shared_ptr<Catalog> get(const std::string& dbName);
   static std::shared_ptr<Catalog> get(const int32_t db_id);
   static std::shared_ptr<Catalog> get(const std::string& basePath,
+                                      std::shared_ptr<ForeignStorageInterface> fsi,
                                       const DBMetadata& curDB,
                                       std::shared_ptr<Data_Namespace::DataMgr> dataMgr,
                                       const std::vector<LeafHostInfo>& string_dict_hosts,
                                       std::shared_ptr<Calcite> calcite,
                                       bool is_new_db);
   static void remove(const std::string& dbName);
+  static void clear();
 
   const bool checkMetadataForDeletedRecs(const TableDescriptor* td, int column_id) const;
   const ColumnDescriptor* getDeletedColumn(const TableDescriptor* td) const;
@@ -428,6 +431,7 @@ class Catalog final {
   SqliteConnector sqliteConnector_;
   DBMetadata currentDB_;
   std::shared_ptr<Data_Namespace::DataMgr> dataMgr_;
+  std::shared_ptr<ForeignStorageInterface> fsi_;
 
   const std::vector<LeafHostInfo> string_dict_hosts_;
   std::shared_ptr<Calcite> calciteMgr_;

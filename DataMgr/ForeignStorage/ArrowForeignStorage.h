@@ -19,9 +19,11 @@
 #include <memory>
 #include <string>
 
-void registerArrowCsvForeignStorage(void);
+#include "ForeignStorageInterface.h"
 
-void registerArrowForeignStorage(void);
+void registerArrowCsvForeignStorage(std::shared_ptr<ForeignStorageInterface> fsi);
+
+void registerArrowForeignStorage(std::shared_ptr<ForeignStorageInterface> fsi);
 
 void setArrowTable(std::string name, std::shared_ptr<arrow::Table> table);
 

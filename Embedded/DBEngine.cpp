@@ -98,20 +98,20 @@ class CursorImpl : public Cursor {
  */
 class DBEngineImpl : public DBEngine {
  public:
-  DBEngineImpl() : is_temp_db_(false) { }
+  DBEngineImpl() : is_temp_db_(false) {}
 
   ~DBEngineImpl() { reset(); }
 
   bool init(const std::string& base_path, int port, const std::string& udf_filename) {
     static bool initialized{false};
-    if (initialized)
-    {
+    if (initialized) {
       throw std::runtime_error("Database engine already initialized");
     }
     SystemParameters mapd_parms;
     std::string db_path = base_path;
-    registerArrowForeignStorage();
-    registerArrowCsvForeignStorage();
+    fsi_.reset(new ForeignStorageInterface());
+    registerArrowForeignStorage(fsi_);
+    registerArrowCsvForeignStorage(fsi_);
     bool is_new_db = base_path.empty() || !catalogExists(base_path);
     if (is_new_db) {
       db_path = createCatalog(base_path);
@@ -125,7 +125,7 @@ class DBEngineImpl : public DBEngine {
 
     auto data_path = db_path + +"/mapd_data";
     data_mgr_ =
-        std::make_shared<Data_Namespace::DataMgr>(data_path, mapd_parms, false, 0);
+        std::make_shared<Data_Namespace::DataMgr>(data_path, fsi_, mapd_parms, false, 0);
     calcite_ = std::make_shared<Calcite>(-1, port, db_path, 1024, 5000);
 
     ExtensionFunctionsWhitelist::add(calcite_->getExtensionFunctionWhitelist());
@@ -135,15 +135,20 @@ class DBEngineImpl : public DBEngine {
     table_functions::TableFunctionsFactory::init();
 
     auto& sys_cat = Catalog_Namespace::SysCatalog::instance();
-    sys_cat.init(db_path, data_mgr_, {}, calcite_, is_new_db, false, {});
+    sys_cat.init(db_path, fsi_, data_mgr_, {}, calcite_, is_new_db, false, {});
 
     if (!sys_cat.getSqliteConnector()) {
       throw std::runtime_error("System catalog initialization failed");
     }
 
     sys_cat.getMetadataForDB(OMNISCI_DEFAULT_DB, database_);
-    auto catalog = Catalog_Namespace::Catalog::get(
-        db_path, database_, data_mgr_, std::vector<LeafHostInfo>(), calcite_, false);
+    auto catalog = Catalog_Namespace::Catalog::get(db_path,
+                                                   fsi_,
+                                                   database_,
+                                                   data_mgr_,
+                                                   std::vector<LeafHostInfo>(),
+                                                   calcite_,
+                                                   false);
     sys_cat.getMetadataForUser(OMNISCI_ROOT_USER, user_);
     auto session = std::make_unique<Catalog_Namespace::SessionInfo>(
         catalog, user_, ExecutorDeviceType::CPU, "");
@@ -153,9 +158,7 @@ class DBEngineImpl : public DBEngine {
     return true;
   }
 
-  void executeDDL(const std::string& query) {
-      QR::get()->runDDLStatement(query);
-  }
+  void executeDDL(const std::string& query) { QR::get()->runDDLStatement(query); }
 
   void importArrowTable(const std::string& name,
                         std::shared_ptr<arrow::Table>& table,
@@ -225,7 +228,7 @@ class DBEngineImpl : public DBEngine {
       return executeDML(query);
     }
     const auto execution_result =
-      QR::get()->runSelectQueryRA(query, ExecutorDeviceType::CPU, true, true);
+        QR::get()->runSelectQueryRA(query, ExecutorDeviceType::CPU, true, true);
     auto targets = execution_result.getTargetsMeta();
     std::vector<std::string> col_names;
     for (const auto target : targets) {
@@ -355,15 +358,19 @@ class DBEngineImpl : public DBEngine {
   }
 
  protected:
-
   void reset() {
+    std::weak_ptr<ForeignStorageInterface> weak_fsi = fsi_;
     if (calcite_) {
       calcite_->close_calcite_server();
       calcite_.reset();
     }
+    Catalog_Namespace::SysCatalog::destroy();
+    Catalog_Namespace::Catalog::clear();
     QR::reset();
-    ForeignStorageInterface::destroy();
+    fsi_.reset();
     data_mgr_.reset();
+    // By that moment FSI should be destroyed.
+    CHECK(!weak_fsi.lock());
     if (is_temp_db_) {
       boost::filesystem::remove_all(base_path_);
     }
@@ -445,6 +452,7 @@ class DBEngineImpl : public DBEngine {
 
  private:
   std::string base_path_;
+  std::shared_ptr<ForeignStorageInterface> fsi_;
   std::shared_ptr<Data_Namespace::DataMgr> data_mgr_;
   std::shared_ptr<Calcite> calcite_;
   Catalog_Namespace::DBMetadata database_;
@@ -458,7 +466,7 @@ class DBEngineImpl : public DBEngine {
 };
 
 namespace {
-  std::mutex engine_create_mutex;
+std::mutex engine_create_mutex;
 }
 
 std::shared_ptr<DBEngine> DBEngine::create(const std::string& path, int port) {
@@ -472,7 +480,8 @@ std::shared_ptr<DBEngine> DBEngine::create(const std::string& path, int port) {
   return engine;
 }
 
-std::shared_ptr<DBEngine> DBEngine::create(const std::map<std::string, std::string>& parameters) {
+std::shared_ptr<DBEngine> DBEngine::create(
+    const std::map<std::string, std::string>& parameters) {
   const std::lock_guard<std::mutex> lock(engine_create_mutex);
   auto engine = std::make_shared<DBEngineImpl>();
   int port = DEFAULT_CALCITE_PORT;

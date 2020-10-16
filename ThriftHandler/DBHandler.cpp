@@ -212,9 +212,11 @@ DBHandler::DBHandler(const std::vector<LeafHostInfo>& db_leaves,
     , max_session_duration_(max_session_duration * 60)
     , runtime_udf_registration_enabled_(enable_runtime_udf_registration) {
   LOG(INFO) << "OmniSci Server " << MAPD_RELEASE;
-  // Register foreign storage interfaces here
-  registerArrowCsvForeignStorage();
   bool is_rendering_enabled = enable_rendering;
+
+  // Register foreign storage interfaces here
+  fsi_.reset(new ForeignStorageInterface());
+  registerArrowCsvForeignStorage(fsi_);
 
   try {
     if (cpu_only) {
@@ -246,6 +248,7 @@ DBHandler::DBHandler(const std::vector<LeafHostInfo>& db_leaves,
 
   try {
     data_mgr_.reset(new Data_Namespace::DataMgr(data_path.string(),
+                                                fsi_,
                                                 mapd_parameters,
                                                 !cpu_mode_only_,
                                                 num_gpus,
@@ -314,6 +317,7 @@ DBHandler::DBHandler(const std::vector<LeafHostInfo>& db_leaves,
 
   try {
     SysCatalog::instance().init(base_data_path_,
+                                fsi_,
                                 data_mgr_,
                                 authMetadata,
                                 calcite_,
