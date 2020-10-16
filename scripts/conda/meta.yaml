@@ -227,6 +227,8 @@ outputs:
         - {{ pin_subpackage('omniscidbe', exact=True) }}
         - {{ pin_subpackage('omniscidb-common', exact=True) }}
     test:
+        # new tbb needs glibc >= 2.14
+        - sysroot_linux-64 >=2.14 # [linux]      
       imports:
         - dbe
     about:
