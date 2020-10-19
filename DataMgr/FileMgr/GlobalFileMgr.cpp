@@ -40,6 +40,7 @@ using namespace std;
 namespace File_Namespace {
 
 GlobalFileMgr::GlobalFileMgr(const int deviceId,
+                             std::shared_ptr<ForeignStorageInterface> fsi,
                              std::string basePath,
                              const size_t num_reader_threads,
                              const size_t defaultPageSize)
@@ -49,7 +50,8 @@ GlobalFileMgr::GlobalFileMgr(const int deviceId,
     , epoch_(-1)
     ,  // set the default epoch for all tables corresponding to the time of
        // last checkpoint
-    defaultPageSize_(defaultPageSize) {
+    defaultPageSize_(defaultPageSize)
+    , fsi_(fsi) {
   mapd_db_version_ =
       1;  // DS changes triggered by individual FileMgr per table project (release 2.1.0)
   dbConvert_ = false;
@@ -158,8 +160,7 @@ AbstractBufferMgr* GlobalFileMgr::getFileMgr(const int db_id, const int tb_id) {
       return fm;  // mgr was added between the read lock and the write lock
     }
     const auto file_mgr_key = std::make_pair(db_id, tb_id);
-    const auto foreign_buffer_manager =
-        ForeignStorageInterface::lookupBufferManager(db_id, tb_id);
+    const auto foreign_buffer_manager = fsi_->lookupBufferManager(db_id, tb_id);
     if (foreign_buffer_manager) {
       CHECK(allFileMgrs_.insert(std::make_pair(file_mgr_key, foreign_buffer_manager))
                 .second);

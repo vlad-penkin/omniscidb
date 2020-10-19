@@ -23,6 +23,7 @@
 #include "BufferMgr/CpuBufferMgr/CpuBufferMgr.h"
 #include "BufferMgr/GpuCudaBufferMgr/GpuCudaBufferMgr.h"
 #include "CudaMgr/CudaMgr.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "FileMgr/GlobalFileMgr.h"
 #include "PersistentStorageMgr/PersistentStorageMgr.h"
 
@@ -47,6 +48,7 @@ extern bool g_enable_fsi;
 namespace Data_Namespace {
 
 DataMgr::DataMgr(const string& dataDir,
+                 std::shared_ptr<ForeignStorageInterface> fsi,
                  const SystemParameters& system_parameters,
                  const bool useGpus,
                  const int numGpus,
@@ -68,7 +70,7 @@ DataMgr::DataMgr(const string& dataDir,
     hasGpus_ = false;
   }
 
-  populateMgrs(system_parameters, numReaderThreads);
+  populateMgrs(system_parameters, numReaderThreads, fsi);
   createTopLevelMetadata();
 }
 
@@ -154,14 +156,15 @@ size_t DataMgr::getTotalSystemMemory() {
 }
 
 void DataMgr::populateMgrs(const SystemParameters& system_parameters,
-                           const size_t userSpecifiedNumReaderThreads) {
+                           const size_t userSpecifiedNumReaderThreads,
+                           std::shared_ptr<ForeignStorageInterface> fsi) {
   bufferMgrs_.resize(2);
   if (g_enable_fsi) {
     bufferMgrs_[0].push_back(
-        new PersistentStorageMgr(dataDir_, userSpecifiedNumReaderThreads));
+        new PersistentStorageMgr(dataDir_, fsi, userSpecifiedNumReaderThreads));
   } else {
     bufferMgrs_[0].push_back(
-        new GlobalFileMgr(0, dataDir_, userSpecifiedNumReaderThreads));
+        new GlobalFileMgr(0, fsi, dataDir_, userSpecifiedNumReaderThreads));
   }
   levelSizes_.push_back(1);
   size_t cpuBufferSize = system_parameters.cpu_buffer_mem_bytes;

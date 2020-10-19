@@ -58,23 +58,14 @@ class QueryRunner {
   static QueryRunner* init(const char* db_path,
                            const std::string& udf_filename = "",
                            const size_t max_gpu_mem = 0,  // use all available mem
-                           const int reserved_gpu_mem = 256 << 20) {
-    return QueryRunner::init(db_path,
-                             std::string{OMNISCI_ROOT_USER},
-                             "HyperInteractive",
-                             std::string{OMNISCI_DEFAULT_DB},
-                             {},
-                             {},
-                             udf_filename,
-                             true,
-                             max_gpu_mem,
-                             reserved_gpu_mem);
-  }
+                           const int reserved_gpu_mem = 256 << 20);
 
   static QueryRunner* init(const char* db_path,
+                           std::shared_ptr<ForeignStorageInterface> fsi,
                            const std::vector<LeafHostInfo>& string_servers,
                            const std::vector<LeafHostInfo>& leaf_servers) {
     return QueryRunner::init(db_path,
+                             fsi,
                              std::string{OMNISCI_ROOT_USER},
                              "HyperInteractive",
                              std::string{OMNISCI_DEFAULT_DB},
@@ -83,6 +74,7 @@ class QueryRunner {
   }
 
   static QueryRunner* init(const char* db_path,
+                           std::shared_ptr<ForeignStorageInterface> fsi,
                            const std::string& user,
                            const std::string& pass,
                            const std::string& db_name,
@@ -131,10 +123,10 @@ class QueryRunner {
                                          const bool allow_loop_joins,
                                          const bool just_explain = false);
   virtual ExecutionResult runSelectQueryRA(const std::string& query_str,
-                                         const ExecutorDeviceType device_type,
-                                         const bool hoist_literals,
-                                         const bool allow_loop_joins,
-                                         const bool just_explain = false);                                         
+                                           const ExecutorDeviceType device_type,
+                                           const bool hoist_literals,
+                                           const bool allow_loop_joins,
+                                           const bool just_explain = false);
   virtual std::shared_ptr<ResultSet> runSQLWithAllowingInterrupt(
       const std::string& query_str,
       std::shared_ptr<Executor> executor,
@@ -167,6 +159,7 @@ class QueryRunner {
 
  protected:
   QueryRunner(const char* db_path,
+              std::shared_ptr<ForeignStorageInterface> fsi,
               const std::string& user,
               const std::string& pass,
               const std::string& db_name,

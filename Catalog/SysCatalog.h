@@ -141,6 +141,7 @@ class CommonFileOperations {
 class SysCatalog : private CommonFileOperations {
  public:
   void init(const std::string& basePath,
+            std::shared_ptr<ForeignStorageInterface> fsi,
             std::shared_ptr<Data_Namespace::DataMgr> dataMgr,
             const AuthMetadata& authMetadata,
             std::shared_ptr<Calcite> calcite,
@@ -281,10 +282,14 @@ class SysCatalog : private CommonFileOperations {
   void revokeDashboardSystemRole(const std::string roleName,
                                  const std::vector<std::string> grantees);
   bool isAggregator() const { return aggregator_; }
+
   static SysCatalog& instance() {
-    static SysCatalog sys_cat{};
-    return sys_cat;
+    if (!instance_) {
+      instance_.reset(new SysCatalog());
+    }
+    return *instance_;
   }
+  static void destroy() { instance_.reset(); }
 
   void populateRoleDbObjects(const std::vector<DBObject>& objects);
   std::string name() const { return OMNISCI_DEFAULT_DB; }
@@ -297,6 +302,8 @@ class SysCatalog : private CommonFileOperations {
       const std::vector<std::string>& dashboard_ids);
   void check_for_session_encryption(const std::string& pki_cert, std::string& session);
 
+  virtual ~SysCatalog();
+
  private:
   using GranteeMap = std::map<std::string, Grantee*>;
   using ObjectRoleDescriptorMap = std::multimap<std::string, ObjectRoleDescriptor*>;
@@ -308,7 +315,6 @@ class SysCatalog : private CommonFileOperations {
       , sharedMutex_()
       , thread_holding_sqlite_lock(std::thread::id())
       , thread_holding_write_lock(std::thread::id()) {}
-  virtual ~SysCatalog();
 
   void initDB();
   void buildRoleMap();
@@ -380,6 +386,7 @@ class SysCatalog : private CommonFileOperations {
   ObjectRoleDescriptorMap objectDescriptorMap_;
   std::unique_ptr<SqliteConnector> sqliteConnector_;
 
+  std::shared_ptr<ForeignStorageInterface> fsi_;
   std::shared_ptr<Data_Namespace::DataMgr> dataMgr_;
   std::unique_ptr<LdapServer> ldap_server_;
   std::unique_ptr<RestServer> rest_server_;
@@ -389,6 +396,8 @@ class SysCatalog : private CommonFileOperations {
   std::vector<LeafHostInfo> string_dict_hosts_;
   bool aggregator_;
   auto yieldTransactionStreamer();
+
+  static std::unique_ptr<SysCatalog> instance_;
 
  public:
   mutable std::mutex sqliteMutex_;

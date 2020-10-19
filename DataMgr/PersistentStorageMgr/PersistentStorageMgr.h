@@ -24,10 +24,13 @@ using namespace Data_Namespace;
 
 class PersistentStorageMgr : public AbstractBufferMgr {
  public:
-  PersistentStorageMgr(const std::string& data_dir, const size_t num_reader_threads)
+  PersistentStorageMgr(const std::string& data_dir,
+                       std::shared_ptr<ForeignStorageInterface> fsi,
+                       const size_t num_reader_threads)
       : AbstractBufferMgr(0)
       , global_file_mgr(
             std::make_unique<File_Namespace::GlobalFileMgr>(0,
+                                                            fsi,
                                                             data_dir,
                                                             num_reader_threads))
       , foreign_storage_mgr(std::make_unique<foreign_storage::ForeignStorageMgr>()) {}
