@@ -162,6 +162,8 @@ class DBHandlerTestFixture : public testing::Test {
     db_leaves_ = leaf_servers;
   }
 
+  static void setupFSI(std::shared_ptr<ForeignStorageInterface> fsi) { fsi_ = fsi; }
+
  protected:
   virtual void SetUp() override {
     createDBHandler();
@@ -219,7 +221,8 @@ class DBHandlerTestFixture : public testing::Test {
                                                 enable_runtime_udf_registration,
                                                 udf_filename_,
                                                 udf_compiler_path_,
-                                                udf_compiler_options_);
+                                                udf_compiler_options_,
+                                                fsi_);
 
       loginAdmin();
     }
@@ -421,6 +424,7 @@ class DBHandlerTestFixture : public testing::Test {
   }
 
   static std::unique_ptr<DBHandler> db_handler_;
+  static std::shared_ptr<ForeignStorageInterface> fsi_;
   static TSessionId session_id_;
   static TSessionId admin_session_id_;
   static std::vector<LeafHostInfo> db_leaves_;
@@ -439,6 +443,7 @@ class DBHandlerTestFixture : public testing::Test {
 TSessionId DBHandlerTestFixture::session_id_{};
 TSessionId DBHandlerTestFixture::admin_session_id_{};
 std::unique_ptr<DBHandler> DBHandlerTestFixture::db_handler_ = nullptr;
+std::shared_ptr<ForeignStorageInterface> DBHandlerTestFixture::fsi_ = nullptr;
 std::vector<LeafHostInfo> DBHandlerTestFixture::db_leaves_{};
 std::vector<LeafHostInfo> DBHandlerTestFixture::string_leaves_{};
 AuthMetadata DBHandlerTestFixture::auth_metadata_{};

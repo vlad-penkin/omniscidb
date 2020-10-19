@@ -183,7 +183,8 @@ class DBHandler : public OmniSciIf {
             const bool enable_runtime_udf_registration,
             const std::string& udf_filename,
             const std::string& clang_path,
-            const std::vector<std::string>& clang_options);
+            const std::vector<std::string>& clang_options,
+            std::shared_ptr<ForeignStorageInterface> fsi = nullptr);
 
   ~DBHandler() override;
 
