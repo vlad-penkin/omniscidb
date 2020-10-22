@@ -193,7 +193,8 @@ DBHandler::DBHandler(const std::vector<LeafHostInfo>& db_leaves,
                      const bool enable_runtime_udf_registration,
                      const std::string& udf_filename,
                      const std::string& clang_path,
-                     const std::vector<std::string>& clang_options)
+                     const std::vector<std::string>& clang_options,
+                     std::shared_ptr<ForeignStorageInterface> fsi)
     : leaf_aggregator_(db_leaves)
     , string_leaves_(string_leaves)
     , base_data_path_(base_data_path)
@@ -214,9 +215,15 @@ DBHandler::DBHandler(const std::vector<LeafHostInfo>& db_leaves,
   LOG(INFO) << "OmniSci Server " << MAPD_RELEASE;
   bool is_rendering_enabled = enable_rendering;
 
-  // Register foreign storage interfaces here
-  fsi_.reset(new ForeignStorageInterface());
-  registerArrowCsvForeignStorage(fsi_);
+  // Prebuilt FSI is used in tests when both QueryRunner and DBHandler
+  // are used at the same time and have to share FSI.
+  if (fsi) {
+    fsi_ = fsi;
+  } else {
+    fsi_.reset(new ForeignStorageInterface());
+    // Register foreign storage interfaces here
+    registerArrowCsvForeignStorage(fsi_);
+  }
 
   try {
     if (cpu_only) {

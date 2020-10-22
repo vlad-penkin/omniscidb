@@ -265,6 +265,7 @@ int main(int argc, char** argv) {
 
   try {
     err = RUN_ALL_TESTS();
+    engine.reset();
   } catch (const std::exception& e) {
     LOG(ERROR) << e.what();
   }

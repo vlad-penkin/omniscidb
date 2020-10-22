@@ -12,6 +12,7 @@
 #include "../QueryEngine/Execute.h"
 #include "../QueryRunner/QueryRunner.h"
 #include "DBHandlerTestHelpers.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "Shared/scope.h"
 #include "TestHelpers.h"
 #include "ThriftHandler/QueryState.h"
@@ -35,6 +36,7 @@ bool g_aggregator{false};
 Catalog_Namespace::UserMetadata user;
 std::vector<DBObject> privObjects;
 
+std::shared_ptr<ForeignStorageInterface> fsi;
 auto& sys_cat = Catalog_Namespace::SysCatalog::instance();
 
 inline void run_ddl_statement(const std::string& query) {
@@ -249,6 +251,8 @@ struct ServerObject : public DBHandlerTestFixture {
   Roles role_;
 
  protected:
+  static void SetUpTestSuite() { setupFSI(fsi); }
+
   void SetUp() override {
     if (g_aggregator) {
       LOG(INFO) << "Test fixture not supported in distributed mode.";
@@ -341,7 +345,10 @@ TEST_F(GrantSyntax, MultiRoleGrantRevoke) {
   check_revoke();
 }
 
-class InvalidGrantSyntax : public DBHandlerTestFixture {};
+class InvalidGrantSyntax : public DBHandlerTestFixture {
+protected:
+  static void SetUpTestSuite() { setupFSI(fsi); }
+};
 
 TEST_F(InvalidGrantSyntax, InvalidGrantSyntax) {
   std::string error_message;
@@ -2772,6 +2779,8 @@ TEST(Login, Deactivation) {
 
 class GetDbObjectsForGranteeTest : public DBHandlerTestFixture {
  protected:
+  static void SetUpTestSuite() { setupFSI(fsi); }
+
   void SetUp() override {
     DBHandlerTestFixture::SetUp();
     sql("CREATE USER test_user (password = 'test_pass');");
@@ -2852,7 +2861,8 @@ int main(int argc, char* argv[]) {
 
   logger::init(log_options);
 
-  QR::init(BASE_PATH);
+  fsi.reset(new ForeignStorageInterface());
+  QR::init(BASE_PATH, fsi, {}, {});
 
   g_calcite = QR::get()->getCatalog()->getCalciteMgr();
 
@@ -2863,6 +2873,7 @@ int main(int argc, char* argv[]) {
     LOG(ERROR) << e.what();
   }
   QR::reset();
+  fsi.reset();
   g_enable_fsi = false;
   return err;
 }

@@ -21,6 +21,7 @@
 #include <boost/algorithm/string.hpp>
 
 #include "Catalog/Catalog.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "MigrationMgr/MigrationMgr.h"
 #include "QueryRunner/QueryRunner.h"
 #include "Shared/Logger.h"
@@ -387,7 +388,9 @@ int main(int argc, char** argv) {
   TestHelpers::init_logger_stderr_only(argc, argv);
   testing::InitGoogleTest(&argc, argv);
 
+  auto fsi = std::make_shared<ForeignStorageInterface>();
   QR::init(BASE_PATH,
+           fsi,
            std::string{OMNISCI_ROOT_USER},
            "HyperInteractive",
            "migration_mgr_db",

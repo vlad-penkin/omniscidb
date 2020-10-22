@@ -24,6 +24,7 @@
 
 #include "Catalog/Catalog.h"
 #include "DBHandlerTestHelpers.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "SqliteConnector/SqliteConnector.h"
 #include "TestHelpers.h"
 
@@ -32,6 +33,7 @@
 #endif
 
 extern bool g_enable_fsi;
+std::shared_ptr<ForeignStorageInterface> fsi;
 
 class FsiSchemaTest : public testing::Test {
  protected:
@@ -42,7 +44,7 @@ class FsiSchemaTest : public testing::Test {
 
   static void SetUpTestSuite() {
     Catalog_Namespace::SysCatalog::instance().init(
-        BASE_PATH, nullptr, {}, nullptr, false, false, {});
+        BASE_PATH, fsi, nullptr, {}, nullptr, false, false, {});
   }
 
   void SetUp() override {
@@ -66,7 +68,7 @@ class FsiSchemaTest : public testing::Test {
     db_metadata.dbName = "omnisci";
     std::vector<LeafHostInfo> leaves{};
     return std::make_unique<Catalog_Namespace::Catalog>(
-        BASE_PATH, db_metadata, nullptr, leaves, nullptr, false);
+        BASE_PATH, fsi, db_metadata, nullptr, leaves, nullptr, false);
   }
 
   void assertExpectedDefaultServer(Catalog_Namespace::Catalog* catalog,
@@ -165,6 +167,8 @@ TEST_F(FsiSchemaTest, FsiTablesAreDroppedWhenFsiIsDisabled) {
 
 class ForeignTablesTest : public DBHandlerTestFixture {
  protected:
+  static void SetUpTestSuite() { setupFSI(fsi); }
+
   void SetUp() override {
     g_enable_fsi = true;
     DBHandlerTestFixture::SetUp();
@@ -226,12 +230,16 @@ int main(int argc, char** argv) {
   TestHelpers::init_logger_stderr_only(argc, argv);
   testing::InitGoogleTest(&argc, argv);
 
+  fsi.reset(new ForeignStorageInterface());
+
   int err{0};
   try {
     err = RUN_ALL_TESTS();
   } catch (const std::exception& e) {
     LOG(ERROR) << e.what();
   }
+
+  fsi.reset();
 
   return err;
 }
