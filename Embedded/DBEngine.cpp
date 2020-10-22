@@ -17,16 +17,20 @@
 #include "DBEngine.h"
 #include <boost/filesystem.hpp>
 #include <stdexcept>
+#include "Calcite/Calcite.h"
 #include "DataMgr/ForeignStorage/ArrowForeignStorage.h"
 #include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "Fragmenter/FragmentDefaultValues.h"
 #include "Parser/ParserWrapper.h"
 #include "Parser/parser.h"
 #include "QueryEngine/ArrowResultSet.h"
+#include "QueryEngine/CalciteAdapter.h"
 #include "QueryEngine/Execute.h"
 #include "QueryEngine/ExtensionFunctionsWhitelist.h"
+#include "QueryEngine/RelAlgExecutor.h"
 #include "QueryEngine/TableFunctions/TableFunctionsFactory.h"
 #include "QueryRunner/QueryRunner.h"
+#include "gen-cpp/CalciteServer.h"
 
 extern bool g_enable_union;
 
@@ -98,11 +102,18 @@ class CursorImpl : public Cursor {
  */
 class DBEngineImpl : public DBEngine {
  public:
-  DBEngineImpl() : is_temp_db_(false) {}
+  DBEngineImpl()
+  : is_temp_db_(false)
+  , allow_multifrag_(true)
+  , allow_loop_joins_(true)
+  { }
 
   ~DBEngineImpl() { reset(); }
 
-  bool init(const std::string& base_path, int port, const std::string& udf_filename) {
+  bool init(const std::string& base_path,
+            int port,
+            bool allow_multifrag,
+            const std::string& udf_filename) {
     static bool initialized{false};
     if (initialized) {
       throw std::runtime_error("Database engine already initialized");
@@ -154,6 +165,7 @@ class DBEngineImpl : public DBEngine {
         catalog, user_, ExecutorDeviceType::CPU, "");
     QR::init(session);
     base_path_ = db_path;
+    allow_multifrag_ = allow_multifrag;
     initialized = true;
     return true;
   }
@@ -195,10 +207,17 @@ class DBEngineImpl : public DBEngine {
   }
 
   std::shared_ptr<CursorImpl> executeDML(const std::string& query) {
+    auto session_info = QR::get()->getSession();
+    CHECK(session_info);
+    auto query_state = QR::create_query_state(session_info, query);
+    auto stdlog = STDLOG(query_state);
+
     ParserWrapper pw{query};
     if (pw.isCalcitePathPermissable()) {
-      const auto execution_result =
-          QR::get()->runSelectQuery(query, ExecutorDeviceType::CPU, true, true);
+      const auto execution_result = executeSelectQuery(session_info,
+                                                       query_state,
+                                                       ExecutorDeviceType::CPU,
+                                                       true);
       auto targets = execution_result.getTargetsMeta();
       std::vector<std::string> col_names;
       for (const auto target : targets) {
@@ -207,9 +226,6 @@ class DBEngineImpl : public DBEngine {
       return std::make_shared<CursorImpl>(execution_result.getRows(), col_names);
     }
 
-    auto session_info = QR::get()->getSession();
-    auto query_state = QR::create_query_state(session_info, query);
-    auto stdlog = STDLOG(query_state);
 
     SQLParser parser;
     std::list<std::unique_ptr<Parser::Stmt>> parse_trees;
@@ -227,8 +243,18 @@ class DBEngineImpl : public DBEngine {
     if (boost::starts_with(query, "execute calcite")) {
       return executeDML(query);
     }
-    const auto execution_result =
-        QR::get()->runSelectQueryRA(query, ExecutorDeviceType::CPU, true, true);
+
+    auto session_info = QR::get()->getSession();
+    CHECK(session_info);
+    const std::string exec_ra = "execute relalg";
+    auto actual_query = boost::trim_copy(query.substr(exec_ra.size()));
+    auto query_state = QR::create_query_state(session_info, actual_query);
+    auto stdlog = STDLOG(query_state);
+
+    const auto execution_result = executeSelectQuery(session_info,
+                                                     query_state,
+                                                     ExecutorDeviceType::CPU,
+                                                     false);
     auto targets = execution_result.getTargetsMeta();
     std::vector<std::string> col_names;
     for (const auto target : targets) {
@@ -450,6 +476,84 @@ class DBEngineImpl : public DBEngine {
     return root_dir;
   }
 
+  ExecutionResult executeSelectQuery(std::shared_ptr<Catalog_Namespace::SessionInfo>& session_info,
+                                     std::shared_ptr<query_state::QueryState>& query_state,
+                                     const ExecutorDeviceType device_type,
+                                     bool use_calcite) {
+    CHECK(!Catalog_Namespace::SysCatalog::instance().isAggregator());
+    auto executor = Executor::getExecutor(database_.dbId);
+    CompilationOptions co = CompilationOptions::defaults(device_type);
+    co.opt_level = ExecutorOptLevel::LoopStrengthReduction;
+    ExecutionOptions eo = {g_enable_columnar_output,
+                           allow_multifrag_,
+                           false, //just_explain
+                           allow_loop_joins_,
+                           false,
+                           false,
+                           false,
+                           false,
+                           10000,
+                           g_enable_filter_push_down,
+                           false,
+                           0.9,
+                           false,
+                           1000};
+    auto query_str = query_state->getQueryStr();
+    auto query_state_proxy = query_state->createQueryStateProxy();
+    const auto query_ra = use_calcite ? 
+                          calcite_->process(query_state->createQueryStateProxy(),
+                                            pg_shim(query_str),
+                                            {},
+                                            true,
+                                            false,
+                                            false,
+                                            true)
+                                  .plan_result:
+                          query_str;
+    const auto& cat = session_info->getCatalog();
+    auto result = RelAlgExecutor(executor.get(), cat, query_ra)
+                      .executeRelAlgQuery(co, eo, false, nullptr);
+
+    if (g_enable_filter_push_down) {
+      const auto& filter_push_down_requests = result.getPushedDownFilterInfo();
+      if (!filter_push_down_requests.empty()) {
+        std::vector<TFilterPushDownInfo> filter_push_down_info;
+        for (const auto& req : filter_push_down_requests) {
+          TFilterPushDownInfo filter_push_down_info_for_request;
+          filter_push_down_info_for_request.input_prev = req.input_prev;
+          filter_push_down_info_for_request.input_start = req.input_start;
+          filter_push_down_info_for_request.input_next = req.input_next;
+          filter_push_down_info.push_back(filter_push_down_info_for_request);
+        }
+        const auto new_query_ra = calcite_
+                                  ->process(query_state_proxy,
+                                            pg_shim(query_state->getQueryStr()),
+                                            filter_push_down_info,
+                                            true,
+                                            false,
+                                            false,
+                                            true)
+                                  .plan_result;
+        const ExecutionOptions eo_modified{eo.output_columnar_hint,
+                                           eo.allow_multifrag,
+                                           eo.just_explain,
+                                           eo.allow_loop_joins,
+                                           eo.with_watchdog,
+                                           eo.jit_debug,
+                                           eo.just_validate,
+                                           eo.with_dynamic_watchdog,
+                                           eo.dynamic_watchdog_time_limit,
+                                           /*find_push_down_candidates=*/false,
+                                           /*just_calcite_explain=*/false,
+                                           eo.gpu_input_mem_limit_percent,
+                                           eo.allow_runtime_query_interrupt};
+        return RelAlgExecutor(executor.get(), cat, new_query_ra)
+            .executeRelAlgQuery(co, eo_modified, false, nullptr);
+      }
+    }
+    return result;
+  }
+
  private:
   std::string base_path_;
   std::shared_ptr<ForeignStorageInterface> fsi_;
@@ -459,7 +563,8 @@ class DBEngineImpl : public DBEngine {
   Catalog_Namespace::UserMetadata user_;
   bool is_temp_db_;
   std::string udf_filename_;
-
+  bool allow_multifrag_;
+  bool allow_loop_joins_;
   std::vector<std::string> system_folders_ = {"mapd_catalogs",
                                               "mapd_data",
                                               "mapd_export"};
@@ -474,7 +579,7 @@ std::shared_ptr<DBEngine> DBEngine::create(const std::string& path, int port) {
   auto engine = std::make_shared<DBEngineImpl>();
   g_enable_union = false;
   g_enable_columnar_output = true;
-  if (!engine->init(path, port, "")) {
+  if (!engine->init(path, port, true, "")) {
     throw std::runtime_error("DBE initialization failed");
   }
   return engine;
@@ -488,6 +593,7 @@ std::shared_ptr<DBEngine> DBEngine::create(
   std::string path, udf_filename;
   g_enable_union = false;
   g_enable_columnar_output = true;
+  bool allow_multifrag(true);
   for (const auto& [key, value] : parameters) {
     if (key == "path") {
       path = value;
@@ -503,6 +609,8 @@ std::shared_ptr<DBEngine> DBEngine::create(
       g_enable_lazy_fetch = std::stoi(value);
     } else if (key == "udf_filename") {
       udf_filename = value;
+    } else if (key == "allow_multifrag") {
+      allow_multifrag = std::stoi(value);
     } else if (key == "null_div_by_zero") {
       g_null_div_by_zero = std::stoi(value);
     } else {
@@ -510,7 +618,7 @@ std::shared_ptr<DBEngine> DBEngine::create(
                 << std::endl;
     }
   }
-  if (!engine->init(path, port, udf_filename)) {
+  if (!engine->init(path, port, allow_multifrag, udf_filename)) {
     throw std::runtime_error("DBE initialization failed");
   }
   return engine;
