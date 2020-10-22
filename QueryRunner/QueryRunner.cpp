@@ -461,7 +461,7 @@ ExecutionResult run_select_query_with_filter_push_down(
                                       true)
                             .plan_result;
   auto result = RelAlgExecutor(executor.get(), cat, query_ra)
-                    .executeRelAlgQuery(co, eo, false, nullptr);
+      .executeRelAlgQuery(co, eo.with_multifrag_result(g_enable_multifrag_rs), false, nullptr);
   const auto& filter_push_down_requests = result.getPushedDownFilterInfo();
   if (!filter_push_down_requests.empty()) {
     std::vector<TFilterPushDownInfo> filter_push_down_info;
@@ -525,7 +525,6 @@ ExecutionResult QueryRunner::runSelectQuery(const std::string& query_str,
   auto executor = Executor::getExecutor(cat.getCurrentDB().dbId);
   CompilationOptions co = CompilationOptions::defaults(device_type);
   co.opt_level = ExecutorOptLevel::LoopStrengthReduction;
-
   ExecutionOptions eo = {g_enable_columnar_output,
                          true,
                          just_explain,
@@ -551,7 +550,7 @@ ExecutionResult QueryRunner::runSelectQuery(const std::string& query_str,
                                       true)
                             .plan_result;
   return RelAlgExecutor(executor.get(), cat, query_ra)
-      .executeRelAlgQuery(co, eo, false, nullptr);
+      .executeRelAlgQuery(co, eo.with_multifrag_result(g_enable_multifrag_rs), false, nullptr);
 }
 
 ExecutionResult QueryRunner::runSelectQueryRA(const std::string& query_str,
@@ -595,7 +594,7 @@ ExecutionResult QueryRunner::runSelectQueryRA(const std::string& query_str,
                          1000};
   auto calcite_mgr = cat.getCalciteMgr();
   return RelAlgExecutor(executor.get(), cat, actual_query)
-      .executeRelAlgQuery(co, eo, false, nullptr);
+      .executeRelAlgQuery(co, eo.with_multifrag_result(g_enable_multifrag_rs), false, nullptr);
 }
 
 const std::shared_ptr<std::vector<int32_t>>& QueryRunner::getCachedJoinHashTable(
