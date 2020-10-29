@@ -33,6 +33,7 @@ dependencies:
   - tbb-devel
   - cython
   - make
+  - go
   - maven
   - boost-cpp
   - clangdev
