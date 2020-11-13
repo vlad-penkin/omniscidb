@@ -26,6 +26,8 @@ requirements:
     - llvmdev <11
     - make
     - maven
+    # new tbb needs glibc >= 2.14
+    - sysroot_linux-64 >=2.14 # [linux]
   host:
     - numpy
     - cython
@@ -51,7 +53,7 @@ requirements:
     - openssl
     - snappy
     - thrift-cpp
-    - tbb-devel
+    - tbb-devel {{ tbb }}
   # no need in run: section when using multiple outputs
 
 outputs:
@@ -77,7 +79,7 @@ outputs:
         - xz
         - zlib
         - arrow-cpp =1.0
-        - tbb
+        - tbb {{ tbb }}
         - llvm <11
 
     about:
@@ -119,7 +121,7 @@ outputs:
         - xz
         - zlib
         - arrow-cpp =1.0
-        - tbb
+        - tbb {{ tbb }}
         - {{ pin_subpackage('omniscidb-common', exact=True) }}
       run_constrained:
         - arrow-cpp-proc * {{ build_ext }}
@@ -185,6 +187,8 @@ outputs:
         - llvmdev <11
         - make
         - maven
+        # new tbb needs glibc >= 2.14
+        - sysroot_linux-64 >=2.14 # [linux]
       host:
         - arrow-cpp =1.0
         - bisonpp
@@ -208,7 +212,7 @@ outputs:
         - openssl
         - snappy
         - thrift-cpp
-        - tbb-devel
+        - tbb-devel {{ tbb }}
         - python
         - cython
         - numpy
@@ -217,7 +221,7 @@ outputs:
       run:
         - python
         - pyarrow =1.0
-        - tbb4py
+        - tbb4py {{ tbb }}
         - {{ pin_subpackage('omniscidbe', exact=True) }}
         - {{ pin_subpackage('omniscidb-common', exact=True) }}
     test:

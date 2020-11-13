@@ -4,10 +4,10 @@ ignore_build_only_deps:
 - numpy
 - python
 numpy: '1.18'
-tbb: '2020.1'
+tbb: '2021.1.1'
 python:
 - 3.7
-- 3.8
+#- 3.8
 boost_cpp: '1.72'
 pin_run_as_build:
   boost-cpp:
