@@ -607,12 +607,15 @@ void CreateForeignTableCommand::setTableDetails(const std::string& table_name,
       foreign_storage::CsvDataWrapper::validateOptions(&foreign_table);
       supported_data_wrapper_options =
           foreign_storage::CsvDataWrapper::getSupportedOptions();
-    } else if (foreign_table.foreign_server->data_wrapper_type ==
+    }
+#ifdef ENABLE_IMPORT_PARQUET
+    else if (foreign_table.foreign_server->data_wrapper_type ==
                foreign_storage::DataWrapperType::PARQUET) {
       foreign_storage::ParquetDataWrapper::validateOptions(&foreign_table);
       supported_data_wrapper_options =
           foreign_storage::ParquetDataWrapper::getSupportedOptions();
     }
+#endif
     foreign_table.validate(supported_data_wrapper_options);
   }
 

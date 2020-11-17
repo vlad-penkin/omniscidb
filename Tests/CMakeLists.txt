@@ -273,9 +273,11 @@ if("${MAPD_EDITION_LOWER}" STREQUAL "ee")
   add_test(PkiEncryptorTest PkiEncryptorTest ${TEST_ARGS})
 endif()
 
-add_executable(ArrowIpcIntegrationTest ArrowIpcIntegrationTest.cpp)
-target_link_libraries(ArrowIpcIntegrationTest gtest ThriftClient mapd_thrift Logger Shared ${CUDA_LIBRARIES} ${Arrow_LIBRARIES})
-add_test(ArrowIpcIntegrationTest ArrowIpcIntegrationTest ${TEST_ARGS})
+if(NOT MSVC)
+  add_executable(ArrowIpcIntegrationTest ArrowIpcIntegrationTest.cpp)
+  target_link_libraries(ArrowIpcIntegrationTest gtest ThriftClient mapd_thrift Logger Shared ${CUDA_LIBRARIES} ${Arrow_LIBRARIES})
+  add_test(ArrowIpcIntegrationTest ArrowIpcIntegrationTest ${TEST_ARGS})
+endif()
 
 # parse s3 credentials
 file(READ aws/s3client.conf S3CLIENT_CONF)

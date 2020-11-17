@@ -136,14 +136,14 @@ void omnisci_signal_handler(int signum) {
       ) {
     // Wait briefly to give heartbeat() a chance to flush the logs and
     // do any other emergency shutdown tasks.
-    sleep(2);
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
     // Explicitly trigger whatever default action this signal would
     // have done, such as terminate the process or dump core.
     // Signals are currently blocked so this new signal will be queued
     // until this signal handler returns.
     register_signal_handler(signum, SIG_DFL);
-    sleep(5);
+    std::this_thread::sleep_for(std::chrono::seconds(5));
 #ifdef _WIN32
     raise(signum);
 #else

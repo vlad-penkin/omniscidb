@@ -1561,7 +1561,7 @@ void exportTestBody(std::string sourcePartitionScheme = ")") {
   boost::filesystem::path temp =
       boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
 
-  std::string export_file_name = temp.native() + std::string(".csv");
+  std::string export_file_name = temp.make_preferred().string() + std::string(".csv");
 
   // execute CTAS
   std::string export_sql = "COPY (SELECT * FROM EXPORT_SOURCE) TO '" + export_file_name +
@@ -1901,8 +1901,8 @@ ARRAY_COLUMN_TEST(BIGINT, "BIGINT");
 NUMBER_COLUMN_TEST(Float, float, "FLOAT", kFLOAT, NULL_FLOAT);
 ARRAY_COLUMN_TEST(Float, "FLOAT");
 
-NUMBER_COLUMN_TEST(Double, double, "DOUBLE", kDOUBLE, NULL_DOUBLE);
-ARRAY_COLUMN_TEST(Double, "DOUBLE");
+NUMBER_COLUMN_TEST(DoubleTest, double, "DOUBLE", kDOUBLE, NULL_DOUBLE);
+ARRAY_COLUMN_TEST(DoubleTest, "DOUBLE");
 
 NUMBER_COLUMN_TEST(NUMERIC, int64_t, "NUMERIC(18)", kNUMERIC, NULL_BIGINT);
 NUMBER_COLUMN_TEST(NUMERIC_32,
@@ -2010,9 +2010,9 @@ const std::vector<std::shared_ptr<TestColumnDescriptor>> ALL = {STRING_NONE_BASE
                                                                 Float,
                                                                 Float_ARRAY,
                                                                 Float_FIXED_LEN_ARRAY,
-                                                                Double,
-                                                                Double_ARRAY,
-                                                                Double_FIXED_LEN_ARRAY,
+                                                                DoubleTest,
+                                                                DoubleTest_ARRAY,
+                                                                DoubleTest_FIXED_LEN_ARRAY,
                                                                 NUMERIC_16,
                                                                 NUMERIC_32,
                                                                 NUMERIC,
@@ -2056,8 +2056,8 @@ INSTANTIATE_TEST_SUITE_P(
     Update,
     testing::Values(std::vector<std::shared_ptr<TestColumnDescriptor>>{
         STRING_NONE_BASE,
-        BOOLEAN_ARRAY,
-        BOOLEAN_FIXED_LEN_ARRAY,
+        Boolean_ARRAY,
+        Boolean_FIXED_LEN_ARRAY,
         TINYINT_ARRAY,
         TINYINT_FIXED_LEN_ARRAY,
         SMALLINT_ARRAY,
@@ -2073,8 +2073,8 @@ INSTANTIATE_TEST_SUITE_P(
         TEXT_FIXED_LEN_ARRAY,
         TIME_ARRAY,
         TIME_FIXED_LEN_ARRAY,
-        DATE_ARRAY,
-        DATE_FIXED_LEN_ARRAY,
+        Date_ARRAY,
+        Date_FIXED_LEN_ARRAY,
         TIMESTAMP_ARRAY,
         TIMESTAMP_FIXED_LEN_ARRAY
 
@@ -2082,7 +2082,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST(Itas, InsertIntoTempTableFromSelect) {
   std::vector<std::shared_ptr<TestColumnDescriptor>> columnDescriptors = {
-      BOOLEAN,
+      Boolean,
       TINYINT,
       SMALLINT,
       INTEGER,
@@ -2090,7 +2090,7 @@ TEST(Itas, InsertIntoTempTableFromSelect) {
       NUMERIC,
       TEXT,
       TIME,
-      DATE,
+      Date,
       TIMESTAMP,
   };
 
