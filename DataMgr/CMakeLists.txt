@@ -33,13 +33,16 @@ set(datamgr_source_files
     BufferMgr/CpuBufferMgr/CpuBuffer.cpp
     BufferMgr/BufferMgr.cpp
     BufferMgr/Buffer.cpp
-    ForeignStorage/ParquetDataWrapper.cpp
     PersistentStorageMgr/MutableCachePersistentStorageMgr.cpp
     PersistentStorageMgr/PersistentStorageMgr.cpp
     ForeignStorage/LazyParquetChunkLoader.cpp
     ForeignStorage/ParquetShared.cpp
     ForeignStorage/ForeignTableRefresh.cpp
 )
+
+if (ENABLE_IMPORT_PARQUET)
+    set(datamgr_source_files ${datamgr_source_files} ForeignStorage/ParquetDataWrapper.cpp)
+endif()
 
 if("${MAPD_EDITION_LOWER}" STREQUAL "ee")
 if(ENABLE_AWS_S3)

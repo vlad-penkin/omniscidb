@@ -21,9 +21,14 @@
 #include <string>
 #include <utility>
 
-#include <pwd.h>
 #include <sys/types.h>
+#ifdef _WIN32
+#include <folly/portability/unistd.h>
+using namespace folly::portability::unistd;
+#else
+#include <pwd.h>
 #include <unistd.h>
+#endif
 
 inline constexpr char const* const getDefaultHistoryFilename() {
   return ".omnisql_history";
@@ -32,10 +37,12 @@ inline constexpr char const* const getDefaultHistoryFilename() {
 class DefaultEnvResolver {
  public:
   auto getuid() const { return ::getuid(); }
+#ifndef _WIN32
   auto const* getpwuid(decltype(::getuid()) uid) const { return ::getpwuid(uid); }
+#endif
 
-#ifdef __APPLE__
-  auto const* getenv(char const* env_var_name) const { return ::getenv(env_var_name); }
+#if defined(_APPLE__) || defined(_WIN32)
+  auto const* getenv(char const* env_var_name) const {return ::getenv(env_var_name); }
 #else
   auto const* getenv(char const* env_var_name) const {
     return ::secure_getenv(env_var_name);
@@ -63,10 +70,24 @@ class CommandHistoryFileImpl : private ENV_RESOLVER {
   auto resolveHomeDirectory() const {
     auto* home_env = this->getenv("HOME");
     if (home_env == nullptr) {
+#ifdef _WIN32
+#ifdef _UNICODE
+      wchar_t home_dir_w[MAX_PATH];
+      if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_PERSONAL, NULL, 0, home_dir_w))) {
+        wcstombs(home_dir_, home_dir_w, MAX_PATH);
+        home_env = home_dir_;
+      }
+#else
+      if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_PERSONAL, NULL, 0, home_dir_))) {
+        home_env = home_dir_;
+      }
+#endif
+#else
       auto* passwd_entry = ENV_RESOLVER::getpwuid(ENV_RESOLVER::getuid());
       if (passwd_entry != nullptr) {
         home_env = passwd_entry->pw_dir;
       }
+#endif
     }
     return home_env;
   }
@@ -81,6 +102,9 @@ class CommandHistoryFileImpl : private ENV_RESOLVER {
   }
 
  private:
+#ifdef _WIN32
+  mutable char home_dir_[MAX_PATH];
+#endif
   std::string command_file_name_;
 };
 

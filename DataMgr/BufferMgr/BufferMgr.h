@@ -31,8 +31,7 @@
 #include <map>
 #include <mutex>
 
-#include <boost/stacktrace.hpp>
-
+#include <Shared/boost_stacktrace.hpp>
 #include "DataMgr/AbstractBuffer.h"
 #include "DataMgr/AbstractBufferMgr.h"
 #include "DataMgr/BufferMgr/BufferSeg.h"

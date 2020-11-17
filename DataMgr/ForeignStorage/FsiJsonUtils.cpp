@@ -27,11 +27,11 @@ namespace json_utils {
 
 // Basic types (more can be added as required)
 void set_value(rapidjson::Value& json_val,
-               const long unsigned int& value,
+               const unsigned long long& value,
                rapidjson::Document::AllocatorType& allocator) {
   json_val.SetUint64(value);
 }
-void get_value(const rapidjson::Value& json_val, long unsigned int& value) {
+void get_value(const rapidjson::Value& json_val, unsigned long long& value) {
   CHECK(json_val.IsUint64());
   value = json_val.GetUint64();
 }

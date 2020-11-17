@@ -18,7 +18,7 @@
 #include "QueryEngine/NvidiaKernel.h"
 
 #include <algorithm>
-#include <boost/stacktrace.hpp>
+#include <Shared/boost_stacktrace.hpp>
 #include <cassert>
 #include <iostream>
 #include <stdexcept>

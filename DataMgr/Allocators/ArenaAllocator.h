@@ -32,7 +32,7 @@ class SysAllocator {
   template <class U>
   constexpr SysAllocator(const SysAllocator<U>&) noexcept {}
 
-  [[nodiscard]] T* allocate(size_t count) { return checked_malloc(count); }
+  [[nodiscard]] T* allocate(size_t count) { return static_cast<T*>(checked_malloc(count)); }
 
   void deallocate(T* p, size_t /* count */) { free(p); }
 
@@ -51,12 +51,12 @@ constexpr size_t kArenaBlockOverhead = folly::Arena<::SysAllocator<void>>::kBloc
  * Arena allocator using checked_malloc with default allocation size 2GB. Note that the
  * allocator only frees memory on destruction.
  */
-class Arena : public folly::Arena<::SysAllocator<void>> {
+class Arena : public folly::Arena<::SysAllocator<char>> {
  public:
-  explicit Arena(size_t min_block_size = static_cast<size_t>(1UL << 32) + kBlockOverhead,
+  explicit Arena(size_t min_block_size = static_cast<size_t>(1ULL << 32) + kBlockOverhead,
                  size_t size_limit = kNoSizeLimit,
                  size_t max_align = kDefaultMaxAlign)
-      : folly::Arena<SysAllocator<void>>({}, min_block_size, size_limit, max_align) {}
+      : folly::Arena<SysAllocator<char>>({}, min_block_size, size_limit, max_align) {}
 
   void* allocateAndZero(const size_t size) {
     auto ret = allocate(size);

@@ -25,7 +25,6 @@
 
 #include "Shared/mapd_shared_ptr.h"
 #include "gen-cpp/extension_functions_types.h"
-
 #include <thrift/transport/TTransport.h>
 
 #include <mutex>

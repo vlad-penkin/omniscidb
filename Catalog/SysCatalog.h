@@ -40,7 +40,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
 #include "Grantee.h"
 #include "ObjectRoleDescriptor.h"
 #include "PkiServer.h"

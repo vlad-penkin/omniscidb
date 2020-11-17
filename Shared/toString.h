@@ -35,11 +35,13 @@
 #pragma once
 
 #ifndef __CUDACC__
-#if __cplusplus >= 201703L
 
 #define HAVE_TOSTRING
 
+#ifndef _WIN32
 #include <cxxabi.h>
+#endif
+
 #include <iostream>
 #include <sstream>
 #include <type_traits>
@@ -76,9 +78,13 @@ template <typename T>
 std::string typeName(const T* v) {
   std::stringstream stream;
   int status;
+#ifdef _WIN32
+  stream << std::string(typeid(T).name());
+#else
   char* demangled = abi::__cxa_demangle(typeid(T).name(), 0, 0, &status);
   stream << std::string(demangled);
   free(demangled);
+#endif
   return stream.str();
 }
 
@@ -221,6 +227,4 @@ std::string toString(const std::unordered_set<T>& v) {
   result += "}";
   return result;
 }
-
-#endif  //  __cplusplus >= 201703L
 #endif  // __CUDACC__

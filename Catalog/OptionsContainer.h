@@ -16,6 +16,16 @@
 
 #pragma once
 
+#ifdef _WIN32
+// On Windows windows.h might be included by that moment (and it
+// happens due to folly library usage). It causes GetObject to be
+// a macro defined to either GetObjectA or GetObjectW. This breaks
+// rapidjson library which uses GetObject function
+#ifdef GetObject
+#undef GetObject
+#endif
+#endif
+
 #include <string>
 #include <unordered_map>
 

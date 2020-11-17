@@ -14,9 +14,28 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef BOOST_STACKTRACE_H
+#define BOOST_STACKTRACE_H
 
-#define DEFAULT_FRAGMENT_ROWS 32000000ULL     // in tuples
-#define DEFAULT_PAGE_SIZE 2097152ULL          // in bytes
-#define DEFAULT_MAX_ROWS ((1LL) << 62)        // in rows
-#define DEFAULT_MAX_CHUNK_SIZE 1073741824ULL  // in bytes
+#include <windows.h>
+
+// boost includes dbgeng.h which uses IN and OUT macroses
+// in structure declaration. For some reason those macroses
+// can be undefined (not clear if it is SDK or our bug, rpcdce.h defines them only),
+// so we define these macroses here to fix the problem.
+#ifndef IN
+#define IN
+#define OUT
+#define UNDEF_IN_OUT
+#endif
+
+#include <boost/stacktrace.hpp>
+
+#ifdef UNDEF_IN_OUT
+#undef IN
+#undef OUT
+#endif
+
+#include "cleanup_global_namespace.h"
+
+#endif  // BOOST_STACKTRACE_H

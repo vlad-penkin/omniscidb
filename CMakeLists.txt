@@ -213,7 +213,7 @@ if(ENABLE_FOLLY)
 endif()
 
 if(MSVC)
-  include_directories(include_directories("${LIBS_PATH}/include/pdcurses"))
+  include_directories("${LIBS_PATH}/include/pdcurses")
 else()
   find_package(Curses)
   include_directories(${CURSES_INCLUDE_DIRS})
@@ -225,7 +225,7 @@ endif()
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
 
 if(MSVC)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /permissive /EHsc /std:c++17 /D _WIN32_WINNT=0x0A00 /D NOMINMAX /D WIN32_LEAN_AND_MEAN /D VC_EXTRALEAN /D _HAS_DEPRECATED_RESULT_OF /D _SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING /D _CRT_SECURE_NO_WARNINGS")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /permissive /EHsc /std:c++17 /D _WIN32_WINNT=0x0A00 /D NOMINMAX /D NOGDI /D WIN32_LEAN_AND_MEAN /D VC_EXTRALEAN /D _HAS_DEPRECATED_RESULT_OF /D _SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING /D _CRT_SECURE_NO_WARNINGS")
 else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-local-typedefs -fdiagnostics-color=auto -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS")
   if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -316,7 +316,7 @@ find_library(CLANG_LIB clang-cpp)
 find_library(LLVM_LIB LLVM)
 # Deps builds use separate libs for each clang component, while some distros now bundle into a single lib
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" OR NOT LLVM_LIB)
-  set(LLVM_COMPONENTS support mcjit core irreader option)
+  set(LLVM_COMPONENTS support mcjit core irreader option linker)
 
   option(ENABLE_INTEL_JIT_LISTENER "Enable Intel Vtune JIT Listener" OFF)
   if(ENABLE_INTEL_JIT_LISTENER)
@@ -423,7 +423,7 @@ endif()
 include_directories(ThirdParty/rapidjson)
 add_definitions(-DRAPIDJSON_HAS_STDSTRING)
 
-# Linenoise
+# Linenoise 
 add_subdirectory(ThirdParty/linenoise)
 
 if(NOT MSVC)

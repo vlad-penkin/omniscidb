@@ -33,7 +33,7 @@
 #include "Shared/SystemParameters.h"
 #include "Shared/import_helpers.h"
 #include "TestProcessSignalHandler.h"
-#include "ThirdParty/include/bcrypt.h"
+#include "include/bcrypt.h"
 #include "gen-cpp/CalciteServer.h"
 
 #include <boost/filesystem/operations.hpp>
@@ -309,7 +309,7 @@ std::shared_ptr<ResultSet> QueryRunner::runSQL(const std::string& query_str,
   CHECK_EQ(parser.parse(query_str, parse_trees, last_parsed), 0) << query_str;
   CHECK_EQ(parse_trees.size(), size_t(1));
   auto stmt = parse_trees.front().get();
-  auto insert_values_stmt = dynamic_cast<InsertValuesStmt*>(stmt);
+  auto insert_values_stmt = dynamic_cast<Parser::InsertValuesStmt*>(stmt);
   CHECK(insert_values_stmt);
   insert_values_stmt->execute(*session_info_);
   return nullptr;

@@ -22,7 +22,13 @@
  **/
 
 #include <rapidjson/document.h>
+#ifndef _WIN32
 #include <termios.h>
+#else
+#include <windows.h>
+#include <Shlobj.h>
+#include "Shared/cleanup_global_namespace.h"
+#endif
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -58,7 +64,7 @@
 #include "Shared/misc.h"
 #include "gen-cpp/OmniSci.h"
 
-#include "linenoise.h"
+#include "include/linenoise.h"
 
 #include "ClientContext.h"
 #include "CommandFunctors.h"
@@ -529,19 +535,23 @@ TDatum columnar_val_to_datum(const TColumn& col,
 
 // based on http://www.gnu.org/software/libc/manual/html_node/getpass.html
 std::string mapd_getpass() {
+#ifndef _WIN32
   struct termios origterm, tmpterm;
 
   tcgetattr(STDIN_FILENO, &origterm);
   tmpterm = origterm;
   tmpterm.c_lflag &= ~ECHO;
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &tmpterm);
+#endif
 
   std::cout << "Password: ";
   std::string password;
   std::getline(std::cin, password);
   std::cout << std::endl;
 
+#ifndef _WIN32
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &origterm);
+#endif
 
   return password;
 }
@@ -631,7 +641,9 @@ void omnisql_signal_handler(int signal_number) {
 
 void register_signal_handler() {
   signal(SIGTERM, omnisql_signal_handler);
+#ifndef _WIN32
   signal(SIGKILL, omnisql_signal_handler);
+#endif
   signal(SIGINT, omnisql_signal_handler);
 }
 
@@ -670,12 +682,12 @@ void print_memory_summary(ClientContext& context, std::string memory_level) {
       tss << "            MAX            USE      ALLOCATED           FREE" << std::endl;
     }
   }
-  u_int16_t gpu_num = 0;
+  uint16_t gpu_num = 0;
   for (auto& nodeIt : memory_info) {
     int MB = 1024 * 1024;
-    u_int64_t page_count = 0;
-    u_int64_t free_page_count = 0;
-    u_int64_t used_page_count = 0;
+    uint64_t page_count = 0;
+    uint64_t free_page_count = 0;
+    uint64_t used_page_count = 0;
     for (auto& segIt : nodeIt.node_memory_data) {
       page_count += segIt.num_pages;
       if (segIt.is_free) {
@@ -835,7 +847,7 @@ static std::vector<std::string> stringify_privs(const std::vector<bool>& priv_ma
                                                 TDBObjectType::type type) {
   // Client priviliges print lookup
   std::vector<std::string> priv_strs;
-  static const std::unordered_map<const TDBObjectType::type,
+  static const std::unordered_map<int,
                                   const std::vector<std::string>>
       privilege_names_lookup{
           {TDBObjectType::DatabaseDBObjectType,
@@ -854,7 +866,7 @@ static std::vector<std::string> stringify_privs(const std::vector<bool>& priv_ma
           {TDBObjectType::ViewDBObjectType,
            {"create"s, "drop"s, "select"s, "insert"s, "update"s, "delete"s}}};
 
-  const auto privilege_names = privilege_names_lookup.find(type);
+  const auto privilege_names = privilege_names_lookup.find(static_cast<int>(type));
 
   if (privilege_names != privilege_names_lookup.end()) {
     size_t i = 0;
@@ -1261,7 +1273,7 @@ int main(int argc, char** argv) {
    * pointer with a custom free() deleter; no need to free this memory explicitly. */
 
   while (true) {
-    using LineType = std::remove_pointer<__decltype(linenoise(prompt.c_str()))>::type;
+    using LineType = std::remove_pointer<decltype(linenoise(prompt.c_str()))>::type;
     using LineTypePtr = LineType*;
 
     std::unique_ptr<LineType, std::function<void(LineTypePtr)>> smart_line(

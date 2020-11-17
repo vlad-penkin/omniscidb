@@ -248,9 +248,13 @@ set(QUERY_ENGINE_LIBS
   Utils
   Logger
   Shared
-  sqlite3
   ${Arrow_LIBRARIES}
 )
+if (MSVC)
+    list(APPEND QUERY_ENGINE_LIBS ${SQLite3_LIBRARIES})
+else()
+    list(APPEND QUERY_ENGINE_LIBS sqlite3)
+endif()
 
 list(APPEND QUERY_ENGINE_LIBS ${clang_libs})
 list(APPEND QUERY_ENGINE_LIBS ${llvm_libs} ${ZLIB_LIBRARIES})

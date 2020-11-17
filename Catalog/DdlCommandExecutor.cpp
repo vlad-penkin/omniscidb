@@ -15,7 +15,6 @@
  */
 
 #include "DdlCommandExecutor.h"
-
 #include <boost/algorithm/string/predicate.hpp>
 
 #include "Catalog/Catalog.h"

@@ -39,9 +39,9 @@ void get_value_from_object(const rapidjson::Value& object,
 // Basic types (more can be added as required) will be defined in source file
 // int
 void set_value(rapidjson::Value& json_val,
-               const long unsigned int& value,
+               const unsigned long long& value,
                rapidjson::Document::AllocatorType& allocator);
-void get_value(const rapidjson::Value& json_val, long unsigned int& value);
+void get_value(const rapidjson::Value& json_val, unsigned long long& value);
 // unsigned long int / size_t
 void set_value(rapidjson::Value& json_val,
                const int& value,

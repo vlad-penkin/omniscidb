@@ -27,6 +27,9 @@
 #include "ImportExport/DelimitedParserUtils.h"
 #include "Logger/Logger.h"
 
+#include <thread>
+#include <chrono>
+
 using namespace ::apache::thrift;
 
 SQLTypes get_sql_types(const TColumnType& ct) {
@@ -293,7 +296,7 @@ bool RowToColumnLoader::convert_string_to_column(
     std::vector<TStringValue> row,
     const import_export::CopyParams& copy_params) {
   // create datum and push data to column structure from row data
-  uint curr_col = 0;
+  uint64_t curr_col = 0;
   for (TStringValue ts : row) {
     try {
       switch (column_type_info_[curr_col].get_type()) {
@@ -323,9 +326,16 @@ bool RowToColumnLoader::convert_string_to_column(
     } catch (const std::exception& e) {
       remove_partial_row(curr_col, column_type_info_, input_columns_);
       // import_status.rows_rejected++;
-      LOG(ERROR) << "Input exception thrown: " << e.what()
-                 << ". Row discarded, issue at column : " << (curr_col + 1)
-                 << " data :" << print_row_with_delim(row, copy_params);
+      //LOG(ERROR) << "Input exception thrown: ";
+      auto a = logger::ERROR;
+      if (logger::fast_logging_check(a)) {
+        int b = logger::ERROR;
+      }
+      //if (logger::fast_logging_check(logger::ERROR))
+      //  if (auto _omnisci_logger_ = logger::Logger(logger::ERROR))
+      //<< e.what()
+      //           << ". Row discarded, issue at column : " << (curr_col + 1)
+      //           << " data :" << print_row_with_delim(row, copy_params);
       return false;
     }
     curr_col++;
@@ -399,7 +409,7 @@ void RowToColumnLoader::wait_disconnet_reconnnect_retry(
   std::cout << "  Waiting  " << copy_params.retry_wait
             << " secs to retry Inserts , will try " << (copy_params.retry_count - tries)
             << " times more " << std::endl;
-  sleep(copy_params.retry_wait);
+  std::this_thread::sleep_for(std::chrono::seconds(copy_params.retry_wait));
 
   closeConnection();
   createConnection(conn_details_);

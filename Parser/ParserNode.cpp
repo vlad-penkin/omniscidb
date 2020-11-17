@@ -80,12 +80,12 @@ using Catalog_Namespace::SysCatalog;
 using namespace std::string_literals;
 
 using TableDefFuncPtr = boost::function<void(TableDescriptor&,
-                                             const NameValueAssign*,
+                                             const Parser::NameValueAssign*,
                                              const std::list<ColumnDescriptor>& columns)>;
 
 using DataframeDefFuncPtr =
     boost::function<void(DataframeTableDescriptor&,
-                         const NameValueAssign*,
+                         const Parser::NameValueAssign*,
                          const std::list<ColumnDescriptor>& columns)>;
 
 namespace Parser {
@@ -2910,13 +2910,13 @@ void InsertIntoTableAsSelectStmt::populateData(QueryStateProxy query_state_proxy
         size_t leaf_count = leafs_connector_->leafCount();
 
         size_t max_number_of_rows_per_package =
-            std::min(num_rows / leaf_count, 64UL * 1024UL);
+            std::min(num_rows / leaf_count, 64ULL * 1024ULL);
 
         size_t start_row = 0;
         size_t num_rows_to_process = std::min(num_rows, max_number_of_rows_per_package);
 
         // ensure that at least one row is being processed
-        num_rows_to_process = std::max(num_rows_to_process, 1UL);
+        num_rows_to_process = std::max(num_rows_to_process, 1ULL);
 
         std::vector<std::unique_ptr<TargetValueConverter>> value_converters;
 

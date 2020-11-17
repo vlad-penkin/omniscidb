@@ -81,7 +81,7 @@ set(parser_source_files
 
 if(MSVC)
 
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/LegacyParserSkeleton.h DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/parser.h)
+file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/LegacyParserSkeleton.h ${CMAKE_CURRENT_BINARY_DIR}/parser.h SYMBOLIC COPY_ON_ERROR)
 add_library(Parser ${CMAKE_CURRENT_BINARY_DIR}/parser.h ${parser_source_files})
 
 target_link_libraries(Parser QueryState ImportExport Shared Analyzer QueryEngine Catalog TableArchiver DataMgr LockMgr)

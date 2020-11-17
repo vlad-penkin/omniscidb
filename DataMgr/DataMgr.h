@@ -23,6 +23,7 @@
 
 #include "../Shared/SystemParameters.h"
 #include "../Shared/mapd_shared_mutex.h"
+
 #include "AbstractBuffer.h"
 #include "AbstractBufferMgr.h"
 #include "BufferMgr/Buffer.h"
@@ -30,7 +31,7 @@
 #include "MemoryLevel.h"
 #include "PersistentStorageMgr/PersistentStorageMgr.h"
 
-#include <iomanip>
+#include < iomanip>
 #include <iostream>
 #include <map>
 #include <string>

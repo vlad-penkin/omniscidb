@@ -20,12 +20,14 @@
 
 
 class SQLParser {
+ public:
   SQLParser() {}
 
     int parse(const std::string& inputStrOrig,
-        std::list<std::unique_ptr<Stmt>>& parseTrees,
+        std::list<std::unique_ptr<Parser::Stmt>>& parseTrees,
         std::string& lastParsed) {
-    CHECK(false) << "Unsupported.";
+        CHECK(false) << "Unsupported.";
+        return 0;
   }
 };
 

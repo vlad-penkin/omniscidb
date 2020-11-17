@@ -19,7 +19,7 @@
 
 #define BOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED 1
 
-#include <boost/stacktrace.hpp>
+#include <Shared/boost_stacktrace.hpp>
 #include <cstdlib>
 #include <ostream>
 #include <stdexcept>
