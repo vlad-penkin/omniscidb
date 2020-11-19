@@ -82,7 +82,6 @@ java/thrift/src/
 *.classpath
 *.project
 
-ThirdParty/
 data/
 
 # IntelliJ/CLion settings files
