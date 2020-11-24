@@ -45,7 +45,7 @@ TEST(GeoPoint, EmptyWKT) {
 }
 
 TEST(GeoPoint, EmptyCoords) {
-  EXPECT_THROW(GeoPoint(std::vector<double>()), GeoTypesError);
+  EXPECT_THROW(GeoPoint{std::vector<double>{}}, GeoTypesError);
 }
 
 TEST(GeoPoint, ImportWKT) {
