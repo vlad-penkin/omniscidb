@@ -108,6 +108,9 @@ add_executable(TableUpdateDeleteBenchmark TableUpdateDeleteBenchmark.cpp)
 
 set(EXECUTE_TEST_LIBS gtest mapd_thrift QueryRunner ${MAPD_LIBRARIES} ${CMAKE_DL_LIBS} ${CUDA_LIBRARIES} ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} ${PROFILER_LIBS})
 set(THRIFT_HANDLER_TEST_LIBRARIES thrift_handler ${EXECUTE_TEST_LIBS})
+if(MSVC)
+  list(APPEND EXECUTE_TEST_LIBS ${Folly_LIBRARIES})
+endif()
 
 # Replace Licensing library with TestLicensing library
 if("${MAPD_EDITION_LOWER}" STREQUAL "ee")
@@ -149,12 +152,13 @@ target_link_libraries(OmniSQLCommandTest gtest ${Boost_LIBRARIES} mapd_thrift)
 if(ENABLE_KRB5)
 	target_link_libraries(OmniSQLCommandTest krb5_gss Shared)
 endif()
-target_link_libraries(OmniSQLUtilitiesTest gtest ${Boost_LIBRARIES})
 
 if(ENABLE_FOLLY) 
   target_link_libraries(StringDictionaryTest gtest mapd_thrift StringDictionary Logger Utils ${CMAKE_DL_LIBS} ${Folly_LIBRARIES} ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} ${PROFILER_LIBS})
+  target_link_libraries(OmniSQLUtilitiesTest gtest ${Boost_LIBRARIES} ${Folly_LIBRARIES})
 else()
   target_link_libraries(StringDictionaryTest gtest mapd_thrift StringDictionary Logger Utils ${CMAKE_DL_LIBS} ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} ${PROFILER_LIBS})
+  target_link_libraries(OmniSQLUtilitiesTest gtest ${Boost_LIBRARIES})
 endif()
 
 target_link_libraries(GeoTypesTest gtest Logger Shared Geospatial ${CMAKE_DL_LIBS})
