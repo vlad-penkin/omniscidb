@@ -882,7 +882,7 @@ TEST(OmniSQLTest, ExportDashboardCommandTest_SimpleDashSimpleFilename) {
                                test_capture_stream)
           .is_resolved();
 
-  result = folly::portability::unistd::rmdir(test_filename);
+  result = ::rmdir(test_filename);
   EXPECT_EQ(result, 0);
 
   EXPECT_TRUE(resolution);
