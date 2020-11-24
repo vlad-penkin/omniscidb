@@ -115,7 +115,7 @@ bool msg_consume(RdKafka::Message* message,
               "%.*s\n",
               static_cast<int>(message->len()),
               static_cast<const char*>(message->payload()));
-      VLOG(1) << "Full Message received is :'" << buffer << "'";
+      VLOG(1) << "Full Message received is :'" << buffer.data() << "'";
 
       char field[MAX_FIELD_LEN];
       size_t field_i = 0;
