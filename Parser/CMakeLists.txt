@@ -1,8 +1,6 @@
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
-if(MSVC) 
-
-else()
+if(NOT MSVC) 
 
 find_package(Bisonpp REQUIRED)
 find_package(Flexpp REQUIRED)
@@ -35,12 +33,23 @@ add_custom_command(
     COMMENT "Generating Scanner.cpp"
 )
 
+endif()
+
 # C++17 removes the 'register' keyword and it is no longer allowed to
 # suppress the warning, so patch the generated scanner and parser files
 # to remove the register keyword, and also patch embedded filename strings
 # so they match the final file
 set(ParserPatched ${CMAKE_CURRENT_BINARY_DIR}/Parser.cpp)
 set(ScannerPatched ${CMAKE_CURRENT_BINARY_DIR}/Scanner.cpp)
+
+if(MSVC)
+
+file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/parser_wnd_pregen.h ${CMAKE_CURRENT_BINARY_DIR}/parser.h SYMBOLIC COPY_ON_ERROR)
+file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/Parser_wnd_pregen.cpp ${CMAKE_CURRENT_BINARY_DIR}/Parser.cpp SYMBOLIC COPY_ON_ERROR)
+file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/Scanner_wnd_pregen.cpp ${CMAKE_CURRENT_BINARY_DIR}/Scanner.cpp SYMBOLIC COPY_ON_ERROR)
+file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/FlexLexer_wnd.h ${CMAKE_CURRENT_BINARY_DIR}/FlexLexer.h SYMBOLIC COPY_ON_ERROR)
+
+else()
 
 add_custom_command(
     OUTPUT ${ParserPatched}
@@ -79,25 +88,16 @@ set(parser_source_files
     ParserWrapper.h
 )
 
-if(MSVC)
-
-file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/LegacyParserSkeleton.h ${CMAKE_CURRENT_BINARY_DIR}/parser.h SYMBOLIC COPY_ON_ERROR)
-add_library(Parser ${CMAKE_CURRENT_BINARY_DIR}/parser.h ${parser_source_files})
-
-target_link_libraries(Parser QueryState ImportExport Shared Analyzer QueryEngine Catalog TableArchiver DataMgr LockMgr)
-
-else()
-
 add_library(ParserGenerated ${ParserPatched} ${ScannerPatched})
 add_library(Parser ${CMAKE_CURRENT_BINARY_DIR}/parser.h ${parser_source_files})
 
+if(NOT MSVC) 
 add_dependencies(PatchParser ParserFiles)
 add_dependencies(PatchScanner ScannerFiles)
 
 add_dependencies(Parser PatchParser PatchScanner)
+endif()
 
 target_link_libraries(Parser ParserGenerated QueryState ImportExport Shared Analyzer QueryEngine Catalog TableArchiver DataMgr LockMgr)
-
-endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
