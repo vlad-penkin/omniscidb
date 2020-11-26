@@ -71,6 +71,11 @@
 
 #include "gen-cpp/OmniSci.h"
 
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 size_t g_archive_read_buf_size = 1 << 20;
 
 inline auto get_filesize(const std::string& file_path) {
@@ -3696,17 +3701,25 @@ void DataStreamSink::import_parquet(std::vector<std::string>& file_paths) {
 #endif  // ENABLE_IMPORT_PARQUET
 
 void DataStreamSink::import_compressed(std::vector<std::string>& file_paths) {
-#ifdef _MSC_VER
-  throw std::runtime_error("CSV Import not yet supported on Windows.");
-#else
   // a new requirement is to have one single input stream into
   // Importer::importDelimited, so need to move pipe related
   // stuff to the outmost block.
   int fd[2];
-  if (pipe(fd) < 0) {
+#ifdef _WIN32
+  // For some reason when folly is used to create the pipe, reader can
+  // read nothing.
+  auto pipe_res =
+      _pipe(fd, static_cast<unsigned int>(copy_params.buffer_size), _O_BINARY);
+#else
+  auto pipe_res = pipe(fd);
+#endif
+  if (pipe_res < 0) {
     throw std::runtime_error(std::string("failed to create a pipe: ") + strerror(errno));
   }
+
+#ifndef _WIN32
   signal(SIGPIPE, SIG_IGN);
+#endif
 
   std::exception_ptr teptr;
   // create a thread to read uncompressed byte stream out of pipe and
@@ -3942,7 +3955,6 @@ void DataStreamSink::import_compressed(std::vector<std::string>& file_paths) {
   if (teptr) {
     std::rethrow_exception(teptr);
   }
-#endif
 }
 
 ImportStatus Importer::import() {
