@@ -53,7 +53,7 @@
 #define ALWAYS_INLINE \
   __attribute__((always_inline)) __attribute__((__visibility__("hidden")))
 #elif defined(_MSC_VER)
-#define ALWAYS_INLINE __inline
+#define ALWAYS_INLINE 
 #else
 #define ALWAYS_INLINE __attribute__((always_inline))
 #endif
