@@ -293,11 +293,11 @@ extern "C" ALWAYS_INLINE int8_t logical_or(const int8_t lhs,
 
 // aggregator implementations
 
-extern "C" NEVER_INLINE uint64_t agg_count(uint64_t* agg, const int64_t) {
+extern "C" ALWAYS_INLINE uint64_t agg_count(uint64_t* agg, const int64_t) {
   return (*agg)++;
 }
 
-extern "C" NEVER_INLINE void agg_count_distinct_bitmap(int64_t* agg,
+extern "C" ALWAYS_INLINE void agg_count_distinct_bitmap(int64_t* agg,
                                                         const int64_t val,
                                                         const int64_t min_val) {
   const uint64_t bitmap_idx = val - min_val;
