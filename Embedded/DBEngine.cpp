@@ -1006,7 +1006,7 @@ std::vector<ColumnDetails> DBEngine::getTableDetails(const std::string& table_na
   DBEngineImpl* engine = getImpl(this);
   return engine->getTableDetails(table_name);
 }
-/*
+
 void DBEngine::createUser(const std::string& user_name, const std::string& password) {
   DBEngineImpl* engine = getImpl(this);
   engine->createUser(user_name, password);
@@ -1038,7 +1038,7 @@ bool DBEngine::login(std::string& db_name,
   DBEngineImpl* engine = getImpl(this);
   return engine->login(db_name, user_name, password);
 }
-*/
+
 /** Cursor downcasting methods */
 
 inline CursorImpl* getImpl(Cursor* ptr) {

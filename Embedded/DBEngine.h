@@ -47,16 +47,15 @@ class DBEngine {
   void importArrowTable(const std::string& name,
                         std::shared_ptr<arrow::Table>& table,
                         uint64_t fragment_size = 0);
-  static std::shared_ptr<DBEngine> create(const std::string& path = "", int port = DEFAULT_CALCITE_PORT);
-  static std::shared_ptr<DBEngine> create(const std::map<std::string, std::string>& parameters);
+  static std::shared_ptr<DBEngine> create(const std::string& parameters);
   std::vector<std::string> getTables();
   std::vector<ColumnDetails> getTableDetails(const std::string& table_name);
-//  void createUser(const std::string& user_name, const std::string& password);
-//  void dropUser(const std::string& user_name);
-//  void createDatabase(const std::string& db_name);
-//  void dropDatabase(const std::string& db_name);
-//  bool setDatabase(std::string& db_name);
-//  bool login(std::string& db_name, std::string& user_name, const std::string& password);
+  void createUser(const std::string& user_name, const std::string& password);
+  void dropUser(const std::string& user_name);
+  void createDatabase(const std::string& db_name);
+  void dropDatabase(const std::string& db_name);
+  bool setDatabase(std::string& db_name);
+  bool login(std::string& db_name, std::string& user_name, const std::string& password);
 
  protected:
   DBEngine() {}
