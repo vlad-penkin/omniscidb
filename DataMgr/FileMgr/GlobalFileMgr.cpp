@@ -200,6 +200,9 @@ void GlobalFileMgr::setTableEpoch(const int db_id,
                                   const int tb_id,
                                   const int start_epoch) {
   mapd_unique_lock<mapd_shared_mutex> write_lock(fileMgrs_mutex_);
+  // see if one exists currently, and remove it
+  deleteFileMgr(db_id, tb_id);
+
   const auto file_mgr_key = std::make_pair(db_id, tb_id);
   // this is where the real rollback of any data ahead of the currently set epoch is
   // performed
@@ -208,9 +211,6 @@ void GlobalFileMgr::setTableEpoch(const int db_id,
   u->setEpoch(start_epoch - 1);
   // remove the dummy one we built
   u.reset();
-
-  // see if one exists currently, and remove it
-  deleteFileMgr(db_id, tb_id);
 }
 
 size_t GlobalFileMgr::getTableEpoch(const int db_id, const int tb_id) {
