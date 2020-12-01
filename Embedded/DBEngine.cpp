@@ -136,10 +136,11 @@ class DBEHandler : public DBHandler {
                                               const std::string& nonce,
                                               const int32_t first_n,
                                               const int32_t at_most_n) {
-    sql_execute(session_id, query_str, column_format, nonce, first_n, at_most_n);
-    std::shared_ptr<CursorImpl> result(nullptr);
-    cursor_.swap(result);
-    return result;
+    TQueryResult result;
+    sql_execute(result, session_id, query_str, column_format, nonce, first_n, at_most_n);
+    std::shared_ptr<CursorImpl> cursor(nullptr);
+    cursor_.swap(cursor);
+    return cursor;
   }
 
  protected:
