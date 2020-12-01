@@ -568,6 +568,16 @@ class DBHandler : public OmniSciIf {
                             const Catalog_Namespace::SessionInfo& session_info,
                             const bool with_table_locks = true);
 
+ protected:
+  virtual void process_execution_result(TQueryResult& _return,
+                                        QueryStateProxy query_state_proxy,
+                                        ExecutionResult& result,
+                                        const bool column_format,
+                                        const int32_t first_n,
+                                        const int32_t at_most_n) const;
+
+
+
  private:
   std::shared_ptr<Catalog_Namespace::SessionInfo> create_new_session(
       TSessionId& session,

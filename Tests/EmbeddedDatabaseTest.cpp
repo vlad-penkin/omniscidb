@@ -256,10 +256,7 @@ int main(int argc, char** argv) {
 
   logger::init(log_options);
 
-  std::map<std::string, std::string> parameters = {
-    {"path", std::string(BASE_PATH)}};
-
-  engine = DBEngine::create(parameters);
+  engine = DBEngine::create(std::string(BASE_PATH));
 
   int err{0};
 

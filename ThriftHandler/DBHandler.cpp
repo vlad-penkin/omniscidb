@@ -4792,13 +4792,20 @@ std::vector<PushedDownFilterInfo> DBHandler::execute_rel_alg(
   if (explain_info.justExplain()) {
     convert_explain(_return, *result.getRows(), column_format);
   } else if (!explain_info.justCalciteExplain()) {
-    convert_rows(_return,
-                 timer.createQueryStateProxy(),
-                 result.getTargetsMeta(),
-                 *result.getRows(),
-                 column_format,
-                 first_n,
-                 at_most_n);
+    process_execution_result(_return,
+                             timer.createQueryStateProxy(),
+                             result,
+                             column_format,
+                             first_n,
+                             at_most_n);
+
+//    convert_rows(_return,
+//                 timer.createQueryStateProxy(),
+//                 result.getTargetsMeta(),
+//                 *result.getRows(),
+//                 column_format,
+//                 first_n,
+//                 at_most_n);
   }
   return {};
 }
@@ -6304,4 +6311,20 @@ void DBHandler::executeDdl(
   } else {
     executor.execute(_return);
   }
+}
+
+void DBHandler::process_execution_result(
+    TQueryResult& _return,
+    QueryStateProxy query_state_proxy,
+    ExecutionResult& result,
+    const bool column_format,
+    const int32_t first_n,
+    const int32_t at_most_n) const {
+  convert_rows(_return,
+               query_state_proxy,
+               result.getTargetsMeta(),
+               *result.getRows(),
+               column_format,
+               first_n,
+               at_most_n);
 }
