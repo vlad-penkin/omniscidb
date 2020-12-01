@@ -4798,14 +4798,6 @@ std::vector<PushedDownFilterInfo> DBHandler::execute_rel_alg(
                              column_format,
                              first_n,
                              at_most_n);
-
-//    convert_rows(_return,
-//                 timer.createQueryStateProxy(),
-//                 result.getTargetsMeta(),
-//                 *result.getRows(),
-//                 column_format,
-//                 first_n,
-//                 at_most_n);
   }
   return {};
 }

@@ -136,10 +136,10 @@ class DBEHandler : public DBHandler {
                                               const std::string& nonce,
                                               const int32_t first_n,
                                               const int32_t at_most_n) {
-    std::cout << "sql_execute_dbe" << std::endl;
-    sql_execute_dbe(session_id, query_str, column_format, nonce, first_n, at_most_n);
-    std::cout << "return cursor" << std::endl;
-    return std::move(cursor_);
+    sql_execute(session_id, query_str, column_format, nonce, first_n, at_most_n);
+    std::shared_ptr<CursorImpl> result(nullptr);
+    cursor_.swap(result);
+    return result;
   }
 
  protected:
@@ -149,8 +149,7 @@ class DBEHandler : public DBHandler {
                                         const bool column_format,
                                         const int32_t first_n,
                                         const int32_t at_most_n) const {
-    std::cout << "process_execution_result" << std::endl;
-    auto targets = execution_result.getTargetsMeta();
+    auto& targets = execution_result.getTargetsMeta();
     std::vector<std::string> col_names;
     for (const auto target : targets) {
       col_names.push_back(target.get_resname());
