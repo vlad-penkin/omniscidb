@@ -399,15 +399,41 @@ __device__ T* get_matching_baseline_hash_slot_at(int8_t* hash_buff,
 #else
 
 #ifdef _MSC_VER
-#define cas_cst(ptr, expected, desired)                                      \
-  (InterlockedCompareExchangePointer(reinterpret_cast<void* volatile*>(ptr), \
-                                     reinterpret_cast<void*>(&desired),      \
-                                     expected) == expected)
-#define store_cst(ptr, val)                                          \
-  InterlockedExchangePointer(reinterpret_cast<void* volatile*>(ptr), \
-                             reinterpret_cast<void*>(val))
-#define load_cst(ptr) \
-  InterlockedCompareExchange(reinterpret_cast<volatile long*>(ptr), 0, 0)
+template <typename T>
+bool cas_cst(T* ptr, T* expected, T desired) {
+  if constexpr (sizeof(T) == 4) {
+    return InterlockedCompareExchange(
+        reinterpret_cast<volatile long*>(ptr), static_cast<long>(desired), static_cast<long>(*expected)) == static_cast<long>(*expected);
+  } else if constexpr (sizeof(T) == 8) {
+    return InterlockedCompareExchange64(
+        reinterpret_cast<volatile int64_t*>(ptr), desired, *expected) == *expected;
+  }
+  else {
+    LOG(FATAL) << "Unsupported atomic operation";
+  }
+}
+
+template <typename T>
+void store_cst(T* ptr, T val) {
+  if constexpr (sizeof(T) == 4) {
+    InterlockedExchange(reinterpret_cast<volatile long*>(ptr), static_cast<long>(val));
+  } else if constexpr (sizeof(T) == 8) {
+    InterlockedExchange64(reinterpret_cast<volatile int64_t*>(ptr), val);
+  } else {
+    LOG(FATAL) << "Unsupported atomic operation";
+  }
+}
+
+template <typename T>
+T load_cst(T* ptr) {
+  if constexpr (sizeof(T) == 4) {
+    return InterlockedCompareExchange(reinterpret_cast<volatile long*>(ptr), 0, 0);
+  } else if constexpr (sizeof(T) == 8) {
+    return InterlockedCompareExchange64(reinterpret_cast<volatile int64_t*>(ptr), 0, 0);
+  } else {
+    LOG(FATAL) << "Unsupported atomic operation";
+  }
+}
 #else
 #define cas_cst(ptr, expected, desired) \
   __atomic_compare_exchange_n(          \
@@ -450,9 +476,11 @@ T* get_matching_baseline_hash_slot_at(int8_t* hash_buff,
   return reinterpret_cast<T*>(row_ptr + key_component_count);
 }
 
+#ifndef _MSC_VER
 #undef load_cst
 #undef store_cst
 #undef cas_cst
+#endif
 
 #endif  // __CUDACC__
 
