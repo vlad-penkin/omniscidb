@@ -45,6 +45,7 @@
 #include "../Shared/mapd_shared_mutex.h"
 #include "../Shared/measure.h"
 #include "../Shared/thread_count.h"
+#include "../Shared/funcannotations.h"
 #include "../StringDictionary/LruCache.hpp"
 #include "../StringDictionary/StringDictionary.h"
 #include "../StringDictionary/StringDictionaryProxy.h"
@@ -1057,7 +1058,7 @@ size_t get_context_count(const ExecutorDeviceType device_type,
                          const size_t cpu_count,
                          const size_t gpu_count);
 
-extern "C" void register_buffer_with_executor_rsm(int64_t exec, int8_t* buffer);
+extern "C" RUNTIME_EXPORT void register_buffer_with_executor_rsm(int64_t exec, int8_t* buffer);
 
 const Analyzer::Expr* remove_cast_to_int(const Analyzer::Expr* expr);
 
