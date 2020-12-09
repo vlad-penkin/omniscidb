@@ -22,9 +22,9 @@
 #define ALWAYS_INLINE __attribute__((always_inline))
 #endif
 
-#define EXTENSION_NOINLINE extern "C" NEVER_INLINE DEVICE
+#define EXTENSION_NOINLINE extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE
 
-#define EXTENSION_INLINE extern "C" ALWAYS_INLINE DEVICE
+#define EXTENSION_INLINE extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE
 
 // use std::size_t;
 
