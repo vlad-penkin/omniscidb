@@ -137,8 +137,8 @@ struct AccessPrivileges {
 
   AccessPrivileges(int64_t priv) : privileges(priv) {}
 
-  void reset() { privileges = 0L; }
-  bool hasAny() const { return 0L != privileges; }
+  void reset() { privileges = 0LL; }
+  bool hasAny() const { return 0LL != privileges; }
   bool hasPermission(int permission) const {
     return permission == (privileges & permission);
   }
