@@ -32,13 +32,13 @@ inline int64_t get_time_conversion_denominator(
   int64_t conversion_denominator = 0;
   switch (time_unit) {
     case parquet::LogicalType::TimeUnit::MILLIS:
-      conversion_denominator = 1000L;
+      conversion_denominator = 1000LL;
       break;
     case parquet::LogicalType::TimeUnit::MICROS:
-      conversion_denominator = 1000L * 1000L;
+      conversion_denominator = 1000LL * 1000LL;
       break;
     case parquet::LogicalType::TimeUnit::NANOS:
-      conversion_denominator = 1000L * 1000L * 1000L;
+      conversion_denominator = 1000LL * 1000LL * 1000LL;
       break;
     default:
       UNREACHABLE();
