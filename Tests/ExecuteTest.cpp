@@ -359,10 +359,15 @@ class SQLiteComparator {
                 0
               };
               const auto ref_val = connector_.getData<std::string>(row_idx, col_idx);
-              auto end_str =
+              const char* end_str =
                   strptime(ref_val.c_str(),
                            omnisci_type == kTIMESTAMP ? "%Y-%m-%d %H:%M:%S" : "%Y-%m-%d",
                            &tm_struct);
+#ifdef _WIN32
+              if (end_str == (ref_val.c_str() - 1)) {
+                end_str = ref_val.c_str() + ref_val.size();
+              }
+#endif
               // handle fractional seconds
               if (end_str != nullptr && *end_str != '.') {
                 if (end_str) {
@@ -11436,12 +11441,14 @@ TEST(Select, TimestampPrecision) {
     ASSERT_EQ((1418509395LL - 931701773874533LL / 1000000) / (60LL * 60LL),
               v<int64_t>(run_simple_agg(
                   "SELECT DATEDIFF('hour', m_6, m) FROM test limit 1;", dt)));
-    ASSERT_EQ((931701773874533LL / 1000000 - 1418509395323LL / 1000) / (60LL * 60LL * 24LL),
-              v<int64_t>(run_simple_agg(
-                  "SELECT DATEDIFF('day', m_3, m_6) FROM test limit 1;", dt)));
-    ASSERT_EQ((1418509395323LL / 1000 - 931701773874533LL / 1000000) / (60LL * 60LL * 24LL),
-              v<int64_t>(run_simple_agg(
-                  "SELECT DATEDIFF('day', m_6, m_3) FROM test limit 1;", dt)));
+    ASSERT_EQ(
+        (931701773874533LL / 1000000 - 1418509395323LL / 1000) / (60LL * 60LL * 24LL),
+        v<int64_t>(
+            run_simple_agg("SELECT DATEDIFF('day', m_3, m_6) FROM test limit 1;", dt)));
+    ASSERT_EQ(
+        (1418509395323LL / 1000 - 931701773874533LL / 1000000) / (60LL * 60LL * 24LL),
+        v<int64_t>(
+            run_simple_agg("SELECT DATEDIFF('day', m_6, m_3) FROM test limit 1;", dt)));
     ASSERT_EQ((931701773874533LL / 1000000 - 1418509395LL) / (60LL * 60LL * 24LL),
               v<int64_t>(run_simple_agg(
                   "SELECT DATEDIFF('day', m, m_6) FROM test limit 1;", dt)));
@@ -11508,12 +11515,14 @@ TEST(Select, TimestampPrecision) {
     ASSERT_EQ((1418509395323LL - 1418509395000LL) / (1000LL * 1000LL * 60LL * 60LL),
               v<int64_t>(run_simple_agg(
                   "SELECT DATEDIFF('hour', m, m_3) FROM test limit 1;", dt)));
-    ASSERT_EQ((1418509395000LL - 1418509395323LL) / (1000LL * 1000LL * 60LL * 60LL * 24LL),
-              v<int64_t>(run_simple_agg(
-                  "SELECT DATEDIFF('day', m_3, m) FROM test limit 1;", dt)));
-    ASSERT_EQ((1418509395323LL - 1418509395000LL) / (1000LL * 1000LL * 60LL * 60LL * 24LL),
-              v<int64_t>(run_simple_agg(
-                  "SELECT DATEDIFF('day', m, m_3) FROM test limit 1;", dt)));
+    ASSERT_EQ(
+        (1418509395000LL - 1418509395323LL) / (1000LL * 1000LL * 60LL * 60LL * 24LL),
+        v<int64_t>(
+            run_simple_agg("SELECT DATEDIFF('day', m_3, m) FROM test limit 1;", dt)));
+    ASSERT_EQ(
+        (1418509395323LL - 1418509395000LL) / (1000LL * 1000LL * 60LL * 60LL * 24LL),
+        v<int64_t>(
+            run_simple_agg("SELECT DATEDIFF('day', m, m_3) FROM test limit 1;", dt)));
     ASSERT_EQ(0,
               v<int64_t>(run_simple_agg(
                   "SELECT DATEDIFF('month', m_3, m) FROM test limit 1;", dt)));
