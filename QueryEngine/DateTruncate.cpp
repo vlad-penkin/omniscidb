@@ -53,7 +53,7 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t datetrunc_week(int64_t ti
 }
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t datetrunc_month(int64_t timeval) {
-  if (timeval >= 0L && timeval <= UINT32_MAX - (kEpochOffsetYear1900)) {
+  if (timeval >= 0LL && timeval <= UINT32_MAX - (kEpochOffsetYear1900)) {
     STATIC_QUAL const uint32_t cumulative_month_epoch_starts[kMonsPerYear] = {0,
                                                                               2678400,
                                                                               5270400,
@@ -102,7 +102,7 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t datetrunc_month(int64_t t
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 datetrunc_quarter(int64_t timeval) {
-  if (timeval >= 0L && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
+  if (timeval >= 0LL && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
     STATIC_QUAL const uint32_t cumulative_quarter_epoch_starts[4] = {
         0, 7776000, 15638400, 23587200};
     STATIC_QUAL const uint32_t cumulative_quarter_epoch_starts_leap_year[4] = {
@@ -145,7 +145,7 @@ datetrunc_quarter(int64_t timeval) {
 }
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t datetrunc_year(int64_t timeval) {
-  if (timeval >= 0L && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
+  if (timeval >= 0LL && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
     // Handles times from Thu 01 Jan 1970 00:00:00 - Thu 07 Feb 2036 06:28:15.
     uint32_t seconds_1900 = static_cast<uint32_t>(timeval) + kEpochOffsetYear1900;
     uint32_t leap_years = (seconds_1900 - kSecsJanToMar1900) / kSecondsPer4YearCycle;
