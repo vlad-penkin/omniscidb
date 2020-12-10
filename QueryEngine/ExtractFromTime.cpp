@@ -201,7 +201,7 @@ extract_week(const int64_t timeval) {
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_month(const int64_t timeval) {
-  if (timeval >= 0L && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
+  if (timeval >= 0LL && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
     return extract_month_fast(timeval);
   }
   int64_t const day = floor_div(timeval, kSecsPerDay);
@@ -214,7 +214,7 @@ extract_month(const int64_t timeval) {
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_quarter(const int64_t timeval) {
-  if (timeval >= 0L && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
+  if (timeval >= 0LL && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
     return extract_quarter_fast(timeval);
   }
   constexpr int64_t quarter[12]{1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 1, 1};
@@ -228,7 +228,7 @@ extract_quarter(const int64_t timeval) {
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_year(const int64_t timeval) {
-  if (timeval >= 0L && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
+  if (timeval >= 0LL && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
     return extract_year_fast(timeval);
   }
   int64_t const day = floor_div(timeval, kSecsPerDay);
