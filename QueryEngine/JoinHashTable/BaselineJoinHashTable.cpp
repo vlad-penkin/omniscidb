@@ -165,7 +165,7 @@ int64_t BaselineJoinHashTable::getJoinHashBuffer(const ExecutorDeviceType device
 #ifdef HAVE_CUDA
   CHECK_LT(static_cast<size_t>(device_id), gpu_hash_table_buff_.size());
   if (device_type == ExecutorDeviceType::CPU) {
-    return reinterpret_cast<int64_t>(&(*cpu_hash_table_buff_)[0]);
+    return reinterpret_cast<int64_t>(cpu_hash_table_buff_->data());
   } else {
     return gpu_hash_table_buff_[device_id]
                ? reinterpret_cast<CUdeviceptr>(
@@ -174,7 +174,7 @@ int64_t BaselineJoinHashTable::getJoinHashBuffer(const ExecutorDeviceType device
   }
 #else
   CHECK(device_type == ExecutorDeviceType::CPU);
-  return reinterpret_cast<int64_t>(&(*cpu_hash_table_buff_)[0]);
+  return reinterpret_cast<int64_t>(cpu_hash_table_buff_->data());
 #endif
 }
 
@@ -679,7 +679,7 @@ int BaselineJoinHashTable::initHashTableOnCpu(
                      switch (key_component_width) {
                        case 4:
                          init_baseline_hash_join_buff_32(
-                             &(*cpu_hash_table_buff_)[0],
+                             cpu_hash_table_buff_->data(),
                              entry_count_,
                              key_component_count,
                              layout == JoinHashTableInterface::HashType::OneToOne,
@@ -689,7 +689,7 @@ int BaselineJoinHashTable::initHashTableOnCpu(
                          break;
                        case 8:
                          init_baseline_hash_join_buff_64(
-                             &(*cpu_hash_table_buff_)[0],
+                             cpu_hash_table_buff_->data(),
                              entry_count_,
                              key_component_count,
                              layout == JoinHashTableInterface::HashType::OneToOne,
@@ -723,12 +723,12 @@ int BaselineJoinHashTable::initHashTableOnCpu(
               const auto key_handler =
                   GenericKeyHandler(key_component_count,
                                     true,
-                                    &join_columns[0],
-                                    &join_column_types[0],
-                                    &composite_key_info.sd_inner_proxy_per_key[0],
-                                    &composite_key_info.sd_outer_proxy_per_key[0]);
+                                    join_columns.data(),
+                                    join_column_types.data(),
+                                    composite_key_info.sd_inner_proxy_per_key.data(),
+                                    composite_key_info.sd_outer_proxy_per_key.data());
               return fill_baseline_hash_join_buff_32(
-                  &(*cpu_hash_table_buff_)[0],
+                  cpu_hash_table_buff_->data(),
                   entry_count_,
                   -1,
                   key_component_count,
@@ -743,12 +743,12 @@ int BaselineJoinHashTable::initHashTableOnCpu(
               const auto key_handler =
                   GenericKeyHandler(key_component_count,
                                     true,
-                                    &join_columns[0],
-                                    &join_column_types[0],
-                                    &composite_key_info.sd_inner_proxy_per_key[0],
-                                    &composite_key_info.sd_outer_proxy_per_key[0]);
+                                    join_columns.data(),
+                                    join_column_types.data(),
+                                    composite_key_info.sd_inner_proxy_per_key.data(),
+                                    composite_key_info.sd_outer_proxy_per_key.data());
               return fill_baseline_hash_join_buff_64(
-                  &(*cpu_hash_table_buff_)[0],
+                  cpu_hash_table_buff_->data(),
                   entry_count_,
                   -1,
                   key_component_count,
@@ -777,13 +777,13 @@ int BaselineJoinHashTable::initHashTableOnCpu(
     return err;
   }
   if (layout == JoinHashTableInterface::HashType::OneToMany) {
-    auto one_to_many_buff = reinterpret_cast<int32_t*>(&(*cpu_hash_table_buff_)[0] +
+    auto one_to_many_buff = reinterpret_cast<int32_t*>(cpu_hash_table_buff_->data() +
                                                        entry_count_ * entry_size);
     init_hash_join_buff(one_to_many_buff, entry_count_, -1, 0, 1);
     switch (key_component_width) {
       case 4: {
         const auto composite_key_dict =
-            reinterpret_cast<int32_t*>(&(*cpu_hash_table_buff_)[0]);
+            reinterpret_cast<int32_t*>(cpu_hash_table_buff_->data());
         fill_one_to_many_baseline_hash_table_32(one_to_many_buff,
                                                 composite_key_dict,
                                                 entry_count_,
@@ -799,7 +799,7 @@ int BaselineJoinHashTable::initHashTableOnCpu(
       }
       case 8: {
         const auto composite_key_dict =
-            reinterpret_cast<int64_t*>(&(*cpu_hash_table_buff_)[0]);
+            reinterpret_cast<int64_t*>(cpu_hash_table_buff_->data());
         fill_one_to_many_baseline_hash_table_64(one_to_many_buff,
                                                 composite_key_dict,
                                                 entry_count_,
@@ -1011,7 +1011,7 @@ int BaselineJoinHashTable::initHashTableForDevice(
       copy_to_gpu(
           &data_mgr,
           reinterpret_cast<CUdeviceptr>(gpu_hash_table_buff_[device_id]->getMemoryPtr()),
-          &(*cpu_hash_table_buff_)[0],
+          cpu_hash_table_buff_->data(),
           cpu_hash_table_buff_->size() * sizeof((*cpu_hash_table_buff_)[0]),
           device_id);
 #else
