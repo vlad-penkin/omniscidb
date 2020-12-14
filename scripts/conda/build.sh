@@ -74,10 +74,13 @@ cmake -Wno-dev \
     -DENABLE_CUDA=off \
     -DENABLE_DBE=ON \
     -DENABLE_FSI=ON \
+    -DENABLE_ITT=OFF \
+    -DENABLE_JIT_DEBUG=OFF \
+    -DENABLE_INTEL_JIT_LISTENER=OFF \
     $EXTRA_CMAKE_OPTIONS \
     ..
 
-make -j ${CPU_COUNT:-`nproc`}
+make -j ${CPU_COUNT:-`nproc`} || make -j ${CPU_COUNT:-`nproc`} || make
 
 
 if [[ "$RUN_TESTS" == "2" ]]
