@@ -310,10 +310,10 @@ include_directories(${CMAKE_SOURCE_DIR}
 # Intel ITT notify
 option(ENABLE_ITT "Enable Intel ittnotify for VTune and Advisor" OFF)
 if(ENABLE_ITT)
-  find_package(VTune REQUIRED)
+  find_package(ITTnotify REQUIRED)
   add_definitions(-DENABLE_ITT)
-  include_directories("${VTune_INCLUDE_DIRS}/")
-  set(VT_LIBS ${VTune_LIBRARIES} dl)
+  include_directories("${ITTnotify_INCLUDE_DIRS}/")
+  set(VT_LIBS ${ITTnotify_LIBRARIES} dl)
   option(ENABLE_INTEL_JIT_LISTENER "Enable Intel Vtune JIT Listener" ON)
 else()
   option(ENABLE_INTEL_JIT_LISTENER "Enable Intel Vtune JIT Listener" OFF)
