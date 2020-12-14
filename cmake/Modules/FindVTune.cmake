@@ -9,6 +9,7 @@ set(dirs
   "$ENV{VTUNE_PROFILER_2019_DIR}/"
   "$ENV{VTUNE_AMPLIFIER_XE_2013_DIR}/"
   "$ENV{VTUNE_AMPLIFIER_XE_2011_DIR}/"
+  "$ENV{CONDA_PREFIX}/"
   )
 find_path(VTune_INCLUDE_DIRS ittnotify.h
     PATHS ${dirs}
