@@ -109,10 +109,19 @@ DEVICE void SUFFIX(init_hash_join_buff)(int32_t* groups_buffer,
 #ifdef __CUDACC__
 #define mapd_cas(address, compare, val) atomicCAS(address, compare, val)
 #elif defined(_MSC_VER)
-#define mapd_cas(address, compare, val)                                 \
-  InterlockedCompareExchange(reinterpret_cast<volatile long*>(address), \
-                             static_cast<long>(val),                    \
-                             static_cast<long>(compare))
+template <typename T>
+T mapd_cas(T* ptr, T expected, T desired) {
+  if constexpr (sizeof(T) == 4) {
+    return InterlockedCompareExchange(reinterpret_cast<volatile long*>(ptr),
+                                      static_cast<long>(desired),
+                                      static_cast<long>(expected));
+  } else if constexpr (sizeof(T) == 8) {
+    return InterlockedCompareExchange64(
+        reinterpret_cast<volatile int64_t*>(ptr), desired, expected);
+  } else {
+    LOG(FATAL) << "Unsupported atomic operation";
+  }
+}
 #else
 #define mapd_cas(address, compare, val) __sync_val_compare_and_swap(address, compare, val)
 #endif
@@ -159,7 +168,8 @@ DEVICE auto fill_hash_join_buff_impl(int32_t* buff,
         << "Element " << elem << " less than min val " << type_info.min_val;
 #endif
     int32_t* entry_ptr = slot_sel(elem);
-    if (mapd_cas(entry_ptr, invalid_slot_val, index) != invalid_slot_val) {
+    if (mapd_cas(entry_ptr, invalid_slot_val, static_cast<int32_t>(index)) !=
+        invalid_slot_val) {
       return -1;
     }
   }
@@ -259,7 +269,8 @@ DEVICE int fill_hash_join_buff_sharded_impl(int32_t* buff,
         << "Element " << elem << " less than min val " << type_info.min_val;
 #endif
     int32_t* entry_ptr = slot_sel(elem, shard);
-    if (mapd_cas(entry_ptr, invalid_slot_val, index) != invalid_slot_val) {
+    if (mapd_cas(entry_ptr, invalid_slot_val, static_cast<int32_t>(index)) !=
+        invalid_slot_val) {
       return -1;
     }
   }
@@ -402,13 +413,14 @@ __device__ T* get_matching_baseline_hash_slot_at(int8_t* hash_buff,
 template <typename T>
 bool cas_cst(T* ptr, T* expected, T desired) {
   if constexpr (sizeof(T) == 4) {
-    return InterlockedCompareExchange(
-        reinterpret_cast<volatile long*>(ptr), static_cast<long>(desired), static_cast<long>(*expected)) == static_cast<long>(*expected);
+    return InterlockedCompareExchange(reinterpret_cast<volatile long*>(ptr),
+                                      static_cast<long>(desired),
+                                      static_cast<long>(*expected)) ==
+           static_cast<long>(*expected);
   } else if constexpr (sizeof(T) == 8) {
     return InterlockedCompareExchange64(
-        reinterpret_cast<volatile int64_t*>(ptr), desired, *expected) == *expected;
-  }
-  else {
+               reinterpret_cast<volatile int64_t*>(ptr), desired, *expected) == *expected;
+  } else {
     LOG(FATAL) << "Unsupported atomic operation";
   }
 }
@@ -514,7 +526,8 @@ DEVICE int write_baseline_hash_slot(const int32_t val,
   if (!with_val_slot) {
     return 0;
   }
-  if (mapd_cas(matching_group, invalid_slot_val, val) != invalid_slot_val) {
+  if (mapd_cas(matching_group, static_cast<T>(invalid_slot_val), static_cast<T>(val)) !=
+      invalid_slot_val) {
     return -1;
   }
   return 0;
@@ -572,7 +585,9 @@ DEVICE int SUFFIX(fill_baseline_hash_join_buff)(int8_t* hash_buff,
   return 0;
 }
 
+#ifndef _MSC_VER
 #undef mapd_cas
+#endif
 
 #ifdef __CUDACC__
 #define mapd_add(address, val) atomicAdd(address, val)
