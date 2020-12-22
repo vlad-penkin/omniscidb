@@ -18925,6 +18925,8 @@ TEST(Select, WindowFunctionCumeDist) {
   c(part1 + " NULLS FIRST" + part2, part1 + part2, dt);
 }
 
+// On Windows sqlite3 gives incorrect result for requests with LAG
+#ifndef _WIN32
 TEST(Select, WindowFunctionLag) {
   const ExecutorDeviceType dt = ExecutorDeviceType::CPU;
   // First test default lag (1)
@@ -18960,6 +18962,7 @@ TEST(Select, WindowFunctionLag) {
     }
   }
 }
+#endif
 
 TEST(Select, WindowFunctionFirst) {
   const ExecutorDeviceType dt = ExecutorDeviceType::CPU;
