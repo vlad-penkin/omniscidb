@@ -31,7 +31,6 @@
 #include "MemoryLevel.h"
 #include "PersistentStorageMgr/PersistentStorageMgr.h"
 
-#include < iomanip>
 #include <iostream>
 #include <map>
 #include <string>

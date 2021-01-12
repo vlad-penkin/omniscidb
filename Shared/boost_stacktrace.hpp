@@ -17,6 +17,7 @@
 #ifndef BOOST_STACKTRACE_H
 #define BOOST_STACKTRACE_H
 
+#ifdef _WIN32
 #include <windows.h>
 
 // boost includes dbgeng.h which uses IN and OUT macroses
@@ -29,13 +30,18 @@
 #define UNDEF_IN_OUT
 #endif
 
+#endif  // _WIN32
+
 #include <boost/stacktrace.hpp>
+
+#ifdef _WIN32
 
 #ifdef UNDEF_IN_OUT
 #undef IN
 #undef OUT
-#endif
+#endif  // UNDEF_IN_OUT
 
 #include "cleanup_global_namespace.h"
+#endif  // _WIN32
 
 #endif  // BOOST_STACKTRACE_H

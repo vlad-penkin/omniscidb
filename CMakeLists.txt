@@ -206,7 +206,7 @@ if(ENABLE_FOLLY)
       set(ENABLE_FOLLY OFF CACHE BOOL "Use Folly" FORCE)
     else()
       include_directories(${Folly_INCLUDE_DIRS})
-      add_definitions("-DHAVE_FOLLY")       
+      add_definitions("-DHAVE_FOLLY")
       list(APPEND Folly_LIBRARIES ${Glog_LIBRARIES})
     endif()
   endif()
@@ -423,7 +423,7 @@ endif()
 include_directories(ThirdParty/rapidjson)
 add_definitions(-DRAPIDJSON_HAS_STDSTRING)
 
-# Linenoise 
+# Linenoise
 add_subdirectory(ThirdParty/linenoise)
 
 if(NOT MSVC)
@@ -462,7 +462,7 @@ if(NOT MSVC)
 endif()
 
 # bcrypt
-include_directories(ThirdParty/bcrypt)
+include_directories(ThirdParty/bcrypt/include)
 add_subdirectory(ThirdParty/bcrypt)
 
 # PicoSHA2
@@ -858,7 +858,7 @@ endif()
 set (OMNISCI_JDBC_JAR "omnisci-jdbc-${OMNISCI_JAR_RELEASE_VERSION}.jar")
 
 set(MVN_PATH_COMMAND "")
-if(MSVC) 
+if(MSVC)
     set(MVN_PATH_COMMAND set "MVNPATH=${CMAKE_SOURCE_DIR}/java" &&)
 else()
     set(MVN_PATH_COMMAND "MVNPATH=${CMAKE_SOURCE_DIR}/java")

@@ -128,7 +128,8 @@ class DBEngineImpl : public DBEngine {
       std::string data_path = base_path_ + OMNISCI_DATA_PATH;
       data_mgr_ = std::make_shared<Data_Namespace::DataMgr>(
           data_path, system_parameters, false, 0);
-      auto calcite = std::make_shared<Calcite>(-1, CALCITEPORT, base_path_, 1024, 5000);
+      auto calcite =
+          std::make_shared<Calcite>(-1, CALCITEPORT, base_path_, 1024, 5000, false);
       auto& sys_cat = Catalog_Namespace::SysCatalog::instance();
       sys_cat.init(base_path_, data_mgr_, {}, calcite, false, false, {});
       if (!sys_cat.getSqliteConnector()) {
