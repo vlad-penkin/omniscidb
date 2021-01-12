@@ -22,7 +22,7 @@
 #endif
 #include <errno.h>
 
-#ifdef _WIN32 || _WIN64
+#if defined(_WIN32) || defined(_WIN64)
 // On windows we need to generate random bytes differently.
 typedef __int64 ssize_t;
 #define BCRYPT_HASHSIZE 64
@@ -33,7 +33,7 @@ typedef __int64 ssize_t;
 #include "bcrypt.h"
 
 #else
-#include "bcrypt.h"
+#include "include/bcrypt.h"
 #include "crypt_blowfish/ow-crypt.h"
 #endif
 

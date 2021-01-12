@@ -462,7 +462,7 @@ if(NOT MSVC)
 endif()
 
 # bcrypt
-include_directories(ThirdParty/bcrypt/include)
+include_directories(ThirdParty/bcrypt)
 add_subdirectory(ThirdParty/bcrypt)
 
 # PicoSHA2
