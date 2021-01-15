@@ -5,6 +5,7 @@ SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 if [ "$TSAN" = "true" ]; then
   ARROW_TSAN="-DARROW_JEMALLOC=OFF -DARROW_USE_TSAN=ON"
+  TBB_TSAN="-DTBB_SANITIZE=thread"
 elif [ "$TSAN" = "false" ]; then
   ARROW_TSAN="-DARROW_JEMALLOC=BUNDLED"
 fi
@@ -279,22 +280,19 @@ function install_ninja() {
   mv ninja $PREFIX/bin/
 }
 
-TBB_VERSION=2020.2
+#TBB_VERSION=2021.1.1
+TBB_VERSION=master
 
 function install_tbb() {
-  download https://github.com/oneapi-src/oneTBB/archive/v${TBB_VERSION}.tar.gz
-  extract v${TBB_VERSION}.tar.gz
-  pushd oneTBB-${TBB_VERSION}
-  if [ "$1" == "static" ]; then
-    make extra_inc=big_iron.inc
-    install -d $PREFIX/lib
-    install -m755 build/linux_*/*.a* $PREFIX/lib
+  if [ "$TBB_VERSION" == "master" ]; then
+    git clone --depth 1 https://github.com/oneapi-src/oneTBB.git
+    pushd oneTBB
   else
-    make
-    install -d $PREFIX/lib
-    install -m755 build/linux_*/*.so* $PREFIX/lib
+    download https://github.com/oneapi-src/oneTBB/archive/v${TBB_VERSION}.tar.gz
+    extract v${TBB_VERSION}.tar.gz
+    pushd oneTBB-${TBB_VERSION}
   fi
-  install -d $PREFIX/include
-  cp -R include/tbb $PREFIX/include
+  cmake -B build -S . ${TBB_TSAN} -DCMAKE_INSTALL_PREFIX="$PREFIX"
+  make -C build -j install
   popd
 }

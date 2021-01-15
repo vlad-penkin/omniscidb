@@ -38,6 +38,7 @@
 #include <algorithm>
 #include <future>
 #include <numeric>
+#include <tbb/tbb.h>
 
 extern bool g_enable_dynamic_watchdog;
 
@@ -1115,25 +1116,29 @@ void ResultSetStorage::initializeRowWise() const {
   CHECK(!query_mem_desc_.hasKeylessHash());
   switch (query_mem_desc_.getEffectiveKeyWidth()) {
     case 4: {
-      for (size_t i = 0; i < query_mem_desc_.getEntryCount(); ++i) {
-        auto row_ptr = buff_ + i * row_size;
-        fill_empty_key_32(reinterpret_cast<int32_t*>(row_ptr), key_count);
-        auto slot_ptr = reinterpret_cast<int64_t*>(row_ptr + key_bytes_with_padding);
-        for (size_t j = 0; j < target_init_vals_.size(); ++j) {
-          slot_ptr[j] = target_init_vals_[j];
+      tbb::parallel_for(tbb::blocked_range<size_t>(0, query_mem_desc_.getEntryCount()), [&](auto &r){
+        for (size_t i = r.begin(); i < r.end(); ++i) {
+          auto row_ptr = buff_ + i * row_size;
+          fill_empty_key_32(reinterpret_cast<int32_t*>(row_ptr), key_count);
+          auto slot_ptr = reinterpret_cast<int64_t*>(row_ptr + key_bytes_with_padding);
+          for (size_t j = 0; j < target_init_vals_.size(); ++j) {
+            slot_ptr[j] = target_init_vals_[j];
+          }
         }
-      }
+      });
       break;
     }
     case 8: {
-      for (size_t i = 0; i < query_mem_desc_.getEntryCount(); ++i) {
-        auto row_ptr = buff_ + i * row_size;
-        fill_empty_key_64(reinterpret_cast<int64_t*>(row_ptr), key_count);
-        auto slot_ptr = reinterpret_cast<int64_t*>(row_ptr + key_bytes_with_padding);
-        for (size_t j = 0; j < target_init_vals_.size(); ++j) {
-          slot_ptr[j] = target_init_vals_[j];
+      tbb::parallel_for(tbb::blocked_range<size_t>(0, query_mem_desc_.getEntryCount()), [&](auto &r){
+        for (size_t i = r.begin(); i < r.end(); ++i) {
+          auto row_ptr = buff_ + i * row_size;
+          fill_empty_key_64(reinterpret_cast<int64_t*>(row_ptr), key_count);
+          auto slot_ptr = reinterpret_cast<int64_t*>(row_ptr + key_bytes_with_padding);
+          for (size_t j = 0; j < target_init_vals_.size(); ++j) {
+            slot_ptr[j] = target_init_vals_[j];
+          }
         }
-      }
+      });
       break;
     }
     default:
