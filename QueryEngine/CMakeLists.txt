@@ -268,6 +268,10 @@ if(ENABLE_L0)
   list(APPEND QUERY_ENGINE_LIBS LLVMSPIRVLib)
 endif()
 
+# TODO: if cleanup enabled
+add_subdirectory(Helpers)
+#list(APPEND QUERY_ENGINE_LIBS CleanupPass)
+
 target_link_libraries(QueryEngine ${QUERY_ENGINE_LIBS})
 
 add_custom_command(
