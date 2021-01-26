@@ -151,7 +151,6 @@ class DBEngineImpl : public DBEngine {
           mapd::make_shared<DBHandler>(prog_config_opts.db_leaves,
                                        prog_config_opts.string_leaves,
                                        prog_config_opts.base_path,
-                                       prog_config_opts.cpu_only,
                                        prog_config_opts.allow_multifrag,
                                        prog_config_opts.jit_debug,
                                        prog_config_opts.intel_jit_profile,
@@ -163,8 +162,6 @@ class DBEngineImpl : public DBEngine {
                                        prog_config_opts.render_oom_retry_threshold,
                                        prog_config_opts.render_mem_bytes,
                                        prog_config_opts.max_concurrent_render_sessions,
-                                       prog_config_opts.num_gpus,
-                                       prog_config_opts.start_gpu,
                                        prog_config_opts.reserved_gpu_mem,
                                        prog_config_opts.render_compositor_use_last_gpu,
                                        prog_config_opts.num_reader_threads,
@@ -421,7 +418,6 @@ class DBEngineImpl : public DBEngine {
     }
     return root_dir;
   }
-
  private:
   std::string base_path_;
   std::string session_id_;
@@ -452,6 +448,7 @@ std::shared_ptr<DBEngine> DBEngine::create(const std::string& cmd_line) {
 inline DBEngineImpl* getImpl(DBEngine* ptr) {
   return (DBEngineImpl*)ptr;
 }
+
 inline const DBEngineImpl* getImpl(const DBEngine* ptr) {
   return (const DBEngineImpl*)ptr;
 }

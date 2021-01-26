@@ -26,7 +26,6 @@
 
 const std::string data_path = "./tmp/mapd_data";
 extern bool g_enable_fsi;
-std::shared_ptr<ForeignStorageInterface> fsi;
 
 using namespace foreign_storage;
 using namespace File_Namespace;
@@ -39,17 +38,18 @@ class PersistentStorageMgrTest : public testing::Test {
 };
 
 TEST_F(PersistentStorageMgrTest, DiskCache_CustomPath) {
-  PersistentStorageMgr psm(data_path, fsi, 0, {cache_path_, DiskCacheLevel::fsi});
+  PersistentStorageMgr psm(data_path, 0, {cache_path_, DiskCacheLevel::fsi});
   ASSERT_EQ(psm.getDiskCache()->getGlobalFileMgr()->getBasePath(), cache_path_ + "/");
 }
 
 TEST_F(PersistentStorageMgrTest, DiskCache_InitializeWithoutCache) {
-  PersistentStorageMgr psm(data_path, fsi, 0, {});
+  PersistentStorageMgr psm(data_path, 0, {});
   ASSERT_EQ(psm.getDiskCache(), nullptr);
 }
 
 TEST_F(PersistentStorageMgrTest, MutableDiskCache_CustomPath) {
-  MutableCachePersistentStorageMgr psm(data_path, fsi, 0, {cache_path_, DiskCacheLevel::all});
+  MutableCachePersistentStorageMgr psm(
+      data_path, 0, {cache_path_, DiskCacheLevel::all});
   ASSERT_EQ(psm.getDiskCache()->getGlobalFileMgr()->getBasePath(), cache_path_ + "/");
 }
 

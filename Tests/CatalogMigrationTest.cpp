@@ -36,8 +36,6 @@
 extern bool g_enable_fsi;
 extern bool g_enable_s3_fsi;
 
-std::shared_ptr<ForeignStorageInterface> fsi;
-
 class FsiSchemaTest : public testing::Test {
  protected:
   FsiSchemaTest()
@@ -48,7 +46,7 @@ class FsiSchemaTest : public testing::Test {
   static void SetUpTestSuite() {
     g_enable_s3_fsi = true;
     Catalog_Namespace::SysCatalog::instance().init(
-        BASE_PATH, fsi, nullptr, {}, nullptr, false, false, {});
+        BASE_PATH, nullptr, {}, nullptr, false, false, {});
   }
 
   void SetUp() override {
@@ -72,7 +70,7 @@ class FsiSchemaTest : public testing::Test {
     db_metadata.dbName = "omnisci";
     std::vector<LeafHostInfo> leaves{};
     return std::make_unique<Catalog_Namespace::Catalog>(
-        BASE_PATH, fsi, db_metadata, nullptr, leaves, nullptr, false);
+        BASE_PATH, db_metadata, nullptr, leaves, nullptr, false);
   }
 
   void assertExpectedDefaultServer(Catalog_Namespace::Catalog* catalog,
@@ -176,7 +174,6 @@ class ForeignTablesTest : public DBHandlerTestFixture {
  protected:
   static void SetUpTestSuite() {
     g_enable_fsi = true;
-    setupFSI(fsi);
     DBHandlerTestFixture::SetUpTestSuite();
   }
 
@@ -249,16 +246,12 @@ int main(int argc, char** argv) {
   TestHelpers::init_logger_stderr_only(argc, argv);
   testing::InitGoogleTest(&argc, argv);
 
-  fsi.reset(new ForeignStorageInterface());
-
   int err{0};
   try {
     err = RUN_ALL_TESTS();
   } catch (const std::exception& e) {
     LOG(ERROR) << e.what();
   }
-
-  fsi.reset();
 
   return err;
 }

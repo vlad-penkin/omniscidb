@@ -165,7 +165,6 @@ class DataMgr {
  public:
   explicit DataMgr(
       const std::string& dataDir,
-      std::shared_ptr<ForeignStorageInterface> fsi,
       const SystemParameters& system_parameters,
       std::unique_ptr<CudaMgr_Namespace::CudaMgr> cudaMgr,
       const bool useGpus,
@@ -230,13 +229,11 @@ class DataMgr {
   PersistentStorageMgr* getPersistentStorageMgr() const;
   void resetPersistentStorage(const DiskCacheConfig& cache_config,
                               const size_t num_reader_threads,
-                              std::shared_ptr<ForeignStorageInterface> fsi,
                               const SystemParameters& sys_params);
 
  private:
   void populateMgrs(const SystemParameters& system_parameters,
                     const size_t userSpecifiedNumReaderThreads,
-                    std::shared_ptr<ForeignStorageInterface> fsi,
                     const DiskCacheConfig& cache_config);
   void convertDB(const std::string basePath);
   void checkpoint();  // checkpoint for whole DB, called from convertDB proc only

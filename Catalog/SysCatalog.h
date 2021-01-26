@@ -150,7 +150,6 @@ class CommonFileOperations {
 class SysCatalog : private CommonFileOperations {
  public:
   void init(const std::string& basePath,
-            std::shared_ptr<ForeignStorageInterface> fsi,
             std::shared_ptr<Data_Namespace::DataMgr> dataMgr,
             const AuthMetadata& authMetadata,
             std::shared_ptr<Calcite> calcite,
@@ -299,8 +298,6 @@ class SysCatalog : private CommonFileOperations {
   }
   static void destroy() { instance_.reset(); }
 
-  static void destroy() { instance_.reset(); }
-
   void populateRoleDbObjects(const std::vector<DBObject>& objects);
   std::string name() const { return OMNISCI_DEFAULT_DB; }
   void renameObjectsInDescriptorMap(DBObject& object,
@@ -416,7 +413,6 @@ class SysCatalog : private CommonFileOperations {
   ObjectRoleDescriptorMap objectDescriptorMap_;
   std::unique_ptr<SqliteConnector> sqliteConnector_;
 
-  std::shared_ptr<ForeignStorageInterface> fsi_;
   std::shared_ptr<Data_Namespace::DataMgr> dataMgr_;
   std::unique_ptr<PkiServer> pki_server_;
   const AuthMetadata* authMetadata_;

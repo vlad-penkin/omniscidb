@@ -420,7 +420,6 @@ void DBHandler::initialize(const bool is_new_db) {
   try {
     g_base_path = base_data_path_;
     SysCatalog::instance().init(base_data_path_,
-                                fsi_,
                                 data_mgr_,
                                 authMetadata_,
                                 calcite_,
@@ -5849,7 +5848,6 @@ void DBHandler::sql_execute_impl(ExecutionResult& _return,
     _return.setResultType(ExecutionResult::CalciteDdl);
     return true;
   };
-
   for (const auto& stmt : parse_trees) {
     if (DBHandler::read_only_) {
       // a limited set of commands are available in read-only mode

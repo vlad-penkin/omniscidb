@@ -27,12 +27,10 @@ class PersistentStorageMgr : public AbstractBufferMgr {
  public:
   static PersistentStorageMgr* createPersistentStorageMgr(
       const std::string& data_dir,
-      std::shared_ptr<ForeignStorageInterface> fsi,
       const size_t num_reader_threads,
       const DiskCacheConfig& disk_cache_config);
 
   PersistentStorageMgr(const std::string& data_dir,
-                       std::shared_ptr<ForeignStorageInterface> fsi,
                        const size_t num_reader_threads,
                        const DiskCacheConfig& disk_cache_config);
 

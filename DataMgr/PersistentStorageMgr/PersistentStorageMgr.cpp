@@ -23,18 +23,17 @@
 
 PersistentStorageMgr* PersistentStorageMgr::createPersistentStorageMgr(
     const std::string& data_dir,
-    std::shared_ptr<ForeignStorageInterface> fsi,
     const size_t num_reader_threads,
     const DiskCacheConfig& config) {
   if (config.isEnabledForMutableTables()) {
-    return new MutableCachePersistentStorageMgr(data_dir, fsi, num_reader_threads, config);
+    return new MutableCachePersistentStorageMgr(
+        data_dir, num_reader_threads, config);
   } else {
-    return new PersistentStorageMgr(data_dir, fsi, num_reader_threads, config);
+    return new PersistentStorageMgr(data_dir, num_reader_threads, config);
   }
 }
 
 PersistentStorageMgr::PersistentStorageMgr(const std::string& data_dir,
-                                           std::shared_ptr<ForeignStorageInterface> fsi,
                                            const size_t num_reader_threads,
                                            const DiskCacheConfig& disk_cache_config)
     : AbstractBufferMgr(0), disk_cache_config_(disk_cache_config) {
