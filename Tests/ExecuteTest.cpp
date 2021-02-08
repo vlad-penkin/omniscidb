@@ -5279,13 +5279,13 @@ TEST(Select, Time) {
     // 28 days in February for common year
     ASSERT_EQ(
         28,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(daysinmonth FROM CAST('2018-02-01 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(daysinmonth FROM CAST('1918-02-01 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // 29 days in February for leap year
     ASSERT_EQ(
         29,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(daysinmonth FROM CAST('2016-02-14 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(daysinmonth FROM CAST('3016-02-14 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // 31 days in March
@@ -5302,9 +5302,9 @@ TEST(Select, Time) {
                                   dt)));
 
     // is leap year tests
-    // 2020 is leap
+    // 1820 is leap
     ASSERT_EQ(1,
-              v<int64_t>(run_simple_agg("SELECT EXTRACT(isleapyear FROM CAST('2020-01-01 "
+              v<int64_t>(run_simple_agg("SELECT EXTRACT(isleapyear FROM CAST('1820-01-01 "
                                         "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                         dt)));
     // 2018 is common year
@@ -5317,9 +5317,9 @@ TEST(Select, Time) {
               v<int64_t>(run_simple_agg("SELECT EXTRACT(isleapyear FROM CAST('2000-02-14 "
                                         "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                         dt)));
-    // 2100 is common year
+    // 2600 is common year
     ASSERT_EQ(0,
-              v<int64_t>(run_simple_agg("SELECT EXTRACT(isleapyear FROM CAST('2100-03-31 "
+              v<int64_t>(run_simple_agg("SELECT EXTRACT(isleapyear FROM CAST('2600-03-31 "
                                         "00:06:12' AS TIMESTAMP)) FROM test limit 1;",
                                         dt)));
 
@@ -5331,7 +5331,7 @@ TEST(Select, Time) {
                                         dt)));
     // January
     ASSERT_EQ(0,
-              v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthend FROM CAST('2020-01-01 "
+              v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthend FROM CAST('3220-01-01 "
                                         "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                         dt)));
     // February for common year
@@ -5341,7 +5341,7 @@ TEST(Select, Time) {
                                         dt)));
     // February for leap year
     ASSERT_EQ(1,
-              v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthend FROM CAST('2016-02-29 "
+              v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthend FROM CAST('1812-02-29 "
                                         "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                         dt)));
     // February
@@ -5351,7 +5351,7 @@ TEST(Select, Time) {
                                         dt)));
     // March
     ASSERT_EQ(1,
-              v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthend FROM CAST('2019-03-31 "
+              v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthend FROM CAST('3319-03-31 "
                                         "00:06:12' AS TIMESTAMP)) FROM test limit 1;",
                                         dt)));
     // March
@@ -5366,7 +5366,7 @@ TEST(Select, Time) {
                                         dt)));
     // April
     ASSERT_EQ(0,
-              v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthend FROM CAST('2017-04-07 "
+              v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthend FROM CAST('1935-04-07 "
                                         "14:50:12' AS TIMESTAMP)) FROM test limit 1;",
                                         dt)));
 
@@ -5374,7 +5374,7 @@ TEST(Select, Time) {
     // January
     ASSERT_EQ(
         1,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthstart FROM CAST('2020-01-01 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthstart FROM CAST('1720-01-01 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // January
@@ -5392,7 +5392,7 @@ TEST(Select, Time) {
     // February
     ASSERT_EQ(
         0,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthstart FROM CAST('2017-02-25 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthstart FROM CAST('3417-02-25 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // March
@@ -5410,7 +5410,7 @@ TEST(Select, Time) {
     // April
     ASSERT_EQ(
         1,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthstart FROM CAST('2017-04-01 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(ismonthstart FROM CAST('1917-04-01 "
                                   "14:50:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // April
@@ -5436,7 +5436,7 @@ TEST(Select, Time) {
     // 1st quarter
     ASSERT_EQ(
         0,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterend FROM CAST('2020-03-30 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterend FROM CAST('3820-03-30 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // 2nd quarter
@@ -5448,7 +5448,7 @@ TEST(Select, Time) {
     // 2nd quarter
     ASSERT_EQ(
         0,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterend FROM CAST('2017-05-31 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterend FROM CAST('1717-05-31 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // 3rd quarter
@@ -5460,7 +5460,7 @@ TEST(Select, Time) {
     // 3rd quarter
     ASSERT_EQ(
         0,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterend FROM CAST('2021-07-30 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterend FROM CAST('2621-07-30 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // 4th quarter
@@ -5472,14 +5472,14 @@ TEST(Select, Time) {
     // 4th quarter
     ASSERT_EQ(
         0,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterend FROM CAST('2020-12-30 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterend FROM CAST('1920-12-30 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // is quarter start tests
     // 1st quarter
     ASSERT_EQ(
         1,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterstart FROM CAST('2020-01-01 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterstart FROM CAST('1924-01-01 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // 1st quarter
@@ -5497,7 +5497,7 @@ TEST(Select, Time) {
     // 2nd quarter
     ASSERT_EQ(
         1,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterstart FROM CAST('2017-04-01 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterstart FROM CAST('2417-04-01 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // 2nd quarter
@@ -5509,7 +5509,7 @@ TEST(Select, Time) {
     // 3rd quarter
     ASSERT_EQ(
         1,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterstart FROM CAST('2019-07-01 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterstart FROM CAST('2219-07-01 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // 3rd quarter
@@ -5521,7 +5521,7 @@ TEST(Select, Time) {
     // 4th quarter
     ASSERT_EQ(
         1,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterstart FROM CAST('2020-10-01 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(isquarterstart FROM CAST('1932-10-01 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     // 4th quarter
@@ -5537,7 +5537,7 @@ TEST(Select, Time) {
                                         "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                         dt)));
     ASSERT_EQ(1,
-              v<int64_t>(run_simple_agg("SELECT EXTRACT(isyearend FROM CAST('2019-12-31 "
+              v<int64_t>(run_simple_agg("SELECT EXTRACT(isyearend FROM CAST('3019-12-31 "
                                         "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                         dt)));
     ASSERT_EQ(0,
@@ -5548,7 +5548,7 @@ TEST(Select, Time) {
     // is year start tests
     ASSERT_EQ(
         1,
-        v<int64_t>(run_simple_agg("SELECT EXTRACT(isyearstart FROM CAST('2019-01-01 "
+        v<int64_t>(run_simple_agg("SELECT EXTRACT(isyearstart FROM CAST('1919-01-01 "
                                   "20:15:12' AS TIMESTAMP)) FROM test limit 1;",
                                   dt)));
     ASSERT_EQ(
