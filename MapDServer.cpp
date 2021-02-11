@@ -39,6 +39,7 @@
 #include "Shared/mapd_shared_mutex.h"
 #include "Shared/mapd_shared_ptr.h"
 #include "Shared/scope.h"
+#include "Shared/threadpool.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/trim.hpp>
@@ -81,12 +82,16 @@ std::atomic<int> g_saw_signal{-1};
 mapd_shared_mutex g_thrift_mutex;
 TThreadedServer* g_thrift_http_server{nullptr};
 TThreadedServer* g_thrift_buf_server{nullptr};
-
 mapd::shared_ptr<DBHandler> g_warmup_handler =
     0;  // global "g_warmup_handler" needed to avoid circular dependency
 // between "DBHandler" & function "run_warmup_queries"
 mapd::shared_ptr<DBHandler> g_mapd_handler = 0;
 std::once_flag g_shutdown_once_flag;
+
+#ifdef HAVE_TBB
+std::unique_ptr<tbb::global_control> threadpool::TbbThreadPoolBase::g_ctl_ptr;
+#endif // HAVE_TBB
+
 
 void shutdown_handler() {
   if (g_mapd_handler) {
@@ -408,6 +413,11 @@ int startMapdServer(CommandLineOptions& prog_config_opts, bool start_http_server
   if (g_enable_fsi) {
     foreign_storage::ForeignTableRefreshScheduler::start(g_running);
   }
+#ifdef HAVE_TBB
+  if (g_cpu_threads_override > 0) {
+    threadpool::TbbThreadPoolBase::init(g_cpu_threads_override);
+  }
+#endif
 
   mapd::shared_ptr<TServerSocket> serverSocket;
   mapd::shared_ptr<TServerSocket> httpServerSocket;
