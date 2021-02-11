@@ -305,7 +305,8 @@ class DebugTimer {
              char const* file,
              int line,
              char const* name,
-             __itt_domain* ittdomain);
+             __itt_domain* ittdomain,
+             __itt_string_handle* itttask);
 #else
   DebugTimer(Severity, char const* file, int line, char const* name);
 #endif
@@ -327,7 +328,8 @@ void addTreeLog(const std::string& msg);
 #if ENABLE_ITT
 #define DEBUG_TIMER(inst, name)                                                           \
     static __itt_domain* ittdomain##inst = __itt_domain_create(name);                      \
-    auto inst = logger::DebugTimer(logger::INFO, __FILE__, __LINE__, name, ittdomain##inst)
+    static __itt_string_handle* itttask##inst = __itt_string_handle_create(name);           \
+    auto inst = logger::DebugTimer(logger::INFO, __FILE__, __LINE__, name, ittdomain##inst, itttask##inst)
 #define DEBUG_TIMER_THIS_FUNC() DEBUG_TIMER(timer, __func__)
 #define DEBUG_TIMER_NAME(name) DEBUG_TIMER(timer, name)
 #else
