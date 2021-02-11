@@ -18,11 +18,13 @@
 
 #ifdef HAVE_TBB
 #include "tbb/task_group.h"
+#include "tbb/global_control.h"
 #endif
 
 #include <future>
 #include <iostream>
 #include <type_traits>
+#include <memory>
 
 namespace threadpool {
 
@@ -75,6 +77,12 @@ class FuturesThreadPool<T, std::enable_if_t<std::is_object<T>::value>>
 #ifdef HAVE_TBB
 
 class TbbThreadPoolBase {
+  static std::unique_ptr<tbb::global_control> g_ctl_ptr;
+ public:
+  static void init(int p) {
+    g_ctl_ptr = std::make_unique<tbb::global_control>(tbb::global_control::max_allowed_parallelism, p);
+  }
+
  protected:
   tbb::task_group tasks_;
 };
