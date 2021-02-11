@@ -323,7 +323,7 @@ key_t get_and_copy_to_shm(const std::shared_ptr<Buffer>& data) {
 //! buffers using deallocateArrowResultBuffer. GPU buffers will become owned by the caller
 //! upon deserialization, and will be automatically freed when they go out of scope.
 ArrowResult ArrowResultSetConverter::getArrowResult() const {
-  auto timer = DEBUG_TIMER(__func__);
+  DEBUG_TIMER_THIS_FUNC();
   std::shared_ptr<arrow::RecordBatch> record_batch = convertToArrow();
 
   if (device_type_ == ExecutorDeviceType::CPU ||
@@ -334,7 +334,7 @@ ArrowResult ArrowResultSetConverter::getArrowResult() const {
             const int64_t records_size,
             const std::shared_ptr<Buffer>& serialized_schema,
             const std::shared_ptr<Buffer>& serialized_dict) -> ArrowResult {
-      auto timer = DEBUG_TIMER("serialize batch to wire");
+      DEBUG_TIMER_NAME("serialize batch to wire");
       const int64_t total_size = schema_size + records_size + dict_size;
       std::vector<char> record_handle_data(total_size);
       auto serialized_records =
@@ -368,7 +368,7 @@ ArrowResult ArrowResultSetConverter::getArrowResult() const {
             const int64_t records_size,
             const std::shared_ptr<Buffer>& serialized_schema,
             const std::shared_ptr<Buffer>& serialized_dict) -> ArrowResult {
-      auto timer = DEBUG_TIMER("serialize batch to shared memory");
+      DEBUG_TIMER_NAME("serialize batch to shared memory");
       std::shared_ptr<Buffer> serialized_records;
       std::vector<char> schema_handle_buffer;
       std::vector<char> record_handle_buffer(sizeof(key_t), 0);
@@ -543,7 +543,7 @@ ArrowResult ArrowResultSetConverter::getArrowResult() const {
 ArrowResultSetConverter::SerializedArrowOutput
 ArrowResultSetConverter::getSerializedArrowOutput(
     arrow::ipc::DictionaryFieldMapper* mapper) const {
-  auto timer = DEBUG_TIMER(__func__);
+  DEBUG_TIMER_THIS_FUNC();
   std::shared_ptr<arrow::RecordBatch> arrow_copy = convertToArrow();
   std::shared_ptr<arrow::Buffer> serialized_records, serialized_schema;
 
@@ -552,7 +552,7 @@ ArrowResultSetConverter::getSerializedArrowOutput(
       arrow::ipc::SerializeSchema(*arrow_copy->schema(), arrow::default_memory_pool()));
 
   if (arrow_copy->num_rows()) {
-    auto timer = DEBUG_TIMER("serialize records");
+    DEBUG_TIMER_NAME("serialize records");
     ARROW_THROW_NOT_OK(arrow_copy->Validate());
     ARROW_ASSIGN_OR_THROW(serialized_records,
                           arrow::ipc::SerializeRecordBatch(
@@ -564,7 +564,7 @@ ArrowResultSetConverter::getSerializedArrowOutput(
 }
 
 std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::convertToArrow() const {
-  auto timer = DEBUG_TIMER(__func__);
+  DEBUG_TIMER_THIS_FUNC();
   const auto col_count = results_->colCount();
   std::vector<std::shared_ptr<arrow::Field>> fields;
   CHECK(col_names_.empty() || col_names_.size() == col_count);
@@ -754,7 +754,7 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
                                 entry_count == results_->entryCount();
   std::vector<bool> non_lazy_cols;
   if (use_columnar_converter) {
-    auto timer = DEBUG_TIMER("columnar converter");
+    DEBUG_TIMER_NAME("columnar converter");
     std::vector<size_t> non_lazy_col_pos;
     size_t non_lazy_col_count = 0;
     const auto& lazy_fetch_info = results_->getLazyFetchInfo();
@@ -823,7 +823,7 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
     row_count = entry_count;
   }
   if (!use_columnar_converter || !non_lazy_cols.empty()) {
-    auto timer = DEBUG_TIMER("row converter");
+    DEBUG_TIMER_NAME("row converter");
     row_count = 0;
     if (multithreaded) {
       const size_t cpu_count = cpu_threads();
@@ -848,7 +848,7 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
         row_count += child.get();
       }
       {
-        auto timer = DEBUG_TIMER("append rows to arrow");
+        DEBUG_TIMER_NAME("append rows to arrow");
         for (int i = 0; i < schema->num_fields(); ++i) {
           if (!non_lazy_cols.empty() && non_lazy_cols[i]) {
             continue;
@@ -866,7 +866,7 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
       row_count =
           fetch(column_values, null_bitmaps, non_lazy_cols, size_t(0), entry_count);
       {
-        auto timer = DEBUG_TIMER("append rows to arrow single thread");
+        DEBUG_TIMER_NAME("append rows to arrow single thread");
         for (int i = 0; i < schema->num_fields(); ++i) {
           if (!non_lazy_cols.empty() && non_lazy_cols[i]) {
             continue;
@@ -878,7 +878,7 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
     }
 
     {
-      auto timer = DEBUG_TIMER("finish builders");
+      DEBUG_TIMER_NAME("finish builders");
       for (size_t i = 0; i < col_count; ++i) {
         if (!non_lazy_cols.empty() && non_lazy_cols[i]) {
           continue;
