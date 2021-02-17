@@ -2152,7 +2152,8 @@ void Executor::launchKernels(SharedKernelContext& shared_context,
 
   THREAD_POOL thread_pool;
   // A hack to have unused unit for results collection.
-  const RelAlgExecutionUnit& ra_exe_unit = kernels[0]->ra_exe_unit_;
+  const RelAlgExecutionUnit* ra_exe_unit =
+      kernels.empty() ? nullptr : &kernels[0]->ra_exe_unit_;
 
 #ifdef HAVE_TBB
   if constexpr (std::is_same<decltype(&thread_pool),
@@ -2201,7 +2202,7 @@ void Executor::launchKernels(SharedKernelContext& shared_context,
     // TODO: add QueryExecutionContext::getRowSet() interface
     // for our case.
     if (exec_ctx) {
-      auto results = exec_ctx->getRowSet(ra_exe_unit, exec_ctx->query_mem_desc_);
+      auto results = exec_ctx->getRowSet(*ra_exe_unit, exec_ctx->query_mem_desc_);
 #ifdef DBG_PRINT
       std::cout << "Got results from TLS with " << results->rowCount() << " row(s)"
                 << std::endl;
