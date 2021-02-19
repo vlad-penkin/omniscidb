@@ -67,11 +67,11 @@
 #include "QueryEngine/ThriftSerializers.h"
 #include "Shared/ArrowUtil.h"
 #include "Shared/StringTransform.h"
-#include "Shared/thread_count.h"
 #include "Shared/import_helpers.h"
 #include "Shared/mapd_shared_mutex.h"
 #include "Shared/measure.h"
 #include "Shared/scope.h"
+#include "Shared/thread_count.h"
 
 #include <fcntl.h>
 #include <picosha2.h>
@@ -1022,6 +1022,11 @@ void DBHandler::sql_execute(TQueryResult& _return,
   stdlog.appendNameValuePairs("client", getConnectionInfo().toString());
   stdlog.appendNameValuePairs("nonce", nonce);
   DEBUG_TIMER_THIS_FUNC();
+  ScopeGuard cache_cleaner = [] {
+    if (g_cleanup_join_hash_table_cache) {
+      JoinHashTableCacheInvalidator::invalidateCaches();
+    }
+  };
 
   try {
     ScopeGuard reset_was_geo_copy_from = [this, &session_ptr] {
@@ -1124,6 +1129,11 @@ void DBHandler::sql_execute_df(TDataFrame& _return,
   auto session_ptr = get_session_ptr(session);
   auto query_state = create_query_state(session_ptr, query_str);
   auto stdlog = STDLOG(session_ptr, query_state);
+  ScopeGuard cache_cleaner = [] {
+    if (g_cleanup_join_hash_table_cache) {
+      JoinHashTableCacheInvalidator::invalidateCaches();
+    }
+  };
 
   if (device_type == TDeviceType::GPU) {
     const auto executor_device_type = session_ptr->get_executor_device_type();
