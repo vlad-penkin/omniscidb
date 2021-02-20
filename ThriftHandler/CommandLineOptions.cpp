@@ -680,6 +680,12 @@ void CommandLineOptions::fillAdvancedOptions() {
           ->default_value(g_enable_seconds_refresh)
           ->implicit_value(true),
       "Enable foreign table seconds refresh interval for testing purposes.");
+  developer_desc.add_options()("cleanup-join-hash-table-cache",
+                               po::value<bool>(&g_cleanup_join_hash_table_cache)
+                                   ->default_value(g_cleanup_join_hash_table_cache)
+                                   ->implicit_value(true),
+                               "Invalidate join hash table caches after each SQL query. "
+                               "Used for performance measurements.");
 }
 
 namespace {

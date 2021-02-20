@@ -130,6 +130,7 @@ bool g_is_test_env{false};  // operating under a unit test environment. Currentl
 
 size_t g_approx_quantile_buffer{1000};
 size_t g_approx_quantile_centroids{300};
+bool g_cleanup_join_hash_table_cache{true};
 
 extern bool g_cache_string_hash;
 
