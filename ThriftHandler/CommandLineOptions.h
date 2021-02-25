@@ -160,6 +160,7 @@ extern float g_filter_push_down_low_frac;
 extern float g_filter_push_down_high_frac;
 extern size_t g_filter_push_down_passing_row_ubound;
 extern bool g_enable_columnar_output;
+extern bool g_optimize_row_initialization;
 extern bool g_enable_overlaps_hashjoin;
 extern bool g_disable_perfect_join_ht;
 extern bool g_disable_perfect_ht;
