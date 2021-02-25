@@ -51,6 +51,7 @@ bool g_cluster{false};
 bool g_bigint_count{false};
 int g_hll_precision_bits{11};
 extern size_t g_leaf_count;
+extern bool g_disable_perfect_ht;
 
 namespace {
 
@@ -106,6 +107,8 @@ bool has_count_distinct(const RelAlgExecutionUnit& ra_exe_unit) {
 
 bool is_column_range_too_big_for_perfect_hash(const ColRangeInfo& col_range_info,
                                               const int64_t max_entry_count) {
+  if (g_disable_perfect_ht)
+    return true;
   try {
     return static_cast<int64_t>(checked_int64_t(col_range_info.max) -
                                 checked_int64_t(col_range_info.min)) >= max_entry_count;

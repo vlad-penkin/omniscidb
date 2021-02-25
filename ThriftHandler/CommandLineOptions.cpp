@@ -157,6 +157,16 @@ void CommandLineOptions::fillOptions() {
                               ->implicit_value(true),
                           "Enable the overlaps hash join framework allowing for range "
                           "join (e.g. spatial overlaps) computation using a hash table.");
+  help_desc.add_options()("disable-perfect-join-ht",
+                          po::value<bool>(&g_disable_perfect_join_ht)
+                              ->default_value(g_disable_perfect_join_ht)
+                              ->implicit_value(true),
+                          "Disable perfect joing hash tables.");
+  help_desc.add_options()("disable-perfect-ht",
+                          po::value<bool>(&g_disable_perfect_ht)
+                              ->default_value(g_disable_perfect_ht)
+                              ->implicit_value(true),
+                          "Disable perfect hash tables (but perfect join).");
   help_desc.add_options()("enable-hashjoin-many-to-many",
                           po::value<bool>(&g_enable_hashjoin_many_to_many)
                               ->default_value(g_enable_hashjoin_many_to_many)
