@@ -94,6 +94,8 @@ float g_filter_push_down_high_frac{-1.0f};
 size_t g_filter_push_down_passing_row_ubound{0};
 bool g_enable_columnar_output{false};
 bool g_enable_overlaps_hashjoin{true};
+bool g_disable_perfect_join_ht{false};
+bool g_disable_perfect_ht{false};
 bool g_enable_hashjoin_many_to_many{false};
 size_t g_overlaps_max_table_size_bytes{1024 * 1024 * 1024};
 double g_overlaps_target_entries_per_bin{1.3};

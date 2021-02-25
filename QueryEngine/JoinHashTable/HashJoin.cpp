@@ -27,6 +27,7 @@
 #include "QueryEngine/ScalarExprVisitor.h"
 
 extern bool g_enable_overlaps_hashjoin;
+extern bool g_disable_perfect_join_ht;
 
 void ColumnsForDevice::setBucketInfo(
     const std::vector<double>& bucket_sizes_for_dimension,
@@ -271,6 +272,9 @@ std::shared_ptr<HashJoin> HashJoin::getInstance(
                                                          executor);
   } else {
     try {
+      if (g_disable_perfect_join_ht)
+        throw TooManyHashEntries();
+
       VLOG(1) << "Trying to build perfect hash table:";
       join_hash_table = PerfectJoinHashTable::getInstance(qual_bin_oper,
                                                           query_infos,
