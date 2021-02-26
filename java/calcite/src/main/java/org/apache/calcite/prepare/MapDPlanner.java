@@ -238,7 +238,11 @@ public class MapDPlanner extends PlannerImpl {
     hepBuilder.addRuleInstance(CoreRules.JOIN_PROJECT_BOTH_TRANSPOSE_INCLUDE_OUTER);
     hepBuilder.addRuleInstance(CoreRules.FILTER_MERGE);
     hepBuilder.addRuleInstance(CoreRules.FILTER_PROJECT_TRANSPOSE);
-    hepBuilder.addRuleInstance(CoreRules.PROJECT_MERGE);
+
+    // this rule could generate invalid IR, so we won't use it
+    // https://github.com/modin-project/modin/issues/2788
+    // hepBuilder.addRuleInstance(CoreRules.PROJECT_MERGE);
+
     hepBuilder.addRuleInstance(ProjectProjectRemoveRule.INSTANCE);
 
     HepPlanner hepPlanner = new HepPlanner(hepBuilder.build());
