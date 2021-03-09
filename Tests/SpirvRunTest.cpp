@@ -9,12 +9,24 @@
 #include "TestHelpers.h"
 #include "L0Mgr/L0Mgr.h"
 
+#include <level_zero/ze_api.h>
+
 namespace {
 template<typename T, size_t N>
 struct alignas(4096) AlignedArray {
     T data[N];
 };
 }
+
+#define L0_SAFE_CALL(call)                                                           \
+  {                                                                                  \
+    auto status = (call);                                                            \
+    if (status) {                                                                   \
+      std::cerr << "L0 error: " << (int)status << " " << __FILE__ << ":" << __LINE__ \
+                << std::endl;                                                        \
+      exit(status);                                                                  \
+    }                                                                                \
+  }
 
 TEST(SPIRVBuildTest, TranslateSimple) {
   using namespace llvm;
@@ -85,23 +97,24 @@ TEST(SPIRVBuildTest, TranslateSimple) {
     b.data[i] = i;
   }
 
+  void *a_void = a.data;
+  void *b_void = b.data;
+
+  const int copy_size = a_size * sizeof(float);
+
   l0Mgr->setSPV(spv);
 
-  void* src = l0Mgr->allocateDeviceMem(32, 0);
-  void* dst = l0Mgr->allocateDeviceMem(32, 0);
+  void *src = nullptr;
+  void *dst = nullptr;
 
+  l0Mgr->allocateDeviceMem(src, copy_size, 0);
+  l0Mgr->allocateDeviceMem(dst, copy_size, 0);
   
   l0Mgr->setMemArgument(src, 0);
   l0Mgr->setMemArgument(dst, 1);
 
-  std::cerr << "Args set" << std::endl;
-
-  void *a_void = a.data;
-  void *b_void = b.data;
   l0Mgr->copyHostToDevice(src, a_void, a_size*sizeof(float), 0);
   l0Mgr->copyHostToDevice(dst, b_void, a_size*sizeof(float), 0);
-
-  std::cerr << "Added copying" << std::endl;
 
   l0Mgr->launch();
 
@@ -113,6 +126,8 @@ TEST(SPIRVBuildTest, TranslateSimple) {
     std::cout << b.data[i] << " ";
   }
   std::cout << std::endl;
+  ASSERT_EQ(b.data[0], 33);
+  ASSERT_EQ(b.data[1], 1);
 }
 
 int main(int argc, char** argv) {

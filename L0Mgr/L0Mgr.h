@@ -42,7 +42,7 @@ std::string errorMessage(L0result const);
 #define L0_SAFE_CALL(call)                                                           \
   {                                                                                  \
     auto status = (call);                                                            \
-    if (status) {                                                                   \
+    if (status) {                                                                    \
       std::cerr << "L0 error: " << (int)status << " " << __FILE__ << ":" << __LINE__ \
                 << std::endl;                                                        \
       exit(status);                                                                  \
@@ -55,20 +55,20 @@ class L0Mgr {
   ~L0Mgr();
 
   void copyHostToDevice(void* device_ptr,
-                        void* host_ptr,
-                        size_t num_bytes,
-                        int device_num);
+                        const void* host_ptr,
+                        const size_t num_bytes,
+                        const int device_num);
   void copyDeviceToHost(void* host_ptr,
-                        void* device_ptr,
-                        size_t num_bytes,
-                        int device_num);
+                        const void* device_ptr,
+                        const size_t num_bytes,
+                        const int device_num);
   void copyDeviceToDevice(int8_t* dest_ptr,
-                          int8_t* src_ptr,
-                          size_t num_bytes,
-                          int dest_device_num,
-                          int src_device_num);
+                          const int8_t* src_ptr,
+                          const size_t num_bytes,
+                          const int dest_device_num,
+                          const int src_device_num);
 
-  void* allocateDeviceMem(size_t num_bytes, int device_num);
+  void allocateDeviceMem(void*& ptr, const size_t num_bytes, const int device_num);
 
   void setSPV(std::string& spv);
   void setMemArgument(void* mem, size_t pos);
@@ -79,16 +79,16 @@ class L0Mgr {
   void launch(); // FIXME: rename
   void commit(); // for now run only on commit
 
+  ze_context_handle_t hContext = nullptr;
+  ze_device_handle_t hDevice = nullptr;
  private:
   void initModule(unsigned char* code, size_t size_bytes);
   void initKernel(std::string name = "plus1");
  // TODO: multiple devices
  // omnisci::DeviceGroup ?
-  ze_device_handle_t hDevice = nullptr;
   ze_module_handle_t hModule = nullptr;
   ze_driver_handle_t hDriver = nullptr;
   ze_command_queue_handle_t hCommandQueue = nullptr;
-  ze_context_handle_t hContext = nullptr;
 
   ze_command_list_handle_t hCommandList;
   ze_kernel_handle_t hKernel;

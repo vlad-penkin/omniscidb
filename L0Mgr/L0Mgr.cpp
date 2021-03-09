@@ -137,42 +137,40 @@ void L0Mgr::setSPV(std::string& spv) {
 }
 
 void L0Mgr::copyHostToDevice(void* device_ptr,
-                             void* host_ptr,
-                             size_t num_bytes,
-                             int device_num) {
+                             const void* host_ptr,
+                             const size_t num_bytes,
+                             const int device_num) {
   L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
       hCommandList, device_ptr, host_ptr, num_bytes, nullptr, 0, nullptr));
   L0_SAFE_CALL(zeCommandListAppendBarrier(hCommandList, nullptr, 0, nullptr));
 }
 
 void L0Mgr::copyDeviceToHost(void* host_ptr,
-                             void* device_ptr,
-                             size_t num_bytes,
-                             int device_num) {
+                             const void* device_ptr,
+                             const size_t num_bytes,
+                             const int device_num) {
   L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
       hCommandList, host_ptr, device_ptr, num_bytes, nullptr, 0, nullptr));
   L0_SAFE_CALL(zeCommandListAppendBarrier(hCommandList, nullptr, 0, nullptr));
 }
 
 void L0Mgr::copyDeviceToDevice(int8_t* dest_ptr,
-                               int8_t* src_ptr,
-                               size_t num_bytes,
-                               int dest_device_num,
-                               int src_device_num) {
+                               const int8_t* src_ptr,
+                               const size_t num_bytes,
+                               const int dest_device_num,
+                               const int src_device_num) {
   CHECK(false);
 }
 
 
-void* L0Mgr::allocateDeviceMem(size_t num_bytes, int device_num) {
+void L0Mgr::allocateDeviceMem(void*& ptr, const size_t num_bytes, const int device_num) {
   ze_device_mem_alloc_desc_t alloc_desc;
   alloc_desc.stype = ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
   alloc_desc.pNext = nullptr;
   alloc_desc.flags = 0;
   alloc_desc.ordinal = 0;
 
-  void *mem = nullptr;
-  L0_SAFE_CALL(zeMemAllocDevice(hContext, &alloc_desc, num_bytes, 0/*align*/, hDevice, &mem));
-  return mem;
+  L0_SAFE_CALL(zeMemAllocDevice(hContext, &alloc_desc, num_bytes, 0/*align*/, hDevice, &ptr));
 }
 
 void L0Mgr::createModule(unsigned char* code, size_t size_bytes) {
