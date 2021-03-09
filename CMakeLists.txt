@@ -626,6 +626,10 @@ if(ENABLE_DBE)
   add_subdirectory(Embedded)
 endif()
 
+if(ENABLE_L0)
+  add_subdirectory(L0Mgr)
+endif()
+
 option(ENABLE_ODBC "Build ODBC driver" OFF)
 if(ENABLE_ODBC)
   add_subdirectory(ODBC)

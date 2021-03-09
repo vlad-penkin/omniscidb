@@ -123,6 +123,10 @@ if(ENABLE_L0)
   add_executable(L0BuildTest L0BuildTest.cpp)
   target_include_directories(L0BuildTest PRIVATE ${LevelZero_INCLUDE_DIRS})
   target_link_libraries(L0BuildTest ${LevelZero_LIBRARY} ${EXECUTE_TEST_LIBS})
+
+  add_executable(SpirvRunTest SpirvRunTest.cpp)
+  target_include_directories(SpirvRunTest PRIVATE ${LevelZero_INCLUDE_DIRS})
+  target_link_libraries(SpirvRunTest L0Mgr LLVMSPIRVLib ${LevelZero_LIBRARY} ${THRIFT_HANDLER_TEST_LIBRARIES})
 endif()
 
 target_link_libraries(ProfileTest ${EXECUTE_TEST_LIBS})
@@ -282,6 +286,7 @@ endif()
 
 if(ENABLE_L0)
   add_test(L0BuildTest L0BuildTest ${TEST_ARGS})
+  add_test(SpirvRunTest SpirvRunTest ${TEST_ARGS})
 endif()
 
 if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")

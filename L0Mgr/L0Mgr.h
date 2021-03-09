@@ -42,7 +42,7 @@ std::string errorMessage(L0result const);
 #define L0_SAFE_CALL(call)                                                           \
   {                                                                                  \
     auto status = (call);                                                            \
-    if (!status) {                                                                   \
+    if (status) {                                                                   \
       std::cerr << "L0 error: " << (int)status << " " << __FILE__ << ":" << __LINE__ \
                 << std::endl;                                                        \
       exit(status);                                                                  \
@@ -54,21 +54,24 @@ class L0Mgr {
   L0Mgr();
   ~L0Mgr();
 
-  void copyHostToDevice(int8_t* device_ptr,
-                        const int8_t* host_ptr,
-                        const size_t num_bytes,
-                        const int device_num);
-  void copyDeviceToHost(int8_t* host_ptr,
-                        const int8_t* device_ptr,
-                        const size_t num_bytes,
-                        const int device_num);
+  void copyHostToDevice(void* device_ptr,
+                        void* host_ptr,
+                        size_t num_bytes,
+                        int device_num);
+  void copyDeviceToHost(void* host_ptr,
+                        void* device_ptr,
+                        size_t num_bytes,
+                        int device_num);
   void copyDeviceToDevice(int8_t* dest_ptr,
                           int8_t* src_ptr,
-                          const size_t num_bytes,
-                          const int dest_device_num,
-                          const int src_device_num);
+                          size_t num_bytes,
+                          int dest_device_num,
+                          int src_device_num);
 
-  int8_t* allocateDeviceMem(const size_t num_bytes, const int device_num);
+  void* allocateDeviceMem(size_t num_bytes, int device_num);
+
+  void setSPV(std::string& spv);
+  void setMemArgument(void* mem, size_t pos);
 
 
 // in-mem spv, should return module ref? ignore for now
@@ -78,7 +81,7 @@ class L0Mgr {
 
  private:
   void initModule(unsigned char* code, size_t size_bytes);
-  void initKernel(std::string name = "SomeKernelName");
+  void initKernel(std::string name = "plus1");
  // TODO: multiple devices
  // omnisci::DeviceGroup ?
   ze_device_handle_t hDevice = nullptr;

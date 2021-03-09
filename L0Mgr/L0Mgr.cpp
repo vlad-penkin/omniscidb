@@ -25,18 +25,18 @@
 namespace L0Mgr_Namespace {
 
 // TODO: move me
-static void L0InitGPUContext(ze_driver_handle_t& hDriver,
-                             ze_device_handle_t& hDevice,
-                             ze_command_queue_handle_t& hCommandQueue,
-                             ze_context_handle_t& hContext) {
+void L0InitGPUContext(ze_driver_handle_t &hDriver,
+                          ze_device_handle_t &hDevice,
+                          ze_command_queue_handle_t &hCommandQueue,
+                          ze_context_handle_t &hContext) {
   L0_SAFE_CALL(zeInit(0));
 
   // Discover all the driver instances
   uint32_t driverCount = 0;
   L0_SAFE_CALL(zeDriverGet(&driverCount, nullptr));
 
-  ze_driver_handle_t* allDrivers =
-      (ze_driver_handle_t*)malloc(driverCount * sizeof(ze_driver_handle_t));
+  ze_driver_handle_t *allDrivers =
+      (ze_driver_handle_t *)malloc(driverCount * sizeof(ze_driver_handle_t));
   L0_SAFE_CALL(zeDriverGet(&driverCount, allDrivers));
 
   // Find a driver instance with a GPU device
@@ -44,8 +44,8 @@ static void L0InitGPUContext(ze_driver_handle_t& hDriver,
     uint32_t deviceCount = 0;
     hDriver = allDrivers[i];
     L0_SAFE_CALL(zeDeviceGet(hDriver, &deviceCount, nullptr));
-    ze_device_handle_t* allDevices =
-        (ze_device_handle_t*)malloc(deviceCount * sizeof(ze_device_handle_t));
+    ze_device_handle_t *allDevices =
+        (ze_device_handle_t *)malloc(deviceCount * sizeof(ze_device_handle_t));
     L0_SAFE_CALL(zeDeviceGet(hDriver, &deviceCount, allDevices));
     for (uint32_t d = 0; d < deviceCount; ++d) {
       ze_device_properties_t device_properties;
@@ -65,38 +65,90 @@ static void L0InitGPUContext(ze_driver_handle_t& hDriver,
   assert(hDevice);
 
   ze_context_desc_t ctxtDesc = {ZE_STRUCTURE_TYPE_CONTEXT_DESC, nullptr, 0};
-  zeContextCreate(hDriver, &ctxtDesc, &hContext);
+  L0_SAFE_CALL(zeContextCreate(hDriver, &ctxtDesc, &hContext));
+  ze_command_queue_desc_t commandQueueDesc = {
+      ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC,
+      nullptr,
+      0, // computeQueueGroupOrdinal
+      0, // index
+      0, // flags
+      ZE_COMMAND_QUEUE_MODE_DEFAULT,
+      ZE_COMMAND_QUEUE_PRIORITY_NORMAL};
+  L0_SAFE_CALL(zeCommandQueueCreate(hContext, hDevice, &commandQueueDesc,
+                                    &hCommandQueue));
 
-  ze_command_queue_desc_t commandQueueDesc = {ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC,
-                                              nullptr,
-                                              0,
-                                              0,
-                                              0,
-                                              ZE_COMMAND_QUEUE_MODE_DEFAULT,
-                                              ZE_COMMAND_QUEUE_PRIORITY_NORMAL};
-  L0_SAFE_CALL(
-      zeCommandQueueCreate(hContext, hDevice, &commandQueueDesc, &hCommandQueue));
+  
 }
 
 L0Mgr::L0Mgr() {
   L0InitGPUContext(hDriver, hDevice, hCommandQueue, hContext);
-  std::cout << "Initialized context" << std::endl;
 }
 L0Mgr::~L0Mgr() {}
 
-void L0Mgr::copyHostToDevice(int8_t* device_ptr,
-                             const int8_t* host_ptr,
-                             const size_t num_bytes,
-                             const int device_num) {
+void L0Mgr::setSPV(std::string& spv) {
+  size_t codeSize = spv.size();
+  assert(codeSize != 0 && "Code size is 0.");
+  unsigned char *codeBin = new unsigned char[codeSize];
+  std::copy(spv.data(), spv.data() + codeSize, codeBin);
+
+  std::ofstream out("complete.spv", std::ios::binary);
+  out.write((char *)codeBin, codeSize);
+
+  assert(codeSize && "CodeBin is empty");
+
+  // L0Mgr::InitModule
+  // ze_module_desc_t moduleDesc;
+  moduleDesc.stype = ZE_STRUCTURE_TYPE_MODULE_DESC;
+  moduleDesc.pNext = nullptr;
+  moduleDesc.pBuildFlags = "";
+  moduleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
+  moduleDesc.inputSize = codeSize;
+  moduleDesc.pConstants = nullptr;
+  moduleDesc.pInputModule = (uint8_t *)codeBin;
+
+  ze_module_build_log_handle_t buildlog = nullptr;
+  L0_SAFE_CALL(
+      zeModuleCreate(hContext, hDevice, &moduleDesc, &hModule, &buildlog));
+  size_t szLog = 0;
+  L0_SAFE_CALL(zeModuleBuildLogGetString(buildlog, &szLog, nullptr));
+  std::cout << "Got build log size " << szLog << std::endl;
+  char *strLog = (char *)malloc(szLog);
+  L0_SAFE_CALL(zeModuleBuildLogGetString(buildlog, &szLog, strLog));
+  std::fstream log;
+  log.open("log.txt", std::ios::app);
+  if (!log.good()) {
+    std::cerr << "Unable to open log file" << std::endl;
+    exit(1);
+  }
+  log << strLog;
+  log.close();
+
+  ze_command_list_desc_t commandListDesc;
+  commandListDesc.stype = ZE_STRUCTURE_TYPE_COMMAND_LIST_DESC;
+  commandListDesc.pNext = nullptr;
+  commandListDesc.flags = 0;
+  commandListDesc.commandQueueGroupOrdinal = 0;
+
+  L0_SAFE_CALL(
+      zeCommandListCreate(hContext, hDevice, &commandListDesc, &hCommandList));
+
+  initKernel("plus1");
+  std::cerr << "Kernel created" << std::endl;
+}
+
+void L0Mgr::copyHostToDevice(void* device_ptr,
+                             void* host_ptr,
+                             size_t num_bytes,
+                             int device_num) {
   L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
       hCommandList, device_ptr, host_ptr, num_bytes, nullptr, 0, nullptr));
   L0_SAFE_CALL(zeCommandListAppendBarrier(hCommandList, nullptr, 0, nullptr));
 }
 
-void L0Mgr::copyDeviceToHost(int8_t* host_ptr,
-                             const int8_t* device_ptr,
-                             const size_t num_bytes,
-                             const int device_num) {
+void L0Mgr::copyDeviceToHost(void* host_ptr,
+                             void* device_ptr,
+                             size_t num_bytes,
+                             int device_num) {
   L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
       hCommandList, host_ptr, device_ptr, num_bytes, nullptr, 0, nullptr));
   L0_SAFE_CALL(zeCommandListAppendBarrier(hCommandList, nullptr, 0, nullptr));
@@ -104,29 +156,33 @@ void L0Mgr::copyDeviceToHost(int8_t* host_ptr,
 
 void L0Mgr::copyDeviceToDevice(int8_t* dest_ptr,
                                int8_t* src_ptr,
-                               const size_t num_bytes,
-                               const int dest_device_num,
-                               const int src_device_num) {
+                               size_t num_bytes,
+                               int dest_device_num,
+                               int src_device_num) {
   CHECK(false);
 }
 
 
-int8_t* L0Mgr::allocateDeviceMem(const size_t num_bytes, const int device_num) {
+void* L0Mgr::allocateDeviceMem(size_t num_bytes, int device_num) {
   ze_device_mem_alloc_desc_t alloc_desc;
   alloc_desc.stype = ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
   alloc_desc.pNext = nullptr;
   alloc_desc.flags = 0;
   alloc_desc.ordinal = 0;
 
-  void *mem;
+  void *mem = nullptr;
   L0_SAFE_CALL(zeMemAllocDevice(hContext, &alloc_desc, num_bytes, 0/*align*/, hDevice, &mem));
-  // FIXME
-  L0_SAFE_CALL(zeKernelSetArgumentValue(hKernel, 0, sizeof(void*), &mem));
-  return (int8_t*)mem;
+  return mem;
 }
 
 void L0Mgr::createModule(unsigned char* code, size_t size_bytes) {
   initModule(code, size_bytes);
+}
+
+void L0Mgr::setMemArgument(void* mem, size_t pos) {
+  assert(mem);
+
+  L0_SAFE_CALL(zeKernelSetArgumentValue(hKernel, pos, sizeof(void*), &mem));
 }
 
 void L0Mgr::initModule(unsigned char* code, size_t size_bytes) {
