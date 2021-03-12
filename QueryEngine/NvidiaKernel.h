@@ -70,6 +70,8 @@ class GpuDeviceCompilationContext {
 #endif  // HAVE_CUDA
 };
 
+class L0DeviceCompilationContext {}; //??
+
 class GpuCompilationContext : public CompilationContext {
  public:
   GpuCompilationContext() {}

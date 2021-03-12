@@ -117,6 +117,7 @@ endif()
 option(ENABLE_L0 "Enable level zero support" OFF)
 if(ENABLE_L0)
   find_package(LevelZero REQUIRED COMPONENTS ${LevelZero_COMPONENTS})
+  add_definitions("-DHAVE_L0")
 endif()
 
 option(ENABLE_CUDA "Enable CUDA support" ON)
@@ -645,6 +646,10 @@ if("${MAPD_EDITION_LOWER}" STREQUAL "ee")
 endif()
 
 list(APPEND MAPD_LIBRARIES Calcite)
+
+if(ENABLE_L0)
+  list(APPEND MAPD_LIBRARIES L0Mgr)
+endif()
 
 if(ENABLE_RENDERING)
   add_dependencies(QueryRenderer Parser)

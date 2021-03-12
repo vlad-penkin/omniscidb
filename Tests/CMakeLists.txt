@@ -171,6 +171,10 @@ else()
   target_link_libraries(StringDictionaryTest gtest mapd_thrift StringDictionary Logger Utils ${CMAKE_DL_LIBS} ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} ${PROFILER_LIBS})
 endif()
 
+if(ENABLE_L0)
+  target_link_libraries(CodeGeneratorTest L0Mgr)
+endif()
+
 target_link_libraries(GeoTypesTest gtest Logger Shared Geospatial ${CMAKE_DL_LIBS})
 target_link_libraries(OverlapsJoinTest ${EXECUTE_TEST_LIBS})
 target_link_libraries(CtasUpdateTest ${EXECUTE_TEST_LIBS})

@@ -362,6 +362,35 @@ TEST(CodeGeneratorTest, IntegerExprGPU) {
 }
 #endif  // HAVE_CUDA
 
+#ifdef HAVE_L0
+TEST(CodeGeneratorTest, IntegerConstantL0) {
+  auto& ctx = getGlobalLLVMContext();
+  std::unique_ptr<llvm::Module> module(read_template_module(ctx));
+  SpirvCodeGenerator code_generator(std::move(module));
+  CompilationOptions co = CompilationOptions::defaults(ExecutorDeviceType::iGPU);
+  co.hoist_literals = false;
+
+  Datum d;
+  d.intval = 42;
+  auto constant = makeExpr<Analyzer::Constant>(kINT, false, d);
+  const auto compiled_expr = code_generator.compile(constant.get(), false, co);
+  verify_function_ir(compiled_expr.func);
+  ASSERT_TRUE(compiled_expr.inputs.empty());
+
+  llvm::errs() << compiled_expr.func << "\n";
+  compiled_expr.func->print(llvm::errs());
+  compiled_expr.wrapper_func->print(llvm::errs());
+  compiled_expr.func->getParent()->print(llvm::errs(), nullptr);
+
+  auto spv = code_generator.generateSpirv(compiled_expr, co);
+
+  code_generator.getL0Mgr()->setSPV(spv);
+  // todo: execute
+  // ASSERT_EQ(host_err, 0);
+  // ASSERT_EQ(host_out, d.intval);
+}
+#endif // HAVE_L0
+
 int main(int argc, char** argv) {
   TestHelpers::init_logger_stderr_only(argc, argv);
   testing::InitGoogleTest(&argc, argv);

@@ -19,7 +19,7 @@
 
 #include <vector>
 
-enum class ExecutorDeviceType { CPU, GPU };
+enum class ExecutorDeviceType { CPU, GPU, iGPU /*fixme*/ };
 
 enum class ExecutorOptLevel { Default, LoopStrengthReduction, ReductionJIT };
 
@@ -59,6 +59,10 @@ struct CompilationOptions {
                               true,
                               ExecutorExplainType::Default,
                               false};
+  }
+
+  static CompilationOptions makeGPU(const ExecutorDeviceType device_type = ExecutorDeviceType::iGPU) {
+    return defaults(device_type);
   }
 };
 

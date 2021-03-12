@@ -134,6 +134,9 @@ ScalarCodeGenerator::CompiledExpression ScalarCodeGenerator::compile(
     b.CreateRetVoid();
     return {scalar_expr_func, wrapper_scalar_expr_func, inputs};
   }
+  if (co.device_type == ExecutorDeviceType::iGPU) {
+    // todo?
+  }
   return {scalar_expr_func, nullptr, inputs};
 }
 

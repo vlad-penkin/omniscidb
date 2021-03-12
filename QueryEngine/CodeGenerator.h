@@ -21,6 +21,9 @@
 #include "../Analyzer/Analyzer.h"
 #include "Execute.h"
 
+// todo: move to Execute.h
+#include "L0Mgr/L0Mgr.h"
+
 // Code generation utility to be used for queries and scalar expressions.
 class CodeGenerator {
  public:
@@ -624,3 +627,30 @@ std::vector<llvm::Value*> generate_column_heads_load(const int num_columns,
                                                      llvm::Value* byte_stream_arg,
                                                      llvm::IRBuilder<>& ir_builder,
                                                      llvm::LLVMContext& ctx);
+
+class SpirvCodeGenerator : public CodeGenerator {
+ public:
+  struct CompiledExpression {
+    llvm::Function* func;
+    llvm::Function* wrapper_func;
+    std::vector<std::shared_ptr<Analyzer::ColumnVar>> inputs;
+  };
+
+  using ColumnMap =
+      std::unordered_map<InputColDescriptor, std::shared_ptr<Analyzer::ColumnVar>>;
+
+  SpirvCodeGenerator(std::unique_ptr<llvm::Module> module)
+      : CodeGenerator(nullptr, nullptr), module_(std::move(module)) {}
+
+  CompiledExpression compile(const Analyzer::Expr* expr, const bool fetch_columns, const CompilationOptions& co);
+  L0Mgr_Namespace::L0Mgr* getL0Mgr() const { return l0_mgr_.get(); }
+  std::string generateSpirv(const CompiledExpression& compiled_expression,
+                            const CompilationOptions& co);
+  ColumnMap prepare(const Analyzer::Expr*);
+
+ private:
+  std::unique_ptr<llvm::Module> module_;
+  std::unique_ptr<L0Mgr_Namespace::L0Mgr> l0_mgr_;
+  std::unique_ptr<CgenState> own_cgen_state_;
+  std::unique_ptr<PlanState> own_plan_state_;
+};
