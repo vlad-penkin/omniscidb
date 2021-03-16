@@ -18,6 +18,7 @@
 #include "TestHelpers.h"
 #include "Utils/Regexp.h"
 #include "Utils/StringLike.h"
+#include "Utils/Threading.h"
 
 #include <gtest/gtest.h>
 
@@ -74,7 +75,7 @@ TEST(Shared, IntervalsBounds) {
   // Test with 0-value, and values that go outside the range of Integer.
   for (unsigned n_workers = 0; n_workers <= 260; ++n_workers) {
     std::for_each(array.begin(), array.end(), [](auto& v) { v = 0; });
-    std::vector<std::future<void>> threads;
+    std::vector<utils::future<void>> threads;
     Integer const begin = std::numeric_limits<Integer>::min();
     Integer const end = std::numeric_limits<Integer>::max();
     int const offset = -static_cast<int>(begin);
@@ -86,8 +87,7 @@ TEST(Shared, IntervalsBounds) {
                                    static_cast<Unsigned>(interval.end - interval.begin));
       min_interval_size = std::min(min_interval_size,
                                    static_cast<Unsigned>(interval.end - interval.begin));
-      threads.push_back(std::async(
-          std::launch::async,
+      threads.push_back(utils::async(
           [&array](Interval<Integer> interval) {
             for (Integer i = interval.begin; i < interval.end; ++i) {
               ++array.at(offset + i);
