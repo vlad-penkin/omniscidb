@@ -270,7 +270,6 @@ void ExecutionKernel::runImpl(Executor* executor, SharedKernelContext& shared_co
     }
   }
 
-#ifdef HAVE_TBB
   bool can_run_subkernels = shared_context.thread_pool != nullptr;
 
   // Subfragments are supported for groupby queries only for now.
@@ -328,7 +327,6 @@ void ExecutionKernel::runImpl(Executor* executor, SharedKernelContext& shared_co
 
     return;
   }
-#endif  // HAVE_TBB
 
   if (eo.executor_type == ExecutorType::Native) {
     try {
@@ -409,8 +407,6 @@ void ExecutionKernel::runImpl(Executor* executor, SharedKernelContext& shared_co
   }
   shared_context.addDeviceResults(std::move(device_results_), outer_tab_frag_ids);
 }
-
-#ifdef HAVE_TBB
 
 void KernelSubtask::run(Executor* executor) {
   auto& query_exe_context_owned = shared_context_.tls_execution_context.local();
@@ -530,4 +526,3 @@ void KernelSubtask::run(Executor* executor) {
   */
 }
 
-#endif  // HAVE_TBB
