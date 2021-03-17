@@ -15,12 +15,12 @@
  */
 
 #include "JoinHashTable/Runtime/JoinHashImpl.h"
-#include "MurmurHash.h"
+#include "MurmurHash1Inl.h"
 
 extern "C" ALWAYS_INLINE DEVICE uint32_t key_hash(const int64_t* key,
                                                   const uint32_t key_count,
                                                   const uint32_t key_byte_width) {
-  return MurmurHash1(key, key_byte_width * key_count, 0);
+  return MurmurHash1Impl(key, key_byte_width * key_count, 0);
 }
 
 extern "C" NEVER_INLINE DEVICE int64_t* get_group_value(
