@@ -5,6 +5,7 @@
 #   ITTnotify_LIBRARIES
 set(dirs
   "/opt/intel/vtune_profiler/"
+  "/opt/intel/oneapi/vtune/latest/"
   "$ENV{VTUNE_PROFILER_2020_DIR}/"
   "$ENV{VTUNE_PROFILER_2019_DIR}/"
   "$ENV{VTUNE_AMPLIFIER_XE_2013_DIR}/"
