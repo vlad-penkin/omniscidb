@@ -1,12 +1,18 @@
 #pragma once
 
-#include "llvm/IR/PassManager.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Pass.h"
 
-struct LegacyCleanupPass: public llvm::BasicBlockPass
+namespace {
+struct MyIntrinsicsCleanupPass: public llvm::FunctionPass
 {
   static char ID;
-  LegacyCleanupPass() : BasicBlockPass(ID) {}
-  bool runOnBasicBlock(llvm::BasicBlock &BB) override;
+  MyIntrinsicsCleanupPass() : llvm::FunctionPass(ID) {}
+  bool runOnFunction(llvm::Function &F) override;
 };
+char MyIntrinsicsCleanupPass::ID = 0;
+}
 
+namespace llvm {
+  FunctionPass* createMyIntrinsicsCleanupPass();
+}

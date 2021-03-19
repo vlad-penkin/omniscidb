@@ -9,23 +9,31 @@
 using namespace llvm;
 
 static bool isUnsupported(llvm::StringRef name) {
-  return name == "llvm.ctlz";
+  return name == "llvm.memmove";
 }
 
-bool LegacyCleanupPass::runOnBasicBlock(llvm::BasicBlock& BB) {
+bool MyIntrinsicsCleanupPass::runOnFunction(llvm::Function& F) {
   bool changed = false;
-  for (auto Inst = BB.begin(); Inst != BB.end(); ++Inst) {
-    auto* intrin = dyn_cast<IntrinsicInst>(Inst);
-    if (!intrin)
-      continue;
+  for (auto BB = F.begin(); BB != F.end(); ++BB) {
+    for (auto Inst = BB->begin(); Inst != BB->end(); ++Inst) {
+      auto* intrin = dyn_cast<IntrinsicInst>(Inst);
+      if (!intrin)
+        continue;
 
-    std::string name = intrin->getName();
-    if (isUnsupported(name)) {
-        Value* V = ConstantInt::get(Type::getInt32Ty(BB.getContext()), 0);
+      std::string name = Intrinsic::getName(intrin->getIntrinsicID());
+      if (isUnsupported(name)) {
+        Value* V = ConstantInt::get(Type::getInt32Ty(BB->getContext()), 0);
         Instruction* Nop = BinaryOperator::CreateAdd(V, V, "nop");
-        ReplaceInstWithInst(intrin, Nop);
+        ReplaceInstWithInst(Inst->getParent()->getInstList(), Inst, Nop);
+      }
     }
   }
 
   return changed;
+}
+
+namespace llvm {
+  FunctionPass* createMyIntrinsicsCleanupPass() {
+    return new MyIntrinsicsCleanupPass();
+  }
 }

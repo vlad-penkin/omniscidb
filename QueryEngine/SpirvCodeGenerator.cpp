@@ -1,6 +1,8 @@
 #include "CodeGenerator.h"
 #include "ScalarExprVisitor.h"
 #include "LLVMSPIRVLib/LLVMSPIRVLib.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "QueryEngine/Helpers/CleanupPass.h"
 
 // duplicate code for now
 namespace {
@@ -133,6 +135,10 @@ std::string SpirvCodeGenerator::generateSpirv(
   opts.enableAllExtensions();
   opts.setDesiredBIsRepresentation(SPIRV::BIsRepresentation::OpenCL12);
   opts.setDebugInfoEIS(SPIRV::DebugInfoEIS::OpenCL_DebugInfo_100);
+
+  llvm::legacy::PassManager PM;
+  PM.add(llvm::createMyIntrinsicsCleanupPass());
+  PM.run(*module_.get());
 
   std::ostringstream ss;
   std::string err;
