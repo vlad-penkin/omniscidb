@@ -25,6 +25,7 @@
 
 #include "Catalog/Catalog.h"
 #include "CudaMgr/CudaMgr.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "ImportExport/Importer.h"
 #include "Logger/Logger.h"
 #include "OSDependent/omnisci_path.h"

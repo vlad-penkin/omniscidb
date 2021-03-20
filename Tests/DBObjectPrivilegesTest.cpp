@@ -13,6 +13,7 @@
 #include "../QueryEngine/Execute.h"
 #include "../QueryRunner/QueryRunner.h"
 #include "DBHandlerTestHelpers.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "Shared/scope.h"
 #include "TestHelpers.h"
 #include "ThriftHandler/QueryState.h"
@@ -251,6 +252,7 @@ struct ServerObject : public DBHandlerTestFixture {
   Roles role_;
 
  protected:
+
   void SetUp() override {
     if (g_aggregator) {
       LOG(INFO) << "Test fixture not supported in distributed mode.";
@@ -343,7 +345,9 @@ TEST_F(GrantSyntax, MultiRoleGrantRevoke) {
   check_revoke();
 }
 
-class InvalidGrantSyntax : public DBHandlerTestFixture {};
+class InvalidGrantSyntax : public DBHandlerTestFixture {
+ protected:
+};
 
 TEST_F(InvalidGrantSyntax, InvalidGrantSyntax) {
   std::string error_message;
@@ -2788,6 +2792,7 @@ TEST(Login, Deactivation) {
 
 class GetDbObjectsForGranteeTest : public DBHandlerTestFixture {
  protected:
+
   void SetUp() override {
     DBHandlerTestFixture::SetUp();
     sql("CREATE USER test_user (password = 'test_pass');");
@@ -3629,7 +3634,7 @@ int main(int argc, char* argv[]) {
 
   logger::init(log_options);
 
-  QR::init(BASE_PATH);
+  QR::init(BASE_PATH, {}, {});
 
   g_calcite = QR::get()->getCatalog()->getCalciteMgr();
 

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "DataMgr/PersistentStorageMgr/MutableCachePersistentStorageMgr.h"
 #include "DataMgr/PersistentStorageMgr/PersistentStorageMgr.h"
 #include "DataMgrTestHelpers.h"
@@ -55,8 +56,8 @@ int main(int argc, char** argv) {
   TestHelpers::init_logger_stderr_only(argc, argv);
   testing::InitGoogleTest(&argc, argv);
   g_enable_fsi = true;
-
   int err{0};
+
   try {
     err = RUN_ALL_TESTS();
   } catch (const std::exception& e) {

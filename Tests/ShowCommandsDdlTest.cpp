@@ -20,8 +20,9 @@
  */
 
 #include <gtest/gtest.h>
-
 #include "DBHandlerTestHelpers.h"
+#include "DataMgr/ForeignStorage/ArrowForeignStorage.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "Shared/File.h"
 #include "TestHelpers.h"
 
@@ -1752,7 +1753,6 @@ int main(int argc, char** argv) {
   } catch (const std::exception& e) {
     LOG(ERROR) << e.what();
   }
-
   g_enable_fsi = false;
   return err;
 }
