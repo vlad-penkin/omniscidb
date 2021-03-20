@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "DataMgr/PersistentStorageMgr/MutableCachePersistentStorageMgr.h"
 #include "DataMgr/PersistentStorageMgr/PersistentStorageMgr.h"
 #include "DataMgrTestHelpers.h"

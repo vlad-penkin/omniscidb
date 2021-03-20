@@ -26,7 +26,8 @@ PersistentStorageMgr* PersistentStorageMgr::createPersistentStorageMgr(
     const size_t num_reader_threads,
     const DiskCacheConfig& config) {
   if (config.isEnabledForMutableTables()) {
-    return new MutableCachePersistentStorageMgr(data_dir, num_reader_threads, config);
+    return new MutableCachePersistentStorageMgr(
+        data_dir, num_reader_threads, config);
   } else {
     return new PersistentStorageMgr(data_dir, num_reader_threads, config);
   }

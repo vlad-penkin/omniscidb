@@ -18,6 +18,7 @@
 
 #include "Calcite/Calcite.h"
 #include "Catalog/Catalog.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "DistributedLoader.h"
 #include "Geospatial/Transforms.h"
 #include "ImportExport/CopyParams.h"

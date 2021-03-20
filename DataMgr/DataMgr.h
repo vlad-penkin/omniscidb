@@ -37,6 +37,8 @@
 #include <unordered_map>
 #include <vector>
 
+class ForeignStorageInterface;
+
 namespace File_Namespace {
 class FileBuffer;
 class GlobalFileMgr;

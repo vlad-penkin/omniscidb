@@ -5965,7 +5965,6 @@ void DBHandler::sql_execute_impl(ExecutionResult& _return,
     _return.setResultType(ExecutionResult::CalciteDdl);
     return true;
   };
-
   for (const auto& stmt : parse_trees) {
     if (DBHandler::read_only_) {
       // a limited set of commands are available in read-only mode

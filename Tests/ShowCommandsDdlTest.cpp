@@ -21,6 +21,8 @@
 
 #include <gtest/gtest.h>
 #include "DBHandlerTestHelpers.h"
+#include "DataMgr/ForeignStorage/ArrowForeignStorage.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "Shared/File.h"
 #include "TestHelpers.h"
 #include "boost/filesystem.hpp"
