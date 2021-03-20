@@ -25,6 +25,7 @@
 #include "Catalog/Catalog.h"
 #include "DBHandlerTestHelpers.h"
 #include "DataMgr/ForeignStorage/AbstractFileStorageDataWrapper.h"
+#include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
 #include "SqliteConnector/SqliteConnector.h"
 #include "TestHelpers.h"
 
