@@ -453,6 +453,7 @@ std::shared_ptr<DBEngine> DBEngine::create(const std::string& cmd_line) {
 inline DBEngineImpl* getImpl(DBEngine* ptr) {
   return (DBEngineImpl*)ptr;
 }
+
 inline const DBEngineImpl* getImpl(const DBEngine* ptr) {
   return (const DBEngineImpl*)ptr;
 }

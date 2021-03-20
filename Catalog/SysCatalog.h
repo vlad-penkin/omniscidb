@@ -289,6 +289,7 @@ class SysCatalog : private CommonFileOperations {
   void revokeDashboardSystemRole(const std::string roleName,
                                  const std::vector<std::string> grantees);
   bool isAggregator() const { return aggregator_; }
+
   static SysCatalog& instance() {
     if (!instance_) {
       instance_.reset(new SysCatalog());
