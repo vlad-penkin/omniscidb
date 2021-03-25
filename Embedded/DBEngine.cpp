@@ -181,6 +181,7 @@ class DBEngineImpl : public DBEngine {
                                        is_new_db);
     } catch (const std::exception& e) {
       LOG(FATAL) << "Failed to initialize database handler: " << e.what();
+      throw;
     }
     db_handler_->connect(
         session_id_, OMNISCI_ROOT_USER, OMNISCI_ROOT_PASSWD_DEFAULT, OMNISCI_DEFAULT_DB);
@@ -422,6 +423,7 @@ class DBEngineImpl : public DBEngine {
     }
     return root_dir;
   }
+
  private:
   std::string base_path_;
   std::string session_id_;
