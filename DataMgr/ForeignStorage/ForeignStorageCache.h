@@ -58,8 +58,7 @@ const std::string wrapper_file_name = "wrapper_metadata.json";
 
 class ForeignStorageCache {
  public:
-  ForeignStorageCache(const DiskCacheConfig& config,
-                      std::shared_ptr<ForeignStorageInterface> fsi);
+  ForeignStorageCache(const DiskCacheConfig& config);
 
   /**
    * Caches the chunks for the given chunk keys. Chunk buffers

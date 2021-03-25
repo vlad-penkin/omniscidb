@@ -51,8 +51,7 @@ void set_metadata_for_buffer(AbstractBuffer* buffer, ChunkMetadata* meta) {
 }
 }  // namespace
 
-ForeignStorageCache::ForeignStorageCache(const DiskCacheConfig& config,
-                                         std::shared_ptr<ForeignStorageInterface> fsi)
+ForeignStorageCache::ForeignStorageCache(const DiskCacheConfig& config)
     : num_chunks_added_(0), num_metadata_added_(0) {
   validatePath(config.path);
   caching_file_mgr_ = std::make_unique<File_Namespace::CachingFileMgr>(
