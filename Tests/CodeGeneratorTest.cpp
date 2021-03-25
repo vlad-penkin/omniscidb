@@ -380,7 +380,7 @@ TEST(CodeGeneratorTest, IntegerConstantL0) {
   llvm::errs() << compiled_expr.func << "\n";
   compiled_expr.func->print(llvm::errs());
   compiled_expr.wrapper_func->print(llvm::errs());
-  compiled_expr.func->getParent()->print(llvm::errs(), nullptr);
+  // compiled_expr.func->getParent()->print(llvm::errs(), nullptr);
 
   auto spv = code_generator.generateSpirv(compiled_expr, co);
 

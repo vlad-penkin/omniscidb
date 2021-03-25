@@ -1,8 +1,15 @@
 #include "CodeGenerator.h"
 #include "ScalarExprVisitor.h"
-#include "LLVMSPIRVLib/LLVMSPIRVLib.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "QueryEngine/Helpers/CleanupPass.h"
+
+#include "llvm/IR/LegacyPassManager.h"
+#include <llvm/Transforms/IPO/AlwaysInliner.h>
+#include <llvm/Transforms/InstCombine/InstCombine.h>
+#include <llvm/Transforms/Scalar/InstSimplifyPass.h>
+#include <llvm/Transforms/Utils.h>
+#include <llvm/Transforms/IPO.h>
+#include <llvm/Transforms/Scalar.h>
+#include "LLVMSPIRVLib/LLVMSPIRVLib.h"
 
 // duplicate code for now
 namespace {
@@ -39,6 +46,31 @@ llvm::Type* llvm_type_from_sql(const SQLTypeInfo& ti, llvm::LLVMContext& ctx) {
       LOG(FATAL) << "Unsupported type";
       return nullptr;  // satisfy -Wreturn-type
     }
+  }
+}
+
+void eliminate_dead_self_recursive_funcs(
+    llvm::Module& M,
+    const std::unordered_set<llvm::Function*>& live_funcs) {
+  std::vector<llvm::Function*> dead_funcs;
+  for (auto& F : M) {
+    bool bAlive = false;
+    if (live_funcs.count(&F)) {
+      continue;
+    }
+    for (auto U : F.users()) {
+      auto* C = llvm::dyn_cast<const llvm::CallInst>(U);
+      if (!C || C->getParent()->getParent() != &F) {
+        bAlive = true;
+        break;
+      }
+    }
+    if (!bAlive) {
+      dead_funcs.push_back(&F);
+    }
+  }
+  for (auto pFn : dead_funcs) {
+    pFn->eraseFromParent();
   }
 }
 
@@ -136,9 +168,54 @@ std::string SpirvCodeGenerator::generateSpirv(
   opts.setDesiredBIsRepresentation(SPIRV::BIsRepresentation::OpenCL12);
   opts.setDebugInfoEIS(SPIRV::DebugInfoEIS::OpenCL_DebugInfo_100);
 
+  // auto live_funcs = CodeGenerator::markDeadRuntimeFuncs(*module_.get(), {compiled_expression.func}, {compiled_expression.wrapper_func});
+  std::unordered_set<llvm::Function*> roots = {compiled_expression.func, compiled_expression.wrapper_func};
+  std::unordered_set<llvm::Function*> live_funcs;
+  live_funcs.insert(roots.begin(), roots.end());
+
+  for (const llvm::Function* F: roots) {
+    for(const llvm::BasicBlock& BB : *F) {
+      for(const llvm::Instruction& I : BB) {
+        if (const llvm::CallInst* CI = llvm::dyn_cast<const llvm::CallInst>(&I)) {
+          live_funcs.insert(CI->getCalledFunction());
+        }
+      }
+    }
+  }
+
+  for (llvm::Function& F : *module_) {
+    if (!live_funcs.count(&F) && !F.isDeclaration()) {
+      F.setLinkage(llvm::GlobalValue::InternalLinkage);
+    }
+  }
+
+  std::error_code ec;
+  llvm::raw_fd_ostream funopt("unopt.ir", ec, llvm::sys::fs::F_None);
+  module_->print(funopt, nullptr);
+
   llvm::legacy::PassManager PM;
-  PM.add(llvm::createMyIntrinsicsCleanupPass());
+  PM.add(llvm::createAlwaysInlinerLegacyPass());
+  PM.add(llvm::createPromoteMemoryToRegisterPass());
+  PM.add(llvm::createInstSimplifyLegacyPass());
+  PM.add(llvm::createInstructionCombiningPass());
+  PM.add(llvm::createGlobalOptimizerPass());
+  PM.add(llvm::createLICMPass());
+  // PM.add(llvm::createMyIntrinsicsCleanupPass());
   PM.run(*module_.get());
+
+  llvm::raw_fd_ostream fopt("opt.ir", ec, llvm::sys::fs::F_None);
+  module_->print(fopt, nullptr);
+
+  eliminate_dead_self_recursive_funcs(*module_.get(), live_funcs);
+  llvm::raw_fd_ostream fdce("dce.ir", ec, llvm::sys::fs::F_None);
+  module_->print(fdce, nullptr);
+
+  compiled_expression.wrapper_func->setCallingConv(llvm::CallingConv::SPIR_KERNEL);
+  // auto bb = llvm::BasicBlock::Create(module_->getContext(), ".entry", F, nullptr);
+  // llvm::IRBuilder<> b(module_->getContext());
+  // b.SetInsertPoint(bb);
+  // b.CreateRetVoid();
+
 
   std::ostringstream ss;
   std::string err;

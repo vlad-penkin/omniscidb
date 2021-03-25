@@ -107,21 +107,26 @@ void L0Mgr::setSPV(std::string& spv) {
   moduleDesc.pInputModule = (uint8_t *)codeBin;
 
   ze_module_build_log_handle_t buildlog = nullptr;
-  L0_SAFE_CALL(
+  auto st = (
       zeModuleCreate(hContext, hDevice, &moduleDesc, &hModule, &buildlog));
   size_t szLog = 0;
   L0_SAFE_CALL(zeModuleBuildLogGetString(buildlog, &szLog, nullptr));
-  std::cout << "Got build log size " << szLog << std::endl;
+  std::cerr << "Got build log size " << szLog << std::endl;
   char *strLog = (char *)malloc(szLog);
   L0_SAFE_CALL(zeModuleBuildLogGetString(buildlog, &szLog, strLog));
-  std::fstream log;
-  log.open("log.txt", std::ios::app);
+  std::ofstream log("log.txt", std::ios::app);
   if (!log.good()) {
     std::cerr << "Unable to open log file" << std::endl;
     exit(1);
   }
+  log << "Got build log size " << szLog << "\n";
   log << strLog;
   log.close();
+  if (st) {
+    std::cerr << "L0 error: " << (int)st << " " << __FILE__ << ":" << __LINE__
+              << std::endl;
+    exit(st);
+  }
 
   ze_command_list_desc_t commandListDesc;
   commandListDesc.stype = ZE_STRUCTURE_TYPE_COMMAND_LIST_DESC;
@@ -132,7 +137,7 @@ void L0Mgr::setSPV(std::string& spv) {
   L0_SAFE_CALL(
       zeCommandListCreate(hContext, hDevice, &commandListDesc, &hCommandList));
 
-  initKernel("plus1");
+  initKernel("wrapper_scalar_expr");
   std::cerr << "Kernel created" << std::endl;
 }
 
