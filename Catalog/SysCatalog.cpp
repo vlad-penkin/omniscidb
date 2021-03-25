@@ -75,37 +75,29 @@ std::string hash_with_bcrypt(const std::string& pwd) {
 }
 
 // This catalog copy must take place before any other catalog accesses.
-std::filesystem::path copy_catalog_if_read_only(std::filesystem::path base_data_path) {
-  std::filesystem::path catalog_base_data_path;
-
+std::filesystem::path copy_catalog_if_read_only(const std::filesystem::path& base_data_path) {
   // For a read-only server, make a temporary copy of mapd_catalogs.
   // This catalog copy must take place before any other catalog accesses.
-  if (!g_read_only) {
-    // Catalog directory mapd_catalogs will be in the normal location.
-    catalog_base_data_path = base_data_path;
-  } else {
-    // Catalog directory mapd_catalogs will be in a temporary location.
-    catalog_base_data_path = base_data_path / "temporary";
+  // Catalog directory mapd_catalogs will be in a temporary location.
+  auto catalog_base_data_path = base_data_path / "temporary";
 
-    // Delete the temporary directory if it exists.
-    // The name "temporary" is hardcoded so nobody should object to its deletion!
-    CHECK_NE(catalog_base_data_path.string().find("temporary"), std::string::npos);
-    CHECK_NE(catalog_base_data_path, base_data_path);
-    if (std::filesystem::exists(catalog_base_data_path)) {
-      std::filesystem::remove_all(catalog_base_data_path);
-    }
-    std::filesystem::create_directories(catalog_base_data_path);
-
-    // Make the temporary copy of the catalog.
-    const auto normal_catalog_path = base_data_path / "mapd_catalogs";
-    const auto temporary_catalog_path = catalog_base_data_path / "mapd_catalogs";
-    LOG(INFO) << "copying catalog from " << normal_catalog_path << " to "
-              << temporary_catalog_path << " for read-only server";
-    std::filesystem::copy(normal_catalog_path,
-                          temporary_catalog_path,
-                          std::filesystem::copy_options::recursive);
+  // Delete the temporary directory if it exists.
+  // The name "temporary" is hardcoded so nobody should object to its deletion!
+  CHECK_NE(catalog_base_data_path.string().find("temporary"), std::string::npos);
+  CHECK_NE(catalog_base_data_path, base_data_path);
+  if (std::filesystem::exists(catalog_base_data_path)) {
+    std::filesystem::remove_all(catalog_base_data_path);
   }
+  std::filesystem::create_directories(catalog_base_data_path);
 
+  // Make the temporary copy of the catalog.
+  const auto normal_catalog_path = base_data_path / "mapd_catalogs";
+  const auto temporary_catalog_path = catalog_base_data_path / "mapd_catalogs";
+  LOG(INFO) << "copying catalog from " << normal_catalog_path << " to "
+            << temporary_catalog_path << " for read-only server";
+  std::filesystem::copy(normal_catalog_path,
+                        temporary_catalog_path,
+                        std::filesystem::copy_options::recursive);
   return catalog_base_data_path;
 }
 
@@ -165,7 +157,6 @@ void SysCatalog::init(const std::string& basePath,
   {
     sys_write_lock write_lock(this);
     sys_sqlite_lock sqlite_lock(this);
-
     basePath_ = copy_catalog_if_read_only(basePath).string();
     dataMgr_ = dataMgr;
     authMetadata_ = &authMetadata;
