@@ -416,7 +416,7 @@ TEST_F(ForeignStorageCacheFileTest, FileBlocksPath) {
   tmp_file << "1";
   tmp_file.close();
   try {
-    ForeignStorageCache cache{{cache_path_, DiskCacheLevel::fsi}, fsi};
+    ForeignStorageCache cache{{cache_path_, DiskCacheLevel::fsi}};
     FAIL() << "An exception should have been thrown for this testcase";
   } catch (std::runtime_error& e) {
     ASSERT_EQ(e.what(),
@@ -430,7 +430,7 @@ TEST_F(ForeignStorageCacheFileTest, ExistingDir) {
   cache_path_ = "./test_foreign_data_cache";
   boost::filesystem::remove_all(cache_path_);
   boost::filesystem::create_directory(cache_path_);
-  ForeignStorageCache cache{{cache_path_, DiskCacheLevel::fsi}, fsi};
+  ForeignStorageCache cache{{cache_path_, DiskCacheLevel::fsi}};
 }
 
 int main(int argc, char** argv) {
