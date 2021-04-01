@@ -8,7 +8,7 @@ class L0Exception : public std::exception {
  public:
   L0Exception(L0result status);
 
-  const char* what() const override;
+  const char* what() const noexcept override;
 
  private:
   L0result const status_;

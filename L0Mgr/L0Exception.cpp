@@ -5,7 +5,7 @@
 namespace l0 {
 L0Exception::L0Exception(L0result status) : status_(status) {}
 
-const char* L0Exception::what() const {
+const char* L0Exception::what() const noexcept {
   switch (status_) {
     case ZE_RESULT_NOT_READY:
       return "L0 error: synchronization primitive not signaled";

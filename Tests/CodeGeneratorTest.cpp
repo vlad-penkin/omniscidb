@@ -361,6 +361,66 @@ TEST(CodeGeneratorTest, IntegerExprGPU) {
   }
 }
 #endif  // HAVE_CUDA
+#ifdef HAVE_L0
+TEST(CodeGeneratorTest, IntegerConstantL0) {
+  auto& ctx = getGlobalLLVMContext();
+  std::unique_ptr<llvm::Module> module(read_template_module(ctx));
+  ScalarCodeGenerator code_generator(std::move(module));
+  CompilationOptions co = CompilationOptions::defaults(ExecutorDeviceType::L0);
+  co.hoist_literals = false;
+
+  Datum d;
+  d.intval = 42;
+  auto constant = makeExpr<Analyzer::Constant>(kINT, false, d);
+  const auto compiled_expr = code_generator.compile(constant.get(), true, co);
+  verify_function_ir(compiled_expr.func);
+  ASSERT_TRUE(compiled_expr.inputs.empty());
+
+  const auto native_function_pointers =
+      code_generator.generateNativeCode(compiled_expr, co);
+  
+  ASSERT_EQ(native_function_pointers.size(), 1);
+
+  auto devices = l0::get_devices();
+
+  for (size_t gpu_idx = 0; gpu_idx < native_function_pointers.size(); ++gpu_idx) {
+    const auto native_function_pointer = native_function_pointers[gpu_idx];
+    
+    auto handle = reinterpret_cast<ze_kernel_handle_t*>(native_function_pointer);
+    std::vector<void*> param_ptrs;
+    auto device = devices[gpu_idx];
+    auto command_list = device->create_command_list();
+
+    // auto dev_ptr = l0::allocate_device_mem(4, command_list);
+    // int host_in = 42;
+
+  //   auto func_ptr = reinterpret_cast<CUfunction>(native_function_pointer);
+
+  //   std::vector<void*> param_ptrs;
+  //   CUdeviceptr err = reinterpret_cast<CUdeviceptr>(
+  //       code_generator.getCudaMgr()->allocateDeviceMem(4, gpu_idx));
+  //   CUdeviceptr out = reinterpret_cast<CUdeviceptr>(
+  //       code_generator.getCudaMgr()->allocateDeviceMem(4, gpu_idx));
+  //   param_ptrs.push_back(&err);
+  //   param_ptrs.push_back(&out);
+  //   cuLaunchKernel(func_ptr, 1, 1, 1, 1, 1, 1, 0, nullptr, &param_ptrs[0], nullptr);
+  //   int32_t host_err;
+  //   int32_t host_out;
+  //   code_generator.getCudaMgr()->copyDeviceToHost(reinterpret_cast<int8_t*>(&host_err),
+  //                                                 reinterpret_cast<const int8_t*>(err),
+  //                                                 4,
+  //                                                 gpu_idx);
+  //   code_generator.getCudaMgr()->copyDeviceToHost(reinterpret_cast<int8_t*>(&host_out),
+  //                                                 reinterpret_cast<const int8_t*>(out),
+  //                                                 4,
+  //                                                 gpu_idx);
+
+  //   ASSERT_EQ(host_err, 0);
+  //   ASSERT_EQ(host_out, d.intval);
+  //   free_param_pointers(param_ptrs, code_generator.getCudaMgr());
+  }
+}
+#endif  // HAVE_L0
 
 int main(int argc, char** argv) {
   TestHelpers::init_logger_stderr_only(argc, argv);

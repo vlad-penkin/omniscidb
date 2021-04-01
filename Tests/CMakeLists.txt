@@ -127,6 +127,9 @@ if(ENABLE_L0)
   add_executable(L0BuildTest L0BuildTest.cpp)
   target_include_directories(L0BuildTest PRIVATE ${LevelZero_INCLUDE_DIRS})
   target_link_libraries(L0BuildTest ${LevelZero_LIBRARY} ${EXECUTE_TEST_LIBS})
+
+  # TODO: fixme
+  list(APPEND EXECUTE_TEST_LIBS L0Mgr ${LevelZero_LIBRARY})
 endif()
 
 target_link_libraries(ProfileTest ${EXECUTE_TEST_LIBS})

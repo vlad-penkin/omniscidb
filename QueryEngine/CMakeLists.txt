@@ -60,6 +60,7 @@ set(query_engine_source_files
     JoinHashTable/OverlapsJoinHashTable.cpp
     JoinHashTable/PerfectJoinHashTable.cpp
     JoinHashTable/Runtime/HashJoinRuntime.cpp
+    L0Kernel.cpp
     LogicalIR.cpp
     LLVMFunctionAttributesUtil.cpp
     LLVMGlobalContext.cpp
@@ -262,6 +263,7 @@ set(QUERY_ENGINE_LIBS
 
 list(APPEND QUERY_ENGINE_LIBS ${clang_libs})
 list(APPEND QUERY_ENGINE_LIBS ${llvm_libs} ${ZLIB_LIBRARIES})
+list(APPEND QUERY_ENGINE_LIBS LLVMSPIRVLib)
 
 target_link_libraries(QueryEngine ${QUERY_ENGINE_LIBS})
 
