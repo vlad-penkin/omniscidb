@@ -106,7 +106,8 @@ class CodeGenerator {
       llvm::Function* func,
       llvm::Function* wrapper_func,
       const std::unordered_set<llvm::Function*>& live_funcs,
-      const CompilationOptions& co);
+      const CompilationOptions& co,
+      const l0::L0Manager* l0_mgr);
 
   static void link_udf_module(const std::unique_ptr<llvm::Module>& udf_module,
                               llvm::Module& module,
@@ -597,7 +598,7 @@ class ScalarCodeGenerator : public CodeGenerator {
 
   CudaMgr_Namespace::CudaMgr* getCudaMgr() const { return cuda_mgr_.get(); }
   l0::L0Manager* getL0Mgr() const { return l0_mgr_.get(); }
-  l0::L0Device* getL0Device() const { return l0_dev_.get(); }
+//   l0::L0Device* getL0Device() const { return l0_dev_.get(); }
 
   using ColumnMap =
       std::unordered_map<InputColDescriptor, std::shared_ptr<Analyzer::ColumnVar>>;
@@ -625,7 +626,6 @@ class ScalarCodeGenerator : public CodeGenerator {
   std::unique_ptr<PlanState> own_plan_state_;
   std::unique_ptr<CudaMgr_Namespace::CudaMgr> cuda_mgr_;
   std::unique_ptr<l0::L0Manager> l0_mgr_;
-  std::unique_ptr<l0::L0Device> l0_dev_;  // ?
   std::shared_ptr<GpuCompilationContext> gpu_compilation_context_;
   std::shared_ptr<L0CompilationContext> l0_compilation_context_;
   std::unique_ptr<llvm::TargetMachine> nvptx_target_machine_;

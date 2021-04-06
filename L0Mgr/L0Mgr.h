@@ -20,6 +20,10 @@
 #include <string>
 #include <vector>
 
+// export L0_SAFE_CALL -- remove?
+#include "L0Mgr/L0Exception.h"
+#include "L0Mgr/Utils.h"
+
 #include <level_zero/ze_api.h>
 
 namespace l0 {

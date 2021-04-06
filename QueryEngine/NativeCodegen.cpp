@@ -1161,7 +1161,8 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
     llvm::Function* func,
     llvm::Function* wrapper_func,
     const std::unordered_set<llvm::Function*>& live_funcs,
-    const CompilationOptions& co) {
+    const CompilationOptions& co,
+    const l0::L0Manager* l0_mgr) {
   auto module = func->getParent();
   
   auto pass_manager_builder = llvm::PassManagerBuilder();
@@ -1175,6 +1176,9 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
 
   module->setTargetTriple("spir-unknown-unknown");
   // what's entry point here?
+  llvm::errs() << "func: " << (func? func->getName() : "null") << "\n";
+  llvm::errs() << "wrapper func: " << (wrapper_func? wrapper_func->getName() : "null") << "\n";
+  // func->print()
   func->setCallingConv(llvm::CallingConv::SPIR_KERNEL);
 
   // todo: mark SPIR_FUNC
@@ -1210,8 +1214,10 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
   }
   CHECK(success);
 
+  auto bin_result = spv_to_bin(ss.str(), 1 /*todo block size*/, l0_mgr);
+
   auto compilation_ctx = std::make_shared<L0CompilationContext>();
-  return {};
+  return compilation_ctx;
 }
 #endif  // HAVE_L0
 

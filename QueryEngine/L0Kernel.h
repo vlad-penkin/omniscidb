@@ -9,7 +9,7 @@ struct L0BinResult {
 
 L0BinResult spv_to_bin(const std::string& spv,
                        const unsigned block_size,
-                       const l0::L0Device* dev);
+                       const l0::L0Manager* mgr);
 
 class L0DeviceCompilationContext {
  public:
@@ -23,6 +23,7 @@ class L0DeviceCompilationContext {
 
  private:
   const int device_id_;
+  const l0::L0Manager* l0_mgr_;
 };
 
 class L0CompilationContext : public CompilationContext {

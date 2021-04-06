@@ -204,7 +204,7 @@ std::vector<void*> ScalarCodeGenerator::generateNativeL0Code(
   if (!l0_mgr_) {
     l0_mgr_ = std::make_unique<l0::L0Manager>();
   }
-  l0_compilation_context_ =
-      CodeGenerator::generateNativeL0Code(func, wrapper_func, {func, wrapper_func}, co);
+  l0_compilation_context_ = CodeGenerator::generateNativeL0Code(
+      func, wrapper_func, {func, wrapper_func}, co, l0_mgr_.get());
   return l0_compilation_context_->getNativeFunctionPointers();
 }
