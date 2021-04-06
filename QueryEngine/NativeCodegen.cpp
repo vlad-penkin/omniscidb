@@ -1206,6 +1206,12 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
   module->print(os, nullptr);
   os.flush();
 
+  // std::error_code EC;
+  // llvm::raw_fd_ostream OS("ir", EC, llvm::sys::fs::F_None);
+  // llvm::WriteBitcodeToFile(*module, OS);
+  // OS.flush();
+  // llvm::errs() << EC.category().name() << '\n';
+
   auto success = writeSpirv(module, opts, ss, err);
   if (!success) {
     llvm::errs() << "Spirv translation failed with error: " << err << "\n";
@@ -1214,9 +1220,18 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
   }
   CHECK(success);
 
-  auto bin_result = spv_to_bin(ss.str(), 1 /*todo block size*/, l0_mgr);
+
+  L0BinResult bin_result; 
+  try {
+    bin_result = spv_to_bin(ss.str(), 1 /*todo block size*/, l0_mgr);
+  } catch (l0::L0Exception& e) {
+    llvm::errs() << e.what() << "\n";
+    return {};
+  }
 
   auto compilation_ctx = std::make_shared<L0CompilationContext>();
+  auto device_compilation_ctx = std::make_unique<L0DeviceCompilationContext>(bin_result.l0bin, bin_result.size, "todoname", 0, 0, nullptr);
+  compilation_ctx->addDeviceCode(move(device_compilation_ctx));
   return compilation_ctx;
 }
 #endif  // HAVE_L0

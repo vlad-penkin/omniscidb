@@ -27,10 +27,10 @@ L0Driver::L0Driver(ze_driver_handle_t handle) : driver_(handle) {
   L0_SAFE_CALL(zeContextCreate(driver_, &ctx_desc, &context_));
 
   uint32_t device_count = 0;
-  zeDeviceGet(driver_, &device_count, nullptr);
+  L0_SAFE_CALL(zeDeviceGet(driver_, &device_count, nullptr));
 
   std::vector<ze_device_handle_t> devices(device_count);
-  zeDeviceGet(driver_, &device_count, devices.data());
+  L0_SAFE_CALL(zeDeviceGet(driver_, &device_count, devices.data()));
 
   for (auto device : devices) {
     ze_device_properties_t device_properties;
@@ -42,7 +42,10 @@ L0Driver::L0Driver(ze_driver_handle_t handle) : driver_(handle) {
 }
 
 L0Driver::~L0Driver() {
-  L0_SAFE_CALL(zeContextDestroy(context_));
+  auto status = (zeContextDestroy(context_));
+  if (status) {
+    std::cerr << "Non-zero status for context destructor" << std::endl;
+  }
 }
 
 ze_context_handle_t L0Driver::ctx() const {
@@ -117,7 +120,10 @@ L0Device::L0Device(const L0Driver& driver, ze_device_handle_t device)
 }
 
 L0Device::~L0Device() {
-  L0_SAFE_CALL(zeCommandQueueDestroy(command_queue_));
+  auto status = (zeCommandQueueDestroy(command_queue_));
+  if (status) {
+    std::cerr << "Non-zero status for command queue destructor" << std::endl;
+  }
 }
 
 ze_context_handle_t L0Device::ctx() const {

@@ -380,16 +380,14 @@ TEST(CodeGeneratorTest, IntegerConstantL0) {
       code_generator.generateNativeCode(compiled_expr, co);
 
   ASSERT_EQ(native_function_pointers.size(), 1);
-  auto drivers = code_generator.getL0Mgr()->drivers();
-  auto devices = drivers[0]->devices();
 
-  for (size_t gpu_idx = 0; gpu_idx < native_function_pointers.size(); ++gpu_idx) {
-    const auto native_function_pointer = native_function_pointers[gpu_idx];
+  // for (size_t gpu_idx = 0; gpu_idx < native_function_pointers.size(); ++gpu_idx) {
+  //   const auto native_function_pointer = native_function_pointers[gpu_idx];
 
-    auto handle = reinterpret_cast<ze_kernel_handle_t*>(native_function_pointer);
-    std::vector<void*> param_ptrs;
-    auto device = devices[gpu_idx];
-    auto command_list = device->create_command_list();
+  //   auto handle = reinterpret_cast<ze_kernel_handle_t*>(native_function_pointer);
+  //   std::vector<void*> param_ptrs;
+  //   auto device = devices[gpu_idx];
+  //   auto command_list = device->create_command_list();
 
     // auto dev_ptr = l0::allocate_device_mem(4, command_list);
     // int host_in = 42;
@@ -416,7 +414,7 @@ TEST(CodeGeneratorTest, IntegerConstantL0) {
     //   ASSERT_EQ(host_err, 0);
     //   ASSERT_EQ(host_out, d.intval);
     //   free_param_pointers(param_ptrs, code_generator.getCudaMgr());
-  }
+  // }
 }
 #endif  // HAVE_L0
 

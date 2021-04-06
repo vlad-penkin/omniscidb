@@ -4,7 +4,8 @@
 #include "QueryEngine/CompilationContext.h"
 
 struct L0BinResult {
-  void* l0bin;
+  void* l0bin{nullptr};
+  size_t size{0};
 };
 
 L0BinResult spv_to_bin(const std::string& spv,
