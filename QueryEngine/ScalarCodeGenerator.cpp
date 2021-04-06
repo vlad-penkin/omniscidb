@@ -154,7 +154,7 @@ std::vector<void*> ScalarCodeGenerator::generateNativeCode(
     }
     case ExecutorDeviceType::L0: {
       return generateNativeL0Code(
-        compiled_expression.func, compiled_expression.wrapper_func, co);
+          compiled_expression.func, compiled_expression.wrapper_func, co);
     }
     default: {
       LOG(FATAL) << "Invalid device type";
@@ -201,6 +201,9 @@ std::vector<void*> ScalarCodeGenerator::generateNativeL0Code(
     llvm::Function* func,
     llvm::Function* wrapper_func,
     const CompilationOptions& co) {
+  if (!l0_mgr_) {
+    l0_mgr_ = std::make_unique<l0::L0Manager>();
+  }
   l0_compilation_context_ =
       CodeGenerator::generateNativeL0Code(func, wrapper_func, {func, wrapper_func}, co);
   return l0_compilation_context_->getNativeFunctionPointers();
