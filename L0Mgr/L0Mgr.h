@@ -17,7 +17,6 @@
 
 #include <iostream>
 #include <memory>
-#include <string>
 #include <vector>
 
 // export L0_SAFE_CALL -- remove?
@@ -44,6 +43,9 @@ class L0Driver {
   const std::vector<std::shared_ptr<L0Device>>& devices() const;
 };
 
+class L0Module;
+class L0Kernel;
+
 class L0Device {
  private:
   ze_device_handle_t device_;
@@ -59,7 +61,31 @@ class L0Device {
   ze_command_list_handle_t create_command_list() const;
   ze_context_handle_t ctx() const;
 
+  std::shared_ptr<L0Module> create_module(uint8_t* code, size_t len) const;
+
   ~L0Device();
+};
+
+class L0Module {
+ private:
+  ze_module_handle_t handle_;
+
+ public:
+  explicit L0Module(ze_module_handle_t handle);
+  ze_module_handle_t handle() const;
+
+  std::shared_ptr<L0Kernel> create_kernel(char* name) const;
+  ~L0Module();
+};
+
+class L0Kernel {
+ private:
+  ze_kernel_handle_t handle_;
+
+ public:
+  explicit L0Kernel(ze_kernel_handle_t handle);
+  ze_kernel_handle_t handle() const;
+  ~L0Kernel();
 };
 
 class L0Manager {

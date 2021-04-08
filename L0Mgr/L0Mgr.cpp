@@ -15,10 +15,14 @@
  */
 
 #include "L0Mgr/L0Mgr.h"
-#include <level_zero/ze_api.h>
-#include <limits>
+
 #include "Logger/Logger.h"
 #include "Utils.h"
+
+#include <iostream>
+#include <limits>
+
+#include <level_zero/ze_api.h>
 
 namespace l0 {
 
@@ -148,9 +152,62 @@ ze_command_list_handle_t L0Device::create_command_list() const {
   return res;
 }
 
+std::shared_ptr<L0Module> L0Device::create_module(uint8_t* code, size_t len) const {
+  ze_module_desc_t desc{
+      .stype = ZE_STRUCTURE_TYPE_MODULE_DESC,
+      .pNext = nullptr,
+      .format = ZE_MODULE_FORMAT_IL_SPIRV,
+      .inputSize = len,
+      .pInputModule = code,
+      .pBuildFlags = "",
+      .pConstants = nullptr,
+  };
+  ze_module_handle_t handle;
+  L0_SAFE_CALL(zeModuleCreate(ctx(), device_, &desc, &handle, nullptr));
+  return std::make_shared<L0Module>(handle);
+}
+
 L0Manager::L0Manager() : drivers_(get_drivers()) {}
 
 const std::vector<std::shared_ptr<L0Driver>>& L0Manager::drivers() const {
   return drivers_;
+}
+
+L0Module::L0Module(ze_module_handle_t handle) : handle_(handle) {}
+
+ze_module_handle_t L0Module::handle() const {
+  return handle_;
+}
+
+std::shared_ptr<L0Kernel> L0Module::create_kernel(char* name) const {
+  ze_kernel_desc_t desc{
+      .stype = ZE_STRUCTURE_TYPE_KERNEL_DESC,
+      .pNext = nullptr,
+      .flags = 0,
+      .pKernelName = name,
+  };
+  ze_kernel_handle_t handle;
+  L0_SAFE_CALL(zeKernelCreate(this->handle_, &desc, &handle));
+  return std::make_shared<L0Kernel>(handle);
+}
+
+L0Module::~L0Module() {
+  auto status = zeModuleDestroy(handle_);
+  if (status) {
+    std::cerr << "Non-zero status for command module destructor" << std::endl;
+  }
+}
+
+L0Kernel::L0Kernel(ze_kernel_handle_t handle) : handle_(handle) {}
+
+ze_kernel_handle_t L0Kernel::handle() const {
+  return handle_;
+}
+
+L0Kernel::~L0Kernel() {
+  auto status = zeKernelDestroy(handle_);
+  if (status) {
+    std::cerr << "Non-zero status for command kernel destructor" << std::endl;
+  }
 }
 }  // namespace l0
