@@ -4,31 +4,38 @@
 #include <llvm/IR/Module.h>
 #include <llvm/Support/raw_ostream.h>
 
-#include <level_zero/ze_api.h>
 #include <LLVMSPIRVLib/LLVMSPIRVLib.h>
+#include <level_zero/ze_api.h>
 
+#include "L0Mgr/L0Mgr.h"
 #include "TestHelpers.h"
 
-
-#define L0_SAFE_CALL(call)                                                     \
-  {                                                                            \
-    auto status = (call);                                                      \
-    if (status) {                                                              \
-      std::cerr << "L0 error: " << std::hex << (int)status << " ";             \
-      std::cerr << std::dec << __FILE__ << ":" << __LINE__ << std::endl;       \
-      exit(status);                                                            \
-    }                                                                          \
+#define L0_SAFE_CALL(call)                                               \
+  {                                                                      \
+    auto status = (call);                                                \
+    if (status) {                                                        \
+      std::cerr << "L0 error: " << std::hex << (int)status << " ";       \
+      std::cerr << std::dec << __FILE__ << ":" << __LINE__ << std::endl; \
+      exit(status);                                                      \
+    }                                                                    \
   }
 
-template <typename T, size_t N> struct alignas(4096) AlignedArray {
+template <typename T, size_t N>
+struct alignas(4096) AlignedArray {
   T data[N];
 };
 
-static void L0InitContext(ze_driver_handle_t &hDriver,
-                          ze_device_handle_t &hDevice,
-                          ze_module_handle_t &hModule,
-                          ze_command_queue_handle_t &hCommandQueue,
-                          ze_context_handle_t &hContext, std::string &spv) {
+class SPIRVExecuteTest : public ::testing::Test {
+ protected:
+  std::string generateSimpleSPIRV();
+};
+
+static void L0InitContext(ze_driver_handle_t& hDriver,
+                          ze_device_handle_t& hDevice,
+                          ze_module_handle_t& hModule,
+                          ze_command_queue_handle_t& hCommandQueue,
+                          ze_context_handle_t& hContext,
+                          std::string& spv) {
   ze_init_flag_t init_flag;
   L0_SAFE_CALL(zeInit(0));
 
@@ -36,8 +43,8 @@ static void L0InitContext(ze_driver_handle_t &hDriver,
   uint32_t driverCount = 0;
   L0_SAFE_CALL(zeDriverGet(&driverCount, nullptr));
 
-  ze_driver_handle_t *allDrivers =
-      (ze_driver_handle_t *)malloc(driverCount * sizeof(ze_driver_handle_t));
+  ze_driver_handle_t* allDrivers =
+      (ze_driver_handle_t*)malloc(driverCount * sizeof(ze_driver_handle_t));
   L0_SAFE_CALL(zeDriverGet(&driverCount, allDrivers));
 
   // Find a driver instance with a GPU device
@@ -45,8 +52,8 @@ static void L0InitContext(ze_driver_handle_t &hDriver,
     uint32_t deviceCount = 0;
     hDriver = allDrivers[i];
     L0_SAFE_CALL(zeDeviceGet(hDriver, &deviceCount, nullptr));
-    ze_device_handle_t *allDevices =
-        (ze_device_handle_t *)malloc(deviceCount * sizeof(ze_device_handle_t));
+    ze_device_handle_t* allDevices =
+        (ze_device_handle_t*)malloc(deviceCount * sizeof(ze_device_handle_t));
     L0_SAFE_CALL(zeDeviceGet(hDriver, &deviceCount, allDevices));
     for (uint32_t d = 0; d < deviceCount; ++d) {
       ze_device_properties_t device_properties;
@@ -69,24 +76,23 @@ static void L0InitContext(ze_driver_handle_t &hDriver,
   ze_context_desc_t ctxtDesc = {ZE_STRUCTURE_TYPE_CONTEXT_DESC, nullptr, 0};
   zeContextCreate(hDriver, &ctxtDesc, &hContext);
   // Create a command queue
-  ze_command_queue_desc_t commandQueueDesc = {
-      ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC,
-      nullptr,
-      0, // computeQueueGroupOrdinal
-      0, // index
-      0, // flags
-      ZE_COMMAND_QUEUE_MODE_DEFAULT,
-      ZE_COMMAND_QUEUE_PRIORITY_NORMAL};
-  L0_SAFE_CALL(zeCommandQueueCreate(hContext, hDevice, &commandQueueDesc,
-                                    &hCommandQueue));
+  ze_command_queue_desc_t commandQueueDesc = {ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC,
+                                              nullptr,
+                                              0,  // computeQueueGroupOrdinal
+                                              0,  // index
+                                              0,  // flags
+                                              ZE_COMMAND_QUEUE_MODE_DEFAULT,
+                                              ZE_COMMAND_QUEUE_PRIORITY_NORMAL};
+  L0_SAFE_CALL(
+      zeCommandQueueCreate(hContext, hDevice, &commandQueueDesc, &hCommandQueue));
 
   size_t codeSize = spv.size();
   assert(codeSize != 0 && "Code size is 0.");
-  unsigned char *codeBin = new unsigned char[codeSize];
+  unsigned char* codeBin = new unsigned char[codeSize];
   std::copy(spv.data(), spv.data() + codeSize, codeBin);
 
   std::ofstream out("complete.spv", std::ios::binary);
-  out.write((char *)codeBin, codeSize);
+  out.write((char*)codeBin, codeSize);
 
   assert(codeSize && "CodeBin is empty");
 
@@ -97,15 +103,14 @@ static void L0InitContext(ze_driver_handle_t &hDriver,
   moduleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
   moduleDesc.inputSize = codeSize;
   moduleDesc.pConstants = nullptr;
-  moduleDesc.pInputModule = (uint8_t *)codeBin;
+  moduleDesc.pInputModule = (uint8_t*)codeBin;
 
   ze_module_build_log_handle_t buildlog = nullptr;
-  L0_SAFE_CALL(
-      zeModuleCreate(hContext, hDevice, &moduleDesc, &hModule, &buildlog));
+  L0_SAFE_CALL(zeModuleCreate(hContext, hDevice, &moduleDesc, &hModule, &buildlog));
   size_t szLog = 0;
   L0_SAFE_CALL(zeModuleBuildLogGetString(buildlog, &szLog, nullptr));
   std::cout << "Got build log size " << szLog << std::endl;
-  char *strLog = (char *)malloc(szLog);
+  char* strLog = (char*)malloc(szLog);
   L0_SAFE_CALL(zeModuleBuildLogGetString(buildlog, &szLog, strLog));
   std::fstream log;
   log.open("log.txt", std::ios::app);
@@ -117,8 +122,7 @@ static void L0InitContext(ze_driver_handle_t &hDriver,
   log.close();
 }
 
-
-TEST(SPIRVBuildTest, TranslateSimple) {
+std::string SPIRVExecuteTest::generateSimpleSPIRV() {
   using namespace llvm;
   // See source at https://github.com/kurapov-peter/L0Snippets
   LLVMContext ctx;
@@ -174,9 +178,13 @@ TEST(SPIRVBuildTest, TranslateSimple) {
   std::ostringstream ss;
   std::string err;
   auto success = writeSpirv(module.get(), opts, ss, err);
-  ASSERT_EQ(success, true);
+  assert(success);
 
-  auto spv = ss.str();
+  return ss.str();
+}
+
+TEST_F(SPIRVExecuteTest, TranslateSimple) {
+  auto spv = generateSimpleSPIRV();
 
   ze_device_handle_t hDevice = nullptr;
   ze_module_handle_t hModule = nullptr;
@@ -194,8 +202,7 @@ TEST(SPIRVBuildTest, TranslateSimple) {
   commandListDesc.flags = 0;
   commandListDesc.commandQueueGroupOrdinal = 0;
 
-  L0_SAFE_CALL(
-      zeCommandListCreate(hContext, hDevice, &commandListDesc, &hCommandList));
+  L0_SAFE_CALL(zeCommandListCreate(hContext, hDevice, &commandListDesc, &hCommandList));
 
   ze_kernel_desc_t kernelDesc;
   kernelDesc.stype = ZE_STRUCTURE_TYPE_KERNEL_DESC;
@@ -219,23 +226,23 @@ TEST(SPIRVBuildTest, TranslateSimple) {
   alloc_desc.ordinal = 0;
 
   const float copy_size = a_size * sizeof(float);
-  void *dA = nullptr;
-  L0_SAFE_CALL(zeMemAllocDevice(hContext, &alloc_desc, copy_size, 0 /*align*/,
-                                hDevice, &dA));
-  void *dB = nullptr;
-  L0_SAFE_CALL(zeMemAllocDevice(hContext, &alloc_desc, copy_size, 0 /*align*/,
-                                hDevice, &dB));
+  void* dA = nullptr;
+  L0_SAFE_CALL(
+      zeMemAllocDevice(hContext, &alloc_desc, copy_size, 0 /*align*/, hDevice, &dA));
+  void* dB = nullptr;
+  L0_SAFE_CALL(
+      zeMemAllocDevice(hContext, &alloc_desc, copy_size, 0 /*align*/, hDevice, &dB));
 
   int sz = 32;
-  L0_SAFE_CALL(zeKernelSetArgumentValue(hKernel, 0, sizeof(void *), &dA));
-  L0_SAFE_CALL(zeKernelSetArgumentValue(hKernel, 1, sizeof(void *), &dB));
+  L0_SAFE_CALL(zeKernelSetArgumentValue(hKernel, 0, sizeof(void*), &dA));
+  L0_SAFE_CALL(zeKernelSetArgumentValue(hKernel, 1, sizeof(void*), &dB));
 
-  void *a_void = a.data;
-  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(hCommandList, dA, a_void,
-                                             copy_size, nullptr, 0, nullptr));
-  void *b_void = b.data;
-  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(hCommandList, dB, b_void,
-                                             copy_size, nullptr, 0, nullptr));
+  void* a_void = a.data;
+  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
+      hCommandList, dA, a_void, copy_size, nullptr, 0, nullptr));
+  void* b_void = b.data;
+  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
+      hCommandList, dB, b_void, copy_size, nullptr, 0, nullptr));
 
   L0_SAFE_CALL(zeCommandListAppendBarrier(hCommandList, nullptr, 0, nullptr));
   L0_SAFE_CALL(zeKernelSetGroupSize(hKernel, 1, 1, 1));
@@ -245,14 +252,14 @@ TEST(SPIRVBuildTest, TranslateSimple) {
       hCommandList, hKernel, &dispatchTraits, nullptr, 0, nullptr));
 
   L0_SAFE_CALL(zeCommandListAppendBarrier(hCommandList, nullptr, 0, nullptr));
-  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(hCommandList, b_void, dB,
-                                             copy_size, nullptr, 0, nullptr));
+  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
+      hCommandList, b_void, dB, copy_size, nullptr, 0, nullptr));
 
   L0_SAFE_CALL(zeCommandListClose(hCommandList));
-  L0_SAFE_CALL(zeCommandQueueExecuteCommandLists(hCommandQueue, 1,
-                                                 &hCommandList, nullptr));
-  L0_SAFE_CALL(zeCommandQueueSynchronize(hCommandQueue,
-                                         std::numeric_limits<uint32_t>::max()));
+  L0_SAFE_CALL(
+      zeCommandQueueExecuteCommandLists(hCommandQueue, 1, &hCommandList, nullptr));
+  L0_SAFE_CALL(
+      zeCommandQueueSynchronize(hCommandQueue, std::numeric_limits<uint32_t>::max()));
 
   for (int i = 0; i < a_size; ++i) {
     std::cout << b.data[i] << " ";
@@ -263,10 +270,80 @@ TEST(SPIRVBuildTest, TranslateSimple) {
   L0_SAFE_CALL(zeMemFree(hContext, dB));
 }
 
+TEST_F(SPIRVExecuteTest, TranslateSimpleWithL0Manager) {
+  auto mgr = std::make_shared<l0::L0Manager>();
+  auto driver = mgr->drivers()[0];
+  auto device = driver->devices()[0];
+
+  auto spv = generateSimpleSPIRV();
+
+  auto module = device->create_module((uint8_t*)spv.data(), spv.length());
+  auto kernel = module->create_kernel("plus1");
+
+  auto command_queue = device->command_queue();
+  auto command_list = device->create_command_list();
+
+  constexpr int a_size = 32;
+  AlignedArray<float, a_size> a, b;
+  for (auto i = 0; i < a_size; ++i) {
+    a.data[i] = a_size - i;
+    b.data[i] = i;
+  }
+
+  ze_device_mem_alloc_desc_t alloc_desc;
+  alloc_desc.stype = ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
+  alloc_desc.pNext = nullptr;
+  alloc_desc.flags = 0;
+  alloc_desc.ordinal = 0;
+
+  const float copy_size = a_size * sizeof(float);
+  void* dA = nullptr;
+  L0_SAFE_CALL(zeMemAllocDevice(
+      device->ctx(), &alloc_desc, copy_size, 0 /*align*/, device->device(), &dA));
+  void* dB = nullptr;
+  L0_SAFE_CALL(zeMemAllocDevice(
+      device->ctx(), &alloc_desc, copy_size, 0 /*align*/, device->device(), &dB));
+
+  int sz = 32;
+  L0_SAFE_CALL(zeKernelSetArgumentValue(kernel->handle(), 0, sizeof(void*), &dA));
+  L0_SAFE_CALL(zeKernelSetArgumentValue(kernel->handle(), 1, sizeof(void*), &dB));
+
+  void* a_void = a.data;
+  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
+      command_list, dA, a_void, copy_size, nullptr, 0, nullptr));
+  void* b_void = b.data;
+  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
+      command_list, dB, b_void, copy_size, nullptr, 0, nullptr));
+
+  L0_SAFE_CALL(zeCommandListAppendBarrier(command_list, nullptr, 0, nullptr));
+  L0_SAFE_CALL(zeKernelSetGroupSize(kernel->handle(), 1, 1, 1));
+  ze_group_count_t dispatchTraits = {1, 1, 1};
+
+  L0_SAFE_CALL(zeCommandListAppendLaunchKernel(
+      command_list, kernel->handle(), &dispatchTraits, nullptr, 0, nullptr));
+
+  L0_SAFE_CALL(zeCommandListAppendBarrier(command_list, nullptr, 0, nullptr));
+  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
+      command_list, b_void, dB, copy_size, nullptr, 0, nullptr));
+
+  L0_SAFE_CALL(zeCommandListClose(command_list));
+  L0_SAFE_CALL(
+      zeCommandQueueExecuteCommandLists(command_queue, 1, &command_list, nullptr));
+  L0_SAFE_CALL(
+      zeCommandQueueSynchronize(command_queue, std::numeric_limits<uint32_t>::max()));
+
+  for (int i = 0; i < a_size; ++i) {
+    std::cout << b.data[i] << " ";
+  }
+  std::cout << std::endl;
+
+  L0_SAFE_CALL(zeMemFree(device->ctx(), dA));
+  L0_SAFE_CALL(zeMemFree(device->ctx(), dB));
+}
+
 int main(int argc, char** argv) {
   TestHelpers::init_logger_stderr_only(argc, argv);
   testing::InitGoogleTest(&argc, argv);
   int err = RUN_ALL_TESTS();
   return err;
 }
-
