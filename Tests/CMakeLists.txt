@@ -8,6 +8,7 @@ file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Udf/udf_sample.cpp DESTINATION ${CMAKE_BIN
 
 add_executable(CodeGeneratorTest CodeGeneratorTest.cpp)
 add_executable(SpirvBuildTest SpirvBuildTest.cpp)
+add_executable(SpirvExecuteTest SpirvExecuteTest.cpp)
 add_executable(ExecuteTest ExecuteTest.cpp ClusterTester.cpp)
 add_executable(GeospatialTest GeospatialTest.cpp)
 add_executable(RunQueryLoop RunQueryLoop.cpp)
@@ -144,6 +145,7 @@ target_link_libraries(TokenCompletionHintsTest token_completion_hints gtest mapd
 target_link_libraries(DumpRestoreTest ${EXECUTE_TEST_LIBS})
 target_link_libraries(CodeGeneratorTest ${EXECUTE_TEST_LIBS})
 target_link_libraries(SpirvBuildTest LLVMSPIRVLib ${THRIFT_HANDLER_TEST_LIBRARIES})  # quick fix for thrift link issue
+target_link_libraries(SpirvExecuteTest LLVMSPIRVLib ${THRIFT_HANDLER_TEST_LIBRARIES})
 target_link_libraries(ExecuteTest ${EXECUTE_TEST_LIBS})
 target_link_libraries(GeospatialTest ${EXECUTE_TEST_LIBS})
 target_link_libraries(RunQueryLoop ${EXECUTE_TEST_LIBS} bcrypt)
@@ -236,6 +238,7 @@ add_test(NAME ExecuteTestTemporaryTables COMMAND ExecuteTest ${TEST_ARGS} "--use
 add_test(GeospatialTest GeospatialTest ${TEST_ARGS})
 add_test(CodeGeneratorTest CodeGeneratorTest ${TEST_ARGS})
 add_test(SpirvBuildTest SpirvBuildTest ${TEST_ARGS})
+add_test(SpirvExecuteTest SpirvExecuteTest ${TEST_ARGS})
 add_test(ResultSetTest ResultSetTest ${TEST_ARGS})
 add_test(ColumnarResultsTest ColumnarResultsTest ${TEST_ARGS})
 add_test(FromTableReorderingTest FromTableReorderingTest ${TEST_ARGS})
