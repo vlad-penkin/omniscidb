@@ -1175,13 +1175,8 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
   std::string err;
 
   module->setTargetTriple("spir-unknown-unknown");
-  // what's entry point here?
-  llvm::errs() << "func: " << (func? func->getName() : "null") << "\n";
-  llvm::errs() << "wrapper func: " << (wrapper_func? wrapper_func->getName() : "null") << "\n";
-  // func->print()
-  func->setCallingConv(llvm::CallingConv::SPIR_KERNEL);
+  
 
-  // todo: mark SPIR_FUNC
 
   llvm::LLVMContext& ctx = module->getContext();
   // set metadata -- pretend we're opencl (see
@@ -1203,14 +1198,39 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
   // todo: add helper funcs
   // todo: add udf funcs
 
+  std::vector<llvm::Function*> rt_funcs;
+  for (auto& Fn : *module) {
+    if (!roots.count(&Fn)) {
+      rt_funcs.push_back(&Fn);
+    }
+  }
+
+  for (auto& pFn : rt_funcs) {
+    pFn->removeFromParent();
+  }
+
   module->print(os, nullptr);
   os.flush();
 
-  // std::error_code EC;
-  // llvm::raw_fd_ostream OS("ir", EC, llvm::sys::fs::F_None);
-  // llvm::WriteBitcodeToFile(*module, OS);
-  // OS.flush();
-  // llvm::errs() << EC.category().name() << '\n';
+  for (auto& pFn : rt_funcs) {
+    module->getFunctionList().push_back(pFn);
+  }
+
+  for (auto& Fn : *module) {
+    Fn.setCallingConv(llvm::CallingConv::SPIR_FUNC);
+  }
+
+  llvm::errs() << "func: " << (func? func->getName() : "null") << "\n";
+  llvm::errs() << "wrapper func: " << (wrapper_func? wrapper_func->getName() : "null") << "\n";
+  CHECK(wrapper_func);
+
+  wrapper_func->setCallingConv(llvm::CallingConv::SPIR_KERNEL);
+
+  std::error_code EC;
+  llvm::raw_fd_ostream OS("ir", EC, llvm::sys::fs::F_None);
+  llvm::WriteBitcodeToFile(*module, OS);
+  OS.flush();
+  llvm::errs() << EC.category().name() << '\n';
 
   auto success = writeSpirv(module, opts, ss, err);
   if (!success) {

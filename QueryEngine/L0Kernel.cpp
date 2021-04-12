@@ -23,12 +23,12 @@ L0BinResult spv_to_bin(const std::string& spv,
   CHECK(driver);
   CHECK(device);
 
-  // std::ofstream out("complete.spv", std::ios::binary);
-  // out.write((char *)codeBin, codeSize);
+  std::ofstream out("complete.spv", std::ios::binary);
+  out.write((char*)spv.data(), spv.size());
 
   auto module = device->create_module((uint8_t*)spv.data(), spv.size());
   std::cerr << "Module created" << std::endl;
-  auto kernel = module->create_kernel("scalar_expr");
+  auto kernel = module->create_kernel("wrapper_scalar_expr");
 
   L0_SAFE_CALL(zeModuleGetNativeBinary(module->handle(), &binSize, nullptr));
 
