@@ -97,17 +97,17 @@ class L0Manager {
   const std::vector<std::shared_ptr<L0Driver>>& drivers() const;
 };
 
-void copy_host_to_device(int8_t* device_ptr,
-                         const int8_t* host_ptr,
+void copy_host_to_device(void* device_ptr,
+                         const void* host_ptr,
                          const size_t num_bytes,
                          ze_command_list_handle_t command_list);
 
-void copy_device_to_host(int8_t* host_ptr,
-                         const int8_t* device_ptr,
+void copy_device_to_host(void* host_ptr,
+                         const void* device_ptr,
                          const size_t num_bytes,
                          ze_command_list_handle_t command_list);
 
-int8_t* allocate_device_mem(const size_t num_bytes,
-                            ze_command_list_handle_t command_list);
+void* allocate_device_mem(const size_t num_bytes,
+                            L0Device &device);
 
 }  // namespace l0

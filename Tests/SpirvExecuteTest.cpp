@@ -297,25 +297,18 @@ TEST_F(SPIRVExecuteTest, TranslateSimpleWithL0Manager) {
   alloc_desc.ordinal = 0;
 
   const float copy_size = a_size * sizeof(float);
-  void* dA = nullptr;
-  L0_SAFE_CALL(zeMemAllocDevice(
-      device->ctx(), &alloc_desc, copy_size, 0 /*align*/, device->device(), &dA));
-  void* dB = nullptr;
-  L0_SAFE_CALL(zeMemAllocDevice(
-      device->ctx(), &alloc_desc, copy_size, 0 /*align*/, device->device(), &dB));
+  void* dA = l0::allocate_device_mem(copy_size, *device);
+  void* dB = l0::allocate_device_mem(copy_size, *device);
+
+  void* a_void = a.data;
+  void* b_void = b.data;
+
+  l0::copy_host_to_device(dA, a_void, copy_size, command_list);
+  l0::copy_host_to_device(dB, b_void, copy_size, command_list);
 
   int sz = 32;
   L0_SAFE_CALL(zeKernelSetArgumentValue(kernel->handle(), 0, sizeof(void*), &dA));
   L0_SAFE_CALL(zeKernelSetArgumentValue(kernel->handle(), 1, sizeof(void*), &dB));
-
-  void* a_void = a.data;
-  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
-      command_list, dA, a_void, copy_size, nullptr, 0, nullptr));
-  void* b_void = b.data;
-  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
-      command_list, dB, b_void, copy_size, nullptr, 0, nullptr));
-
-  L0_SAFE_CALL(zeCommandListAppendBarrier(command_list, nullptr, 0, nullptr));
   L0_SAFE_CALL(zeKernelSetGroupSize(kernel->handle(), 1, 1, 1));
   ze_group_count_t dispatchTraits = {1, 1, 1};
 
@@ -323,8 +316,8 @@ TEST_F(SPIRVExecuteTest, TranslateSimpleWithL0Manager) {
       command_list, kernel->handle(), &dispatchTraits, nullptr, 0, nullptr));
 
   L0_SAFE_CALL(zeCommandListAppendBarrier(command_list, nullptr, 0, nullptr));
-  L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
-      command_list, b_void, dB, copy_size, nullptr, 0, nullptr));
+
+  l0::copy_device_to_host(b_void, dB, copy_size, command_list);
 
   L0_SAFE_CALL(zeCommandListClose(command_list));
   L0_SAFE_CALL(

@@ -79,8 +79,8 @@ std::vector<std::shared_ptr<L0Driver>> get_drivers() {
   return result;
 }
 
-void copy_host_to_device(int8_t* device_ptr,
-                         const int8_t* host_ptr,
+void copy_host_to_device(void* device_ptr,
+                         const void* host_ptr,
                          const size_t num_bytes,
                          ze_command_list_handle_t command_list) {
   L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
@@ -88,8 +88,8 @@ void copy_host_to_device(int8_t* device_ptr,
   L0_SAFE_CALL(zeCommandListAppendBarrier(command_list, nullptr, 0, nullptr));
 }
 
-void copy_device_to_host(int8_t* host_ptr,
-                         const int8_t* device_ptr,
+void copy_device_to_host(void* host_ptr,
+                         const void* device_ptr,
                          const size_t num_bytes,
                          const ze_command_list_handle_t command_list) {
   L0_SAFE_CALL(zeCommandListAppendMemoryCopy(
@@ -97,7 +97,7 @@ void copy_device_to_host(int8_t* host_ptr,
   L0_SAFE_CALL(zeCommandListAppendBarrier(command_list, nullptr, 0, nullptr));
 }
 
-int8_t* allocate_device_mem(const size_t num_bytes, L0Device& device) {
+void* allocate_device_mem(const size_t num_bytes, L0Device& device) {
   ze_device_mem_alloc_desc_t alloc_desc;
   alloc_desc.stype = ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
   alloc_desc.pNext = nullptr;
@@ -107,7 +107,7 @@ int8_t* allocate_device_mem(const size_t num_bytes, L0Device& device) {
   void* mem;
   L0_SAFE_CALL(zeMemAllocDevice(
       device.ctx(), &alloc_desc, num_bytes, 0 /*align*/, device.device(), &mem));
-  return (int8_t*)mem;
+  return mem;
 }
 
 L0Device::L0Device(const L0Driver& driver, ze_device_handle_t device)
