@@ -26,6 +26,8 @@
 #include <level_zero/ze_api.h>
 
 namespace l0 {
+
+#ifdef HAVE_L0
 class L0Device;
 class L0Driver {
  private:
@@ -113,15 +115,6 @@ class L0Kernel {
   ~L0Kernel();
 };
 
-class L0Manager {
- private:
-  std::vector<std::shared_ptr<L0Driver>> drivers_;
-
- public:
-  L0Manager();
-  const std::vector<std::shared_ptr<L0Driver>>& drivers() const;
-};
-
 class L0CommandList {
  private:
   ze_command_list_handle_t handle_;
@@ -147,5 +140,19 @@ class L0CommandList {
 };
 
 void* allocate_device_mem(const size_t num_bytes, L0Device& device);
+
+#endif  // HAVE_L0
+
+class L0Manager {
+ public:
+  L0Manager();
+
+#ifdef HAVE_L0
+  const std::vector<std::shared_ptr<L0Driver>>& drivers() const;
+
+ private:
+  std::vector<std::shared_ptr<L0Driver>> drivers_;
+#endif  // HAVE_L0
+};
 
 }  // namespace l0

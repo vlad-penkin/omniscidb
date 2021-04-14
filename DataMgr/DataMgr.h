@@ -27,6 +27,7 @@
 #include "AbstractBufferMgr.h"
 #include "BufferMgr/Buffer.h"
 #include "BufferMgr/BufferMgr.h"
+#include "L0Mgr/L0Mgr.h"
 #include "MemoryLevel.h"
 #include "PersistentStorageMgr/PersistentStorageMgr.h"
 
@@ -165,6 +166,7 @@ class DataMgr {
       const std::string& dataDir,
       const SystemParameters& system_parameters,
       std::unique_ptr<CudaMgr_Namespace::CudaMgr> cudaMgr,
+      std::unique_ptr<l0::L0Manager> l0Mgr,
       const bool useGpus,
       const size_t reservedGpuMem = (1 << 27),
       const size_t numReaderThreads = 0, /* 0 means use default for # of reader threads */
@@ -239,6 +241,7 @@ class DataMgr {
 
   std::vector<std::vector<AbstractBufferMgr*>> bufferMgrs_;
   std::unique_ptr<CudaMgr_Namespace::CudaMgr> cudaMgr_;
+  std::unique_ptr<l0::L0Manager> l0Mgr_;
   std::string dataDir_;
   bool hasGpus_;
   size_t reservedGpuMem_;
