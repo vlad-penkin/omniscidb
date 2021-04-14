@@ -176,7 +176,7 @@ std::shared_ptr<L0Module> L0Device::create_module(uint8_t* code,
   if (log) {
     size_t logSize = 0;
     L0_SAFE_CALL(zeModuleBuildLogGetString(buildlog, &logSize, nullptr));
-    std::vector<char> strLog;
+    std::vector<char> strLog(logSize);
     L0_SAFE_CALL(zeModuleBuildLogGetString(buildlog, &logSize, strLog.data()));
     std::fstream out;
     out.open("log.txt", std::ios::app);
