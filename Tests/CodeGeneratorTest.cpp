@@ -362,6 +362,13 @@ TEST(CodeGeneratorTest, IntegerExprGPU) {
 }
 #endif  // HAVE_CUDA
 #ifdef HAVE_L0
+namespace {
+template <typename T, size_t N>
+struct alignas(4096) AlignedArray {
+  T data[N];
+};
+}  // namespace
+
 TEST(CodeGeneratorTest, IntegerConstantL0) {
   auto& ctx = getGlobalLLVMContext();
   std::unique_ptr<llvm::Module> module(read_template_module(ctx));
@@ -376,45 +383,44 @@ TEST(CodeGeneratorTest, IntegerConstantL0) {
   verify_function_ir(compiled_expr.func);
   ASSERT_TRUE(compiled_expr.inputs.empty());
 
-  const auto native_function_pointers =
-      code_generator.generateNativeCode(compiled_expr, co);
+  const auto l0_kernels = code_generator.generateNativeL0Code(compiled_expr, co);
 
-  ASSERT_EQ(native_function_pointers.size(), 1);
+  ASSERT_EQ(l0_kernels.size(), 1);
 
-  // for (size_t gpu_idx = 0; gpu_idx < native_function_pointers.size(); ++gpu_idx) {
-  //   const auto native_function_pointer = native_function_pointers[gpu_idx];
+  auto mgr = code_generator.getL0Mgr();
+  auto driver = mgr->drivers()[0];
 
-  //   auto handle = reinterpret_cast<ze_kernel_handle_t*>(native_function_pointer);
-  //   std::vector<void*> param_ptrs;
-  //   auto device = devices[gpu_idx];
-  //   auto command_list = device->create_command_list();
+  for (size_t gpu_idx = 0; gpu_idx < l0_kernels.size(); ++gpu_idx) {
+    const auto kernel = l0_kernels[gpu_idx];
 
-    // auto dev_ptr = l0::allocate_device_mem(4, command_list);
-    // int host_in = 42;
+    std::vector<void*> param_ptrs;
+    auto device = driver->devices()[gpu_idx];
+    auto command_queue = device->command_queue();
+    auto command_list = device->create_command_list();
 
-    //   auto func_ptr = reinterpret_cast<CUfunction>(native_function_pointer);
+    const int elements = 1;
+    AlignedArray<int, elements> in, out;
+    in.data[0] = 51;
+    out.data[0] = -1;
+    const int copy_size = sizeof(int);
 
-    //   std::vector<void*> param_ptrs;
-    //   CUdeviceptr err = reinterpret_cast<CUdeviceptr>(
-    //       code_generator.getCudaMgr()->allocateDeviceMem(4, gpu_idx));
-    //   CUdeviceptr out = reinterpret_cast<CUdeviceptr>(
-    //       code_generator.getCudaMgr()->allocateDeviceMem(4, gpu_idx));
-    //   param_ptrs.push_back(&err);
-    //   param_ptrs.push_back(&out);
-    //   cuLaunchKernel(func_ptr, 1, 1, 1, 1, 1, 1, 0, nullptr, &param_ptrs[0], nullptr);
-    //   int32_t host_err;
-    //   int32_t host_out;
-    //   code_generator.getCudaMgr()->copyDeviceToHost(reinterpret_cast<int8_t*>(&host_err),
-    //                                                 reinterpret_cast<const
-    //                                                 int8_t*>(err), 4, gpu_idx);
-    //   code_generator.getCudaMgr()->copyDeviceToHost(reinterpret_cast<int8_t*>(&host_out),
-    //                                                 reinterpret_cast<const
-    //                                                 int8_t*>(out), 4, gpu_idx);
+    void* in_void = in.data;
+    void* out_void = out.data;
 
-    //   ASSERT_EQ(host_err, 0);
-    //   ASSERT_EQ(host_out, d.intval);
-    //   free_param_pointers(param_ptrs, code_generator.getCudaMgr());
-  // }
+    void* dIn = l0::allocate_device_mem(copy_size, *device);
+    void* dOut = l0::allocate_device_mem(copy_size, *device);
+
+    command_list->copy(in_void, dIn, copy_size);
+    command_list->launch(*kernel);
+    command_list->submit(command_queue);
+    L0_SAFE_CALL(
+        zeCommandQueueSynchronize(command_queue, std::numeric_limits<uint32_t>::max()));
+
+    L0_SAFE_CALL(zeMemFree(device->ctx(), dIn));
+    L0_SAFE_CALL(zeMemFree(device->ctx(), dOut));
+
+    ASSERT_EQ(out.data[0], d.intval);
+  }
 }
 #endif  // HAVE_L0
 

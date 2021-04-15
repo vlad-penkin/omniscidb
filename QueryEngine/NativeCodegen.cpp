@@ -46,6 +46,7 @@ static_assert(false, "LLVM Version >= 9 is required.");
 #include <llvm/IR/Verifier.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
+#include <llvm/Pass.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/FormattedStream.h>
@@ -1157,6 +1158,35 @@ std::shared_ptr<GpuCompilationContext> CodeGenerator::generateNativeGPUCode(
 }
 
 #ifdef HAVE_L0
+
+namespace {
+struct LegacyOCLAddressLegalizerPass : public llvm::ModulePass {
+  static char ID;
+  LegacyOCLAddressLegalizerPass() : llvm::ModulePass(ID) {}
+  bool runOnModule(llvm::Module& M) override {
+    unsigned int RequiredPointerType = 1u;
+    bool changed = false;
+    for (auto F = M.begin(); F != M.end(); F++) {
+      for (auto BI = F->begin(); BI != F->end(); BI++) {
+        for (auto I = BI->begin(); I != BI->end(); I++) {
+          llvm::Instruction* Inst = &*I;
+          for (auto OI = Inst->op_begin(); OI != Inst->op_end(); OI++) {
+            llvm::Value* Op = OI->get();
+            if (Op->getType()->isPointerTy()) {
+              llvm::Type* NewPtrTy = Op->getType()->getPointerElementType()->getPointerTo(
+                  RequiredPointerType);
+            }
+          }
+        }
+      }
+    }
+    return changed;
+  };
+};
+
+char LegacyOCLAddressLegalizerPass::ID = 0;
+}  // namespace
+
 std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
     llvm::Function* func,
     llvm::Function* wrapper_func,
@@ -1164,27 +1194,28 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
     const CompilationOptions& co,
     const l0::L0Manager* l0_mgr) {
   auto module = func->getParent();
-  
+
   auto pass_manager_builder = llvm::PassManagerBuilder();
   llvm::legacy::PassManager PM;
   pass_manager_builder.populateModulePassManager(PM);
   optimize_ir(func, module, PM, live_funcs, co);
 
+  // PM.add(new LegacyOCLAddressLegalizerPass());
+  // PM.run(*module);
+
   std::ostringstream ss;
-  llvm::raw_os_ostream os(ss);
   std::string err;
 
   module->setTargetTriple("spir-unknown-unknown");
-  
-
 
   llvm::LLVMContext& ctx = module->getContext();
   // set metadata -- pretend we're opencl (see
   // https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/master/docs/SPIRVRepresentationInLLVM.rst#spir-v-instructions-mapped-to-llvm-metadata)
   llvm::Metadata* spirv_src_ops[] = {
-      llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 3 /*OpenCL_C*/)),
       llvm::ConstantAsMetadata::get(
-          llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 102000 /*OpenCL ver 1.2*/))};
+          llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 3 /*OpenCL_C*/)),
+      llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx),
+                                                           102000 /*OpenCL ver 1.2*/))};
   llvm::NamedMDNode* spirv_src = module->getOrInsertNamedMetadata("spirv.Source");
   spirv_src->addOperand(llvm::MDNode::get(ctx, spirv_src_ops));
 
@@ -1209,9 +1240,6 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
     pFn->removeFromParent();
   }
 
-  module->print(os, nullptr);
-  os.flush();
-
   for (auto& pFn : rt_funcs) {
     module->getFunctionList().push_back(pFn);
   }
@@ -1220,14 +1248,15 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
     Fn.setCallingConv(llvm::CallingConv::SPIR_FUNC);
   }
 
-  llvm::errs() << "func: " << (func? func->getName() : "null") << "\n";
-  llvm::errs() << "wrapper func: " << (wrapper_func? wrapper_func->getName() : "null") << "\n";
+  llvm::errs() << "func: " << (func ? func->getName() : "null") << "\n";
+  llvm::errs() << "wrapper func: " << (wrapper_func ? wrapper_func->getName() : "null")
+               << "\n";
   CHECK(wrapper_func);
 
   wrapper_func->setCallingConv(llvm::CallingConv::SPIR_KERNEL);
 
   std::error_code EC;
-  llvm::raw_fd_ostream OS("ir", EC, llvm::sys::fs::F_None);
+  llvm::raw_fd_ostream OS("ir.bc", EC, llvm::sys::fs::F_None);
   llvm::WriteBitcodeToFile(*module, OS);
   OS.flush();
   llvm::errs() << EC.category().name() << '\n';
@@ -1240,17 +1269,18 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
   }
   CHECK(success);
 
-
-  L0BinResult bin_result; 
+  const auto func_name = wrapper_func->getName().str();
+  L0BinResult bin_result;
   try {
-    bin_result = spv_to_bin(ss.str(), 1 /*todo block size*/, l0_mgr);
+    bin_result = spv_to_bin(ss.str(), func_name, 1 /*todo block size*/, l0_mgr);
   } catch (l0::L0Exception& e) {
     llvm::errs() << e.what() << "\n";
     return {};
   }
 
   auto compilation_ctx = std::make_shared<L0CompilationContext>();
-  auto device_compilation_ctx = std::make_unique<L0DeviceCompilationContext>(bin_result.l0bin, bin_result.size, "todoname", 0, 0, nullptr);
+  auto device_compilation_ctx = std::make_unique<L0DeviceCompilationContext>(
+      bin_result.kernel, bin_result.module, l0_mgr, 0, 1);
   compilation_ctx->addDeviceCode(move(device_compilation_ctx));
   return compilation_ctx;
 }
