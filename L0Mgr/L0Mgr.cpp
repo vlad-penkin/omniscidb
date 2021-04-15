@@ -172,7 +172,7 @@ std::shared_ptr<L0Module> L0Device::create_module(uint8_t* code,
   ze_module_handle_t handle;
   ze_module_build_log_handle_t buildlog = nullptr;
 
-  L0_SAFE_CALL(zeModuleCreate(ctx(), device_, &desc, &handle, &buildlog));
+  auto status = zeModuleCreate(ctx(), device_, &desc, &handle, &buildlog);
   if (log) {
     size_t logSize = 0;
     L0_SAFE_CALL(zeModuleBuildLogGetString(buildlog, &logSize, nullptr));
@@ -186,6 +186,9 @@ std::shared_ptr<L0Module> L0Device::create_module(uint8_t* code,
       out << std::string(strLog.begin(), strLog.end());
       out.close();
     }
+  }
+  if (status) {
+    throw l0::L0Exception(status);
   }
   return std::make_shared<L0Module>(handle);
 }
