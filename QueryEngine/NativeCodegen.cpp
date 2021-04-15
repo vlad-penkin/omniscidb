@@ -1237,12 +1237,13 @@ std::shared_ptr<L0CompilationContext> CodeGenerator::generateNativeL0Code(
   }
 
   for (auto& pFn : rt_funcs) {
-    pFn->removeFromParent();
+    // pFn->removeFromParent();
+    pFn->eraseFromParent();
   }
 
-  for (auto& pFn : rt_funcs) {
-    module->getFunctionList().push_back(pFn);
-  }
+  // for (auto& pFn : rt_funcs) {
+  //   module->getFunctionList().push_back(pFn);
+  // }
 
   for (auto& Fn : *module) {
     Fn.setCallingConv(llvm::CallingConv::SPIR_FUNC);
