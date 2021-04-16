@@ -311,9 +311,9 @@ TEST_F(SPIRVExecuteTest, TranslateSimpleWithL0Manager) {
 
   auto kernel = module->create_kernel("plus1", 1, 1, 1);
 
-  command_list->copy(b_void, dB, copy_size);
-
   command_list->launch(*kernel, &dA, &dB);
+
+  command_list->copy(b_void, dB, copy_size);
 
   command_list->submit(command_queue);
 
