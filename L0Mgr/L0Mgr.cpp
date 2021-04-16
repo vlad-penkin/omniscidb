@@ -86,12 +86,6 @@ void L0CommandList::submit(ze_command_queue_handle_t queue) {
   L0_SAFE_CALL(zeCommandQueueExecuteCommandLists(queue, 1, &handle_, nullptr));
 }
 
-void L0CommandList::launch(L0Kernel& kernel) {
-  L0_SAFE_CALL(zeCommandListAppendLaunchKernel(
-      handle_, kernel.handle(), &kernel.group_size(), nullptr, 0, nullptr));
-
-  L0_SAFE_CALL(zeCommandListAppendBarrier(handle_, nullptr, 0, nullptr));
-}
 L0CommandList::~L0CommandList() {
   // TODO: maybe return to pool
 }
@@ -210,6 +204,26 @@ L0Module::~L0Module() {
   if (status) {
     std::cerr << "Non-zero status for command module destructor" << std::endl;
   }
+}
+
+std::shared_ptr<L0Kernel> L0Module::create_kernel(const char* name,
+                                                  uint32_t x,
+                                                  uint32_t y,
+                                                  uint32_t z) const {
+  ze_kernel_desc_t desc{
+      .stype = ZE_STRUCTURE_TYPE_KERNEL_DESC,
+      .pNext = nullptr,
+      .flags = 0,
+      .pKernelName = name,
+  };
+  ze_kernel_handle_t handle;
+  L0_SAFE_CALL(zeKernelCreate(this->handle_, &desc, &handle));
+  return std::make_shared<L0Kernel>(handle, x, y, z);
+}
+
+L0Kernel::L0Kernel(ze_kernel_handle_t handle, uint32_t x, uint32_t y, uint32_t z)
+    : handle_(handle), group_size_({x, y, z}) {
+  zeKernelSetGroupSize(handle_, x, y, z);
 }
 
 ze_group_count_t& L0Kernel::group_size() {

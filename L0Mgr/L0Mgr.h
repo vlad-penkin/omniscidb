@@ -77,18 +77,10 @@ class L0Module {
   explicit L0Module(ze_module_handle_t handle);
   ze_module_handle_t handle() const;
 
-  template <typename... Args>
-  std::shared_ptr<L0Kernel> create_kernel(const char* name, Args&&... args) const {
-    ze_kernel_desc_t desc{
-        .stype = ZE_STRUCTURE_TYPE_KERNEL_DESC,
-        .pNext = nullptr,
-        .flags = 0,
-        .pKernelName = name,
-    };
-    ze_kernel_handle_t handle;
-    L0_SAFE_CALL(zeKernelCreate(this->handle_, &desc, &handle));
-    return std::make_shared<L0Kernel>(handle, std::forward<Args>(args)...);
-  }
+  std::shared_ptr<L0Kernel> create_kernel(const char* name,
+                                          uint32_t x,
+                                          uint32_t y,
+                                          uint32_t z) const;
 
   ~L0Module();
 };
@@ -114,12 +106,7 @@ class L0Kernel {
   ze_group_count_t group_size_;
 
  public:
-  template <typename... Args>
-  L0Kernel(ze_kernel_handle_t handle, uint32_t x, uint32_t y, uint32_t z, Args&&... args)
-      : handle_(handle), group_size_({x, y, z}) {
-    set_kernel_args<0>(handle, std::forward<Args>(args)...);
-    zeKernelSetGroupSize(handle_, x, y, z);
-  }
+  L0Kernel(ze_kernel_handle_t handle, uint32_t x, uint32_t y, uint32_t z);
 
   ze_group_count_t& group_size();
   ze_kernel_handle_t handle() const;
@@ -144,7 +131,15 @@ class L0CommandList {
 
   void copy(void* dst, const void* src, const size_t num_bytes);
 
-  void launch(L0Kernel& kernel);
+  template <typename... Args>
+  void launch(L0Kernel& kernel, Args&&... args) {
+    set_kernel_args<0>(kernel.handle(), std::forward<Args>(args)...);
+
+    L0_SAFE_CALL(zeCommandListAppendLaunchKernel(
+        handle_, kernel.handle(), &kernel.group_size(), nullptr, 0, nullptr));
+
+    L0_SAFE_CALL(zeCommandListAppendBarrier(handle_, nullptr, 0, nullptr));
+  }
 
   void submit(ze_command_queue_handle_t queue);
 

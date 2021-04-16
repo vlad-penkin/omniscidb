@@ -411,7 +411,7 @@ TEST(CodeGeneratorTest, IntegerConstantL0) {
     void* dOut = l0::allocate_device_mem(copy_size, *device);
 
     command_list->copy(in_void, dIn, copy_size);
-    command_list->launch(*kernel);
+    command_list->launch(*kernel, &dIn, &dOut);
     command_list->submit(command_queue);
     L0_SAFE_CALL(
         zeCommandQueueSynchronize(command_queue, std::numeric_limits<uint32_t>::max()));

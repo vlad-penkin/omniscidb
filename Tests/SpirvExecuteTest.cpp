@@ -305,11 +305,11 @@ TEST_F(SPIRVExecuteTest, TranslateSimpleWithL0Manager) {
   command_list->copy(dA, a_void, copy_size);
   command_list->copy(dB, b_void, copy_size);
 
-  auto kernel = module->create_kernel("plus1", 1, 1, 1, &dA, &dB);
+  auto kernel = module->create_kernel("plus1", 1, 1, 1);
 
   command_list->copy(b_void, dB, copy_size);
 
-  command_list->launch(*kernel);
+  command_list->launch(*kernel, &dA, &dB);
 
   command_list->submit(command_queue);
 
