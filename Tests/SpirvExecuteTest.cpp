@@ -266,6 +266,10 @@ TEST_F(SPIRVExecuteTest, TranslateSimple) {
   }
   std::cout << std::endl;
 
+  ASSERT_EQ(b.data[0], 33);
+  ASSERT_EQ(b.data[1], 1);
+  ASSERT_EQ(b.data[2], 2);
+
   L0_SAFE_CALL(zeMemFree(hContext, dA));
   L0_SAFE_CALL(zeMemFree(hContext, dB));
 }
@@ -320,6 +324,10 @@ TEST_F(SPIRVExecuteTest, TranslateSimpleWithL0Manager) {
     std::cout << b.data[i] << " ";
   }
   std::cout << std::endl;
+
+  ASSERT_EQ(b.data[0], 33);
+  ASSERT_EQ(b.data[1], 1);
+  ASSERT_EQ(b.data[2], 2);
 
   L0_SAFE_CALL(zeMemFree(device->ctx(), dA));
   L0_SAFE_CALL(zeMemFree(device->ctx(), dB));
