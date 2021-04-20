@@ -3,6 +3,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-result")
 set(datamgr_source_files
     AbstractBuffer.cpp
     Allocators/CudaAllocator.cpp
+    Allocators/L0Allocator.cpp
     Allocators/ThrustAllocator.cpp
     Chunk/Chunk.cpp
     DataMgr.cpp

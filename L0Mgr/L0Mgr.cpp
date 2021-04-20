@@ -193,6 +193,15 @@ const std::vector<std::shared_ptr<L0Driver>>& L0Manager::drivers() const {
   return drivers_;
 }
 
+int8_t* L0Manager::allocateDeviceMem(const size_t num_bytes, int device_id) {
+#ifdef HAVE_L0
+  auto& device = drivers_[0]->devices()[device_id];
+  return (int8_t*)allocate_device_mem(num_bytes, *device);
+#else
+  return nullptr;
+#endif  // HAVE_L0
+}
+
 L0Module::L0Module(ze_module_handle_t handle) : handle_(handle) {}
 
 ze_module_handle_t L0Module::handle() const {

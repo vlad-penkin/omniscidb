@@ -147,6 +147,8 @@ class L0Manager {
  public:
   L0Manager();
 
+  int8_t* allocateDeviceMem(const size_t num_bytes, int device_id);
+
 #ifdef HAVE_L0
   const std::vector<std::shared_ptr<L0Driver>>& drivers() const;
 
