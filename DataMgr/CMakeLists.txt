@@ -27,6 +27,8 @@ set(datamgr_source_files
     ForeignStorage/CsvFileBufferParser.cpp
     BufferMgr/GpuCudaBufferMgr/GpuCudaBufferMgr.cpp
     BufferMgr/GpuCudaBufferMgr/GpuCudaBuffer.cpp
+    BufferMgr/GpuL0BufferMgr/GpuL0BufferMgr.cpp
+    BufferMgr/GpuL0BufferMgr/GpuL0Buffer.cpp
     BufferMgr/CpuBufferMgr/CpuBufferMgr.cpp
     BufferMgr/CpuBufferMgr/CpuBuffer.cpp
     BufferMgr/BufferMgr.cpp

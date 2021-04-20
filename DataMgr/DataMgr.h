@@ -207,6 +207,7 @@ class DataMgr {
   size_t getTableEpoch(const int db_id, const int tb_id);
 
   CudaMgr_Namespace::CudaMgr* getCudaMgr() const { return cudaMgr_.get(); }
+  l0::L0Manager* getL0Mgr() const { return l0Mgr_.get(); }
   File_Namespace::GlobalFileMgr* getGlobalFileMgr() const;
   std::shared_ptr<ForeignStorageInterface> getForeignStorageInterface() const;
 

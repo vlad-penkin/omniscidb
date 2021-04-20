@@ -293,12 +293,6 @@ TEST_F(SPIRVExecuteTest, TranslateSimpleWithL0Manager) {
     b.data[i] = i;
   }
 
-  ze_device_mem_alloc_desc_t alloc_desc;
-  alloc_desc.stype = ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
-  alloc_desc.pNext = nullptr;
-  alloc_desc.flags = 0;
-  alloc_desc.ordinal = 0;
-
   const float copy_size = a_size * sizeof(float);
   void* dA = l0::allocate_device_mem(copy_size, *device);
   void* dB = l0::allocate_device_mem(copy_size, *device);
