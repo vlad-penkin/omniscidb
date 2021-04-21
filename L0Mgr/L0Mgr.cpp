@@ -86,6 +86,10 @@ void L0CommandList::submit(ze_command_queue_handle_t queue) {
   L0_SAFE_CALL(zeCommandQueueExecuteCommandLists(queue, 1, &handle_, nullptr));
 }
 
+ze_command_list_handle_t L0CommandList::handle() const {
+  return handle_;
+}
+
 L0CommandList::~L0CommandList() {
   // TODO: maybe return to pool
 }
@@ -248,5 +252,79 @@ L0Kernel::~L0Kernel() {
   if (status) {
     std::cerr << "Non-zero status for command kernel destructor" << std::endl;
   }
+}
+
+void L0Manager::copyHostToDevice(int8_t* device_ptr,
+                                 const int8_t* host_ptr,
+                                 const size_t num_bytes,
+                                 const int device_num) {
+  auto& device = drivers()[0]->devices()[device_num];
+  auto cl = device->create_command_list();
+  auto queue = device->command_queue();
+
+  cl->copy(device_ptr, host_ptr, num_bytes);
+  cl->submit(queue);
+  L0_SAFE_CALL(zeCommandQueueSynchronize(queue, std::numeric_limits<uint32_t>::max()));
+}
+
+void L0Manager::copyDeviceToHost(int8_t* host_ptr,
+                                 const int8_t* device_ptr,
+                                 const size_t num_bytes,
+                                 const int device_num) {
+  auto& device = drivers_[0]->devices()[device_num];
+  auto cl = device->create_command_list();
+  auto queue = device->command_queue();
+
+  cl->copy(host_ptr, device_ptr, num_bytes);
+  cl->submit(queue);
+  L0_SAFE_CALL(zeCommandQueueSynchronize(queue, std::numeric_limits<uint32_t>::max()));
+}
+
+void L0Manager::copyDeviceToDevice(int8_t* dest_ptr,
+                                   int8_t* src_ptr,
+                                   const size_t num_bytes,
+                                   const int dest_device_num,
+                                   const int src_device_num) {
+  CHECK(false);
+}
+
+int8_t* L0Manager::allocatePinnedHostMem(const size_t num_bytes) {
+  CHECK(false);
+}
+
+void L0Manager::freePinnedHostMem(int8_t* host_ptr) {
+  CHECK(false);
+}
+
+void L0Manager::freeDeviceMem(int8_t* device_ptr) {
+  auto ctx = drivers_[0]->ctx();
+  L0_SAFE_CALL(zeMemFree(ctx, device_ptr));
+}
+
+void L0Manager::zeroDeviceMem(int8_t* device_ptr,
+                              const size_t num_bytes,
+                              const int device_num) {
+  setDeviceMem(device_ptr, 0, num_bytes, device_num);
+}
+void L0Manager::setDeviceMem(int8_t* device_ptr,
+                             const unsigned char uc,
+                             const size_t num_bytes,
+                             const int device_num) {
+#if HAVE_L0
+  auto& device = drivers_[0]->devices()[device_num];
+  auto cl = device->create_command_list();
+  L0_SAFE_CALL(zeCommandListAppendMemoryFill(
+      cl->handle(), device_ptr, &uc, 1, num_bytes, nullptr, 0, nullptr));
+  cl->submit(device->command_queue());
+#endif  // HAVE_L0
+}
+
+void L0Manager::synchronizeDevices() const {
+#if HAVE_L0
+  for (auto& device : drivers_[0]->devices()) {
+    L0_SAFE_CALL(zeCommandQueueSynchronize(device->command_queue(),
+                                           std::numeric_limits<uint32_t>::max()));
+  }
+#endif  // HAVE_L0
 }
 }  // namespace l0

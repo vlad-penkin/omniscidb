@@ -136,6 +136,8 @@ class L0CommandList {
 
   void submit(ze_command_queue_handle_t queue);
 
+  ze_command_list_handle_t handle() const;
+
   ~L0CommandList();
 };
 
@@ -147,7 +149,31 @@ class L0Manager {
  public:
   L0Manager();
 
-  int8_t* allocateDeviceMem(const size_t num_bytes, int device_id);
+  void copyHostToDevice(int8_t* device_ptr,
+                        const int8_t* host_ptr,
+                        const size_t num_bytes,
+                        const int device_num);
+  void copyDeviceToHost(int8_t* host_ptr,
+                        const int8_t* device_ptr,
+                        const size_t num_bytes,
+                        const int device_num);
+  void copyDeviceToDevice(int8_t* dest_ptr,
+                          int8_t* src_ptr,
+                          const size_t num_bytes,
+                          const int dest_device_num,
+                          const int src_device_num);
+
+  int8_t* allocatePinnedHostMem(const size_t num_bytes);
+  int8_t* allocateDeviceMem(const size_t num_bytes, const int device_num);
+  void freePinnedHostMem(int8_t* host_ptr);
+  void freeDeviceMem(int8_t* device_ptr);
+  void zeroDeviceMem(int8_t* device_ptr, const size_t num_bytes, const int device_num);
+  void setDeviceMem(int8_t* device_ptr,
+                    const unsigned char uc,
+                    const size_t num_bytes,
+                    const int device_num);
+
+  void synchronizeDevices() const;
 
 #ifdef HAVE_L0
   const std::vector<std::shared_ptr<L0Driver>>& drivers() const;

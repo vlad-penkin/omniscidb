@@ -38,19 +38,12 @@ GpuL0BufferMgr::GpuL0BufferMgr(const int device_id,
     , l0_mgr_(cuda_mgr) {}
 
 GpuL0BufferMgr::~GpuL0BufferMgr() {
-  //     try {
-  //     cuda_mgr_->synchronizeDevices();
-  //     freeAllMem();
-  // #ifdef HAVE_CUDA
-  //   } catch (const CudaMgr_Namespace::CudaErrorException& e) {
-  //     if (e.getStatus() == CUDA_ERROR_DEINITIALIZED) {
-  //       // TODO(adb / asuhan): Verify cuModuleUnload removes the context
-  //       return;
-  //     }
-  // #endif
-  //   } catch (const std::runtime_error& e) {
-  //     LOG(ERROR) << "CUDA Error: " << e.what();
-  //   }
+  try {
+    l0_mgr_->synchronizeDevices();
+    freeAllMem();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "L0 Error: " << e.what();
+  }
 }
 
 void GpuL0BufferMgr::addSlab(const size_t slab_size) {
@@ -67,10 +60,9 @@ void GpuL0BufferMgr::addSlab(const size_t slab_size) {
 }
 
 void GpuL0BufferMgr::freeAllMem() {
-  // TODO
-  //   for (auto buf_it = slabs_.begin(); buf_it != slabs_.end(); ++buf_it) {
-  //     l0_mgr_->freeDeviceMem(*buf_it);
-  //   }
+  for (auto buf_it = slabs_.begin(); buf_it != slabs_.end(); ++buf_it) {
+    l0_mgr_->freeDeviceMem(*buf_it);
+  }
 }
 
 void GpuL0BufferMgr::allocateBuffer(BufferList::iterator seg_it,

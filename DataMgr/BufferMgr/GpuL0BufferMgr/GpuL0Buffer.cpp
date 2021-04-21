@@ -36,21 +36,14 @@ void GpuL0Buffer::readData(int8_t* const dst,
                            const size_t offset,
                            const MemoryLevel dst_buffer_type,
                            const int dst_device_id) {
-#ifdef HAVE_L0
   if (dst_buffer_type == CPU_LEVEL) {
-    auto& device = l0_mgr_->drivers()[0]->devices()[device_id_];
-    auto cl = device->create_command_list();
-    auto queue = device->command_queue();
-
-    cl->copy(dst, mem_ + offset, num_bytes);
-    cl->submit(queue);
-    L0_SAFE_CALL(zeCommandQueueSynchronize(queue, std::numeric_limits<uint32_t>::max()));
+    l0_mgr_->copyDeviceToHost(
+        dst, mem_ + offset, num_bytes, device_id_);  // need to replace 0 with gpu num
   } else if (dst_buffer_type == GPU_LEVEL) {
-    throw std::runtime_error("copyDeviceToDevice is not yet supported in l0Manager");
+    l0_mgr_->copyDeviceToDevice(dst, mem_ + offset, num_bytes, dst_device_id, device_id_);
   } else {
     LOG(FATAL) << "Unsupported buffer type";
   }
-#endif  // HAVE_L0
 }
 
 void GpuL0Buffer::writeData(int8_t* const src,
@@ -58,22 +51,18 @@ void GpuL0Buffer::writeData(int8_t* const src,
                             const size_t offset,
                             const MemoryLevel src_buffer_type,
                             const int src_device_id) {
-#ifdef HAVE_L0
   if (src_buffer_type == CPU_LEVEL) {
-    auto& device = l0_mgr_->drivers()[0]->devices()[device_id_];
-    auto cl = device->create_command_list();
-    auto queue = device->command_queue();
-
-    cl->copy(mem_ + offset, src, num_bytes);
-    cl->submit(queue);
-    L0_SAFE_CALL(zeCommandQueueSynchronize(queue, std::numeric_limits<uint32_t>::max()));
+    // std::cout << "Writing to GPU from source CPU" << std::endl;
+    l0_mgr_->copyHostToDevice(
+        mem_ + offset, src, num_bytes, device_id_);  // need to replace 0 with gpu num
 
   } else if (src_buffer_type == GPU_LEVEL) {
-    throw std::runtime_error("copyDeviceToDevice is not yet supported in l0Manager");
+    // std::cout << "Writing to GPU from source GPU" << std::endl;
+    CHECK_GE(src_device_id, 0);
+    l0_mgr_->copyDeviceToDevice(mem_ + offset, src, num_bytes, device_id_, src_device_id);
   } else {
     LOG(FATAL) << "Unsupported buffer type";
   }
-#endif  // HAVE_L0
 }
 
 }  // namespace Buffer_Namespace
