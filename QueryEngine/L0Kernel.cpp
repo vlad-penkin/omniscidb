@@ -24,6 +24,7 @@ L0BinResult spv_to_bin(const std::string& spv,
   CHECK(driver);
   CHECK(device);
 
+  std::cout << "Creating kernel " << name.c_str() << std::endl;
   std::ofstream out("complete.spv", std::ios::binary);
   out.write((char*)spv.data(), spv.size());
 

@@ -132,7 +132,8 @@ ScalarCodeGenerator::CompiledExpression ScalarCodeGenerator::compile(
       loaded_args.push_back(b.CreateLoad(wrapper_scalar_expr_func->arg_begin() + i));
     }
     auto error_lv = b.CreateCall(scalar_expr_func, loaded_args);
-    b.CreateStore(error_lv, wrapper_scalar_expr_func->arg_begin());
+    if (co.device_type != ExecutorDeviceType::L0)
+      b.CreateStore(error_lv, wrapper_scalar_expr_func->arg_begin());
     b.CreateRetVoid();
     return {scalar_expr_func, wrapper_scalar_expr_func, inputs};
   }

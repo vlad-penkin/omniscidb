@@ -417,6 +417,8 @@ TEST(CodeGeneratorTest, IntegerConstantL0) {
     L0_SAFE_CALL(
         zeCommandQueueSynchronize(command_queue, std::numeric_limits<uint32_t>::max()));
 
+    std::cout << "out" << out.data[0] << std::endl;
+
     L0_SAFE_CALL(zeMemFree(device->ctx(), dIn));
     L0_SAFE_CALL(zeMemFree(device->ctx(), dOut));
 
