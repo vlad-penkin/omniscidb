@@ -1616,53 +1616,54 @@ void set_row_func_argnames(llvm::Function* row_func,
 
 llvm::Function* create_row_function(const size_t in_col_count,
                                     const size_t agg_col_count,
-                                    const bool hoist_literals,
+                                    const CompilationOptions& co,
                                     llvm::Module* module,
                                     llvm::LLVMContext& context) {
   std::vector<llvm::Type*> row_process_arg_types;
+  unsigned int AS = (co.device_type == ExecutorDeviceType::L0) ? 4 : 0;
 
   if (agg_col_count) {
     // output (aggregate) arguments
     for (size_t i = 0; i < agg_col_count; ++i) {
-      row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context));
+      row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context, AS));
     }
   } else {
     // group by buffer
-    row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context));
+    row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context, AS));
     // current match count
-    row_process_arg_types.push_back(llvm::Type::getInt32PtrTy(context));
+    row_process_arg_types.push_back(llvm::Type::getInt32PtrTy(context, AS));
     // total match count passed from the caller
-    row_process_arg_types.push_back(llvm::Type::getInt32PtrTy(context));
+    row_process_arg_types.push_back(llvm::Type::getInt32PtrTy(context, AS));
     // old total match count returned to the caller
-    row_process_arg_types.push_back(llvm::Type::getInt32PtrTy(context));
+    row_process_arg_types.push_back(llvm::Type::getInt32PtrTy(context, AS));
     // max matched (total number of slots in the output buffer)
-    row_process_arg_types.push_back(llvm::Type::getInt32PtrTy(context));
+    row_process_arg_types.push_back(llvm::Type::getInt32PtrTy(context, AS));
   }
 
   // aggregate init values
-  row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context));
+  row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context, AS));
 
   // position argument
   row_process_arg_types.push_back(llvm::Type::getInt64Ty(context));
 
   // fragment row offset argument
-  row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context));
+  row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context, AS));
 
   // number of rows for each scan
-  row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context));
+  row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context, AS));
 
   // literals buffer argument
-  if (hoist_literals) {
-    row_process_arg_types.push_back(llvm::Type::getInt8PtrTy(context));
+  if (co.hoist_literals) {
+    row_process_arg_types.push_back(llvm::Type::getInt8PtrTy(context, AS));
   }
 
   // column buffer arguments
   for (size_t i = 0; i < in_col_count; ++i) {
-    row_process_arg_types.emplace_back(llvm::Type::getInt8PtrTy(context));
+    row_process_arg_types.emplace_back(llvm::Type::getInt8PtrTy(context, AS));
   }
 
   // join hash table argument
-  row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context));
+  row_process_arg_types.push_back(llvm::Type::getInt64PtrTy(context, AS));
 
   // generate the function
   auto ft =
@@ -1672,7 +1673,7 @@ llvm::Function* create_row_function(const size_t in_col_count,
       llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "row_func", module);
 
   // set the row function argument names; for debugging purposes only
-  set_row_func_argnames(row_func, in_col_count, agg_col_count, hoist_literals);
+  set_row_func_argnames(row_func, in_col_count, agg_col_count, co.hoist_literals);
 
   return row_func;
 }
@@ -2753,7 +2754,7 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
                                                                    gpu_smem_context)
                                          : query_template(cgen_state_->module_,
                                                           agg_slot_count,
-                                                          co.hoist_literals,
+                                                          co,
                                                           !!ra_exe_unit.estimator,
                                                           gpu_smem_context);
   bind_pos_placeholders("pos_start", true, query_func, cgen_state_->module_);
@@ -2778,7 +2779,7 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
 
   cgen_state_->row_func_ = create_row_function(ra_exe_unit.input_col_descs.size(),
                                                is_group_by ? 0 : agg_slot_count,
-                                               co.hoist_literals,
+                                               co,
                                                cgen_state_->module_,
                                                cgen_state_->context_);
   CHECK(cgen_state_->row_func_);
