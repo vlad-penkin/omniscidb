@@ -851,6 +851,10 @@ llvm::StringRef get_gpu_target_triple_string() {
   return llvm::StringRef("nvptx64-nvidia-cuda");
 }
 
+llvm::StringRef get_l0_target_triple_string() {
+  return llvm::StringRef("spir-unknown-unknown");
+}
+
 llvm::StringRef get_gpu_data_layout() {
   return llvm::StringRef(
       "e-p:64:64:64-i1:8:8-i8:8:8-"
@@ -2619,6 +2623,12 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
       throw QueryMustRunOnCpu();
     }
   }
+  if (co.device_type == ExecutorDeviceType::L0) {
+    const auto l0_mgr = catalog_->getDataMgr().getL0Mgr();
+    if (!l0_mgr) {
+      throw QueryMustRunOnCpu();
+    }
+  }
 
 #ifndef NDEBUG
   static std::uint64_t counter = 0;
@@ -2710,7 +2720,7 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
       CodeGenerator::link_udf_module(
           rt_udf_cpu_module, *rt_module_copy, cgen_state_.get());
     }
-  } else {
+  } else if (co.device_type == ExecutorDeviceType::GPU) {
     rt_module_copy->setDataLayout(get_gpu_data_layout());
     rt_module_copy->setTargetTriple(get_gpu_target_triple_string());
     if (is_udf_module_present()) {
@@ -2720,6 +2730,9 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
       CodeGenerator::link_udf_module(
           rt_udf_gpu_module, *rt_module_copy, cgen_state_.get());
     }
+  } else {
+    rt_module_copy->setTargetTriple(get_l0_target_triple_string());
+    // todo: link udf & rt_udf
   }
 
   cgen_state_->module_ = rt_module_copy.release();
