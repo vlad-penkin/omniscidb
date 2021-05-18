@@ -118,6 +118,45 @@ and type information in the following fields:
 - *type_scale* - an integer field holding a scale of the *target_type*
 - *type_precision* - an integer field holding a precision of the *target_type*
 
+*Example.* Integer value 123.
+::
+
+  {
+    "literal": 123,
+    "type": "DECIMAL",
+    "target_type": "INTEGER",
+    "scale": 0,
+    "precision": 3,
+    "type_scale": 0,
+    "type_precision": 10
+  }
+
+*Example.* Double value 10.54.
+::
+
+  {
+    "literal": 1054,
+    "type": "DECIMAL",
+    "target_type": "DOUBLE",
+    "scale": 2,
+    "precision": 4,
+    "type_scale": -2147483648,
+    "type_precision": 15
+  }
+
+*Example.* String value 'literal'.
+::
+
+  {
+    "literal": "literal",
+    "type": "CHAR",
+    "target_type": "CHAR",
+    "scale": -2147483648,
+    "precision": 7,
+    "type_scale": -2147483648,
+    "type_precision": 7
+  }
+
 ----------------
 Collation object
 ----------------
@@ -159,6 +198,85 @@ values and corresponding object layouts:
   *subquery* field.
   *TODO: describe PG_* operations and window functions*
 
+*Example.* Consider table created with statement
+
+.. code-block:: sql
+
+  CREATE TABLE t (a INT, b FLOAT, c FLOAT)
+
+and SQL query
+
+.. code-block:: sql
+
+  SELECT CASE WHEN a IS NULL THEN b * 2 ELSE c / 3 END FROM t
+
+Here is a serialized CASE statement from this query:
+::
+
+  {
+    "op": "CASE",
+    "operands": [
+      {
+        "op": "IS NULL",
+        "operands": [
+          {
+            "input": 0
+          }
+        ],
+        "type": {
+          "type": "BOOLEAN",
+          "nullable": false
+        }
+      },
+      {
+        "op": "*",
+        "operands": [
+          {
+            "input": 1
+          },
+          {
+            "literal": 2,
+            "type": "DECIMAL",
+            "target_type": "INTEGER",
+            "scale": 0,
+            "precision": 1,
+            "type_scale": 0,
+            "type_precision": 10
+          }
+        ],
+        "type": {
+          "type": "FLOAT",
+          "nullable": true
+        }
+      },
+      {
+        "op": "\/",
+        "operands": [
+          {
+            "input": 2
+          },
+          {
+            "literal": 3,
+            "type": "DECIMAL",
+            "target_type": "INTEGER",
+            "scale": 0,
+            "precision": 1,
+            "type_scale": 0,
+            "type_precision": 10
+          }
+        ],
+        "type": {
+          "type": "FLOAT",
+          "nullable": true
+        }
+      }
+    ],
+    "type": {
+      "type": "FLOAT",
+      "nullable": true
+    }
+  }
+
 ****************************************
 EnumerableTableScan and LogicalTableScan
 ****************************************
@@ -189,6 +307,68 @@ Fields:
 - *expr* - an array of scalar expressions, one per output column
 - *hints* - optional hints field
 
+*Example.*
+
+.. code-block:: sql
+
+  SELECT a, a + 1 as inc_a FROM t
+
+Is translated into
+::
+
+  {
+    "rels": [
+      {
+        "id": "0",
+        "relOp": "LogicalTableScan",
+        "fieldNames": [
+          "a",
+          "b",
+          "c",
+          "rowid"
+        ],
+        "table": [
+          "omnisci",
+          "t"
+        ],
+        "inputs": []
+      },
+      {
+        "id": "1",
+        "relOp": "LogicalProject",
+        "fields": [
+          "a",
+          "inc_a"
+        ],
+        "exprs": [
+          {
+            "input": 0
+          },
+          {
+            "op": "+",
+            "operands": [
+              {
+                "input": 0
+              },
+              {
+                "literal": 1,
+                "type": "DECIMAL",
+                "target_type": "INTEGER",
+                "scale": 0,
+                "precision": 1,
+                "type_scale": 0,
+                "type_precision": 10
+              }
+            ],
+            "type": {
+              "type": "INTEGER",
+              "nullable": true
+            }
+          }
+        ]
+      }
+    ]
+  }
 
 *************
 LogicalFilter
@@ -201,6 +381,63 @@ Fields:
 - *inputs* - an optional field with a single input node
 - *condition* - a filtering expression. Operation drops rows for which the filtering
   expression produces False.
+
+*Example.*
+
+.. code-block:: sql
+
+  SELECT a FROM t WHERE b IS NOT NULL
+
+Is translated into
+::
+
+  {
+    "rels": [
+      {
+        "id": "0",
+        "relOp": "LogicalTableScan",
+        "fieldNames": [
+          "a",
+          "b",
+          "c",
+          "rowid"
+        ],
+        "table": [
+          "omnisci",
+          "t"
+        ],
+        "inputs": []
+      },
+      {
+        "id": "1",
+        "relOp": "LogicalFilter",
+        "condition": {
+          "op": "IS NOT NULL",
+          "operands": [
+            {
+              "input": 1
+            }
+          ],
+          "type": {
+            "type": "BOOLEAN",
+            "nullable": false
+          }
+        }
+      },
+      {
+        "id": "2",
+        "relOp": "LogicalProject",
+        "fields": [
+          "a"
+        ],
+        "exprs": [
+          {
+            "input": 0
+          }
+        ]
+      }
+    ]
+  }
 
 ****************
 LogicalAggregate
@@ -221,6 +458,87 @@ Fields:
 - *aggs* - an array of aggregate expressions
 - *hints* - optional hints field
 
+*Example.*
+
+.. code-block:: sql
+
+  SELECT SUM(a) FROM t GROUP BY b
+
+Is translated into
+::
+
+  {
+    "rels": [
+      {
+        "id": "0",
+        "relOp": "LogicalTableScan",
+        "fieldNames": [
+          "a",
+          "b",
+          "c",
+          "rowid"
+        ],
+        "table": [
+          "omnisci",
+          "t"
+        ],
+        "inputs": []
+      },
+      {
+        "id": "1",
+        "relOp": "LogicalProject",
+        "fields": [
+          "b",
+          "a"
+        ],
+        "exprs": [
+          {
+            "input": 1
+          },
+          {
+            "input": 0
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "relOp": "LogicalAggregate",
+        "fields": [
+          "b",
+          "EXPR$0"
+        ],
+        "group": [
+          0
+        ],
+        "aggs": [
+          {
+            "agg": "SUM",
+            "type": {
+              "type": "INTEGER",
+              "nullable": true
+            },
+            "distinct": false,
+            "operands": [
+              1
+            ]
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "relOp": "LogicalProject",
+        "fields": [
+          "EXPR$0"
+        ],
+        "exprs": [
+          {
+            "input": 1
+          }
+        ]
+      }
+    ]
+  }
+
 ***********
 LogicalJoin
 ***********
@@ -233,6 +551,96 @@ Fields:
 - *joinType* - a string field holding a join type. Supported values: "inner", "left"
 - *condition* - a scalar expression with a join condition
 - *hints* - optional hints field
+
+*Example.*
+
+.. code-block:: sql
+
+  SELECT * FROM t1 INNER JOIN t2 ON t1.a = t2.x
+
+Is translated into
+::
+
+  {
+    "rels": [
+      {
+        "id": "0",
+        "relOp": "LogicalTableScan",
+        "fieldNames": [
+          "a",
+          "b",
+          "rowid"
+        ],
+        "table": [
+          "omnisci",
+          "t1"
+        ],
+        "inputs": []
+      },
+      {
+        "id": "1",
+        "relOp": "LogicalTableScan",
+        "fieldNames": [
+          "x",
+          "y",
+          "rowid"
+        ],
+        "table": [
+          "omnisci",
+          "t2"
+        ],
+        "inputs": []
+      },
+      {
+        "id": "2",
+        "relOp": "LogicalJoin",
+        "condition": {
+          "op": "=",
+          "operands": [
+            {
+              "input": 0
+            },
+            {
+              "input": 3
+            }
+          ],
+          "type": {
+            "type": "BOOLEAN",
+            "nullable": true
+          }
+        },
+        "joinType": "inner",
+        "inputs": [
+          "0",
+          "1"
+        ]
+      },
+      {
+        "id": "3",
+        "relOp": "LogicalProject",
+        "fields": [
+          "a",
+          "b",
+          "x",
+          "y"
+        ],
+        "exprs": [
+          {
+            "input": 0
+          },
+          {
+            "input": 1
+          },
+          {
+            "input": 3
+          },
+          {
+            "input": 4
+          }
+        ]
+      }
+    ]
+  }
 
 ***********
 LogicalSort
@@ -247,6 +655,58 @@ Fields:
 - *fetch* - a literal object holding an output rows limit 
 - *offset* - a literal object holding a number of rows to skip
 
+*Example.*
+
+.. code-block:: sql
+
+  SELECT a FROM t3 ORDER BY a DESC
+
+Is translated into
+::
+
+  {
+    "rels": [
+      {
+        "id": "0",
+        "relOp": "LogicalTableScan",
+        "fieldNames": [
+          "a",
+          "b",
+          "c",
+          "rowid"
+        ],
+        "table": [
+          "omnisci",
+          "t3"
+        ],
+        "inputs": []
+      },
+      {
+        "id": "1",
+        "relOp": "LogicalProject",
+        "fields": [
+          "a"
+        ],
+        "exprs": [
+          {
+            "input": 0
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "relOp": "LogicalSort",
+        "collation": [
+          {
+            "field": 0,
+            "direction": "DESCENDING",
+            "nulls": "FIRST"
+          }
+        ]
+      }
+    ]
+  }
+
 *************
 LogicalValues
 *************
@@ -260,6 +720,35 @@ Fields:
   *name* field
 - *tuples* - an array of tuple values. Each tuple is represented as an array of scalar expression
   objects holding literals
+
+*Example.* A simple 'SELECT 1' can be represented as the following LogicalValues node:
+::
+
+  {
+    "id": "0",
+    "relOp": "LogicalValues",
+    "type": [
+      {
+        "type": "INTEGER",
+        "nullable": false,
+        "name": "ZERO"
+      }
+    ],
+    "tuples": [
+      [
+        {
+          "literal": 0,
+          "type": "DECIMAL",
+          "target_type": "INTEGER",
+          "scale": 0,
+          "precision": 1,
+          "type_scale": 0,
+          "type_precision": 10
+        }
+      ]
+    ],
+    "inputs": []
+  }
 
 ******************
 LogicalTableModify
@@ -279,3 +768,86 @@ Fields:
 
 - *inputs* - an array of input nodes
 - *all* - a boolean field holding ALL modifier for the union operation
+
+*Example.*
+
+.. code-block:: sql
+
+  SELECT * FROM t1 UNION ALL SELECT * FROM t2
+
+Is translated into
+::
+
+  {
+    "rels": [
+      {
+        "id": "0",
+        "relOp": "LogicalTableScan",
+        "fieldNames": [
+          "a",
+          "b",
+          "rowid"
+        ],
+        "table": [
+          "omnisci",
+          "t1"
+        ],
+        "inputs": []
+      },
+      {
+        "id": "1",
+        "relOp": "LogicalProject",
+        "fields": [
+          "a",
+          "b"
+        ],
+        "exprs": [
+          {
+            "input": 0
+          },
+          {
+            "input": 1
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "relOp": "LogicalTableScan",
+        "fieldNames": [
+          "x",
+          "y",
+          "rowid"
+        ],
+        "table": [
+          "omnisci",
+          "t2"
+        ],
+        "inputs": []
+      },
+      {
+        "id": "3",
+        "relOp": "LogicalProject",
+        "fields": [
+          "x",
+          "y"
+        ],
+        "exprs": [
+          {
+            "input": 0
+          },
+          {
+            "input": 1
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "relOp": "LogicalUnion",
+        "all": true,
+        "inputs": [
+          "1",
+          "3"
+        ]
+      }
+    ]
+  }
