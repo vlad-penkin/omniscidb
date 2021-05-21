@@ -56,7 +56,7 @@ enum class ColumnEncoding {
   DATE_IN_DAYS = 7
 };
 
-class ColumnDetails {
+class RUNTIME_EXPORT ColumnDetails {
  public:
   std::string col_name;
   ColumnType col_type;
@@ -79,7 +79,7 @@ class ColumnDetails {
                 int comp_param);
 };
 
-class Row {
+class RUNTIME_EXPORT Row {
  public:
   Row();
   Row(std::vector<TargetValue>& row);
@@ -92,6 +92,6 @@ class Row {
   std::vector<TargetValue> row_;
 };
 
-ColumnType sqlToColumnType(const SQLTypes& type);
-ColumnEncoding sqlToColumnEncoding(const EncodingType& type);
+extern "C" RUNTIME_EXPORT ColumnType sqlToColumnType(const SQLTypes& type);
+extern "C" RUNTIME_EXPORT ColumnEncoding sqlToColumnEncoding(const EncodingType& type);
 }  // namespace EmbeddedDatabase
