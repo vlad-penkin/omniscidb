@@ -159,7 +159,7 @@ void SysCatalog::init(const std::string& basePath,
                       std::shared_ptr<Data_Namespace::DataMgr> dataMgr,
                       const AuthMetadata& authMetadata,
                       std::shared_ptr<Calcite> calcite,
-                      bool is_new_db,
+                      bool is_new_catalog,
                       bool aggregator,
                       const std::vector<LeafHostInfo>& string_dict_hosts) {
   {
@@ -177,8 +177,8 @@ void SysCatalog::init(const std::string& basePath,
         boost::filesystem::exists(basePath_ + "/mapd_catalogs/" + OMNISCI_SYSTEM_CATALOG);
     sqliteConnector_.reset(
         new SqliteConnector(OMNISCI_SYSTEM_CATALOG, basePath_ + "/mapd_catalogs/"));
-    if (is_new_db) {
-      initDB();
+    if (is_new_catalog) {
+      initDB(is_new_catalog);
     } else {
       if (!db_exists) {
         importDataFromOldMapdDB();
@@ -207,7 +207,7 @@ SysCatalog::~SysCatalog() {
   cat_map_.clear();
 }
 
-void SysCatalog::initDB() {
+void SysCatalog::initDB(bool is_new_catalog) {
   sys_sqlite_lock sqlite_lock(this);
   sqliteConnector_->query("BEGIN TRANSACTION");
   try {
@@ -242,7 +242,7 @@ void SysCatalog::initDB() {
     throw;
   }
   sqliteConnector_->query("END TRANSACTION");
-  createDatabase(OMNISCI_DEFAULT_DB, OMNISCI_ROOT_USER_ID);
+  createDatabase(OMNISCI_DEFAULT_DB, OMNISCI_ROOT_USER_ID, is_new_catalog);
   createRole_unsafe(OMNISCI_ROOT_USER, true);
 }
 
@@ -1101,7 +1101,7 @@ void SysCatalog::renameDatabase(std::string const& old_name,
   transaction_streamer(sqliteConnector_, success_handler, failure_handler, q1, q2);
 }
 
-void SysCatalog::createDatabase(const string& name, int owner) {
+void SysCatalog::createDatabase(const string& name, int owner, bool is_new_catalog) {
   sys_write_lock write_lock(this);
   sys_sqlite_lock sqlite_lock(this);
 
@@ -1206,7 +1206,7 @@ void SysCatalog::createDatabase(const string& name, int owner) {
 
   // force a migration on the new database
   removeCatalog(name);
-  cat = getCatalog(db, false);
+  cat = getCatalog(db, is_new_catalog);
 
   if (g_enable_fsi) {
     try {
