@@ -142,6 +142,7 @@ class ProcBuddyinfoParser {
 #ifdef __linux__
         sysconf(_SC_PAGE_SIZE);  // in case x86-64 is configured to use 2MB pages
 #else
+//TODO: Fix for Windows
         0;
 #endif
     size_t scaled = 0;
