@@ -11,7 +11,7 @@ import sys
 import numpy as np
 import pyarrow as pa
 
-root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # conda-forge packages omniscidbe and pyomniscidbe are built
 # separately. OMNISCI_ROOT_PATH is defined by the omniscidbe activate
