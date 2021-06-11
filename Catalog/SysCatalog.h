@@ -153,7 +153,7 @@ class SysCatalog : private CommonFileOperations {
             std::shared_ptr<Data_Namespace::DataMgr> dataMgr,
             const AuthMetadata& authMetadata,
             std::shared_ptr<Calcite> calcite,
-            bool is_new_catalog,
+            bool is_new_db,
             bool aggregator,
             const std::vector<LeafHostInfo>& string_dict_hosts);
 
@@ -181,7 +181,7 @@ class SysCatalog : private CommonFileOperations {
                  const std::string* dbname,
                  bool* can_login);
   void renameUser(std::string const& old_name, std::string const& new_name);
-  void createDatabase(const std::string& dbname, int owner, bool is_new_catalog = false);
+  void createDatabase(const std::string& dbname, int owner);
   void renameDatabase(std::string const& old_name, std::string const& new_name);
   void dropDatabase(const DBMetadata& db);
   bool getMetadataForUser(const std::string& name, UserMetadata& user);
@@ -334,7 +334,7 @@ class SysCatalog : private CommonFileOperations {
       , thread_holding_write_lock(std::thread::id())
       , dummyCatalog_(std::make_shared<Catalog>()) {}
 
-  void initDB(bool is_new_catalog);
+  void initDB();
   void buildRoleMap();
   void buildUserRoleMap();
   void buildObjectDescriptorMap();
