@@ -1512,7 +1512,7 @@ llvm::Value* GroupByAndAggregate::codegenAggColumnPtr(
       // multiplying by chosen_bytes, i.e., << log2(chosen_bytes)
 #ifdef _MSC_VER
       unsigned long index;
-      auto res = int(_BitScanForward(&index, (unsigned long)chosen_bytes) ? index + 1 : 0);
+      auto res = int(_BitScanForward64(&index, (unsigned long)chosen_bytes) ? index + 1 : 0);
       auto out_per_col_byte_idx = LL_BUILDER.CreateShl(out_row_idx, res - 1);
 #else
       auto out_per_col_byte_idx =

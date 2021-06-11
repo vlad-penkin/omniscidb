@@ -51,7 +51,7 @@
 #define ALWAYS_INLINE
 #elif defined(ENABLE_EMBEDDED_DATABASE)
 #define ALWAYS_INLINE \
-__attribute__((always_inline)) __attribute__((__visibility__("protected")))
+  __attribute__((always_inline)) __attribute__((__visibility__("protected")))
 #else
 #define ALWAYS_INLINE __attribute__((always_inline))
 #endif

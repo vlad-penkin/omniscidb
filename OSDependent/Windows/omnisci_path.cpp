@@ -28,7 +28,6 @@ namespace omnisci {
 std::string get_root_abs_path() {
   char abs_exe_path[MAX_PATH];
   auto path_len = GetModuleFileNameA(NULL, abs_exe_path, MAX_PATH);
-  std::cout << "Abs path: " <<  abs_exe_path << std::endl;
   CHECK_GT(path_len, 0u);
   CHECK_LT(static_cast<size_t>(path_len), sizeof(abs_exe_path));
   boost::filesystem::path abs_exe_dir(std::string(abs_exe_path, path_len));

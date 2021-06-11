@@ -4132,14 +4132,7 @@ ImportStatus Importer::importDelimited(
   }
 
   if (copy_params.threads == 0) {
-#ifdef _MSC_VER
-    SYSTEM_INFO sysinfo;
-    GetSystemInfo(&sysinfo);
-    size_t numCPU = sysinfo.dwNumberOfProcessors;
-#else
-    size_t numCPU = static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
-#endif
-    max_threads = std::min(numCPU,
+    max_threads = std::min((size_t)cpu_threads(),
                            g_max_import_threads);
   } else {
     max_threads = static_cast<size_t>(copy_params.threads);
