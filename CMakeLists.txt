@@ -12,15 +12,18 @@ if(DEFINED ENV{CONDA_PREFIX})
   # fixes `undefined reference to `boost::system::detail::system_category_instance'`:
   add_definitions("-DBOOST_ERROR_CODE_HEADER_ONLY")
   add_definitions("-DBOOST_ALL_DYN_LINK")
-  # Adding formating macros
-  #add_definitions("-D__STDC_FORMAT_MACROS=1")
+  if(NOT MSVC)
+    message("NOT MVC MODE START")
+    # Adding formating macros
+    add_definitions("-D__STDC_FORMAT_MACROS=1")
+    # Adding sysroot include dir resolves `cassert file not found` error:
+    include_directories(SYSTEM "$ENV{CONDA_BUILD_SYSROOT}/usr/include")
+  endif()
   # fixes always_inline attribute errors
   #add_compile_options("-fno-semantic-interposition")
   # Adding `--sysroot=...` resolves `no member named 'signbit' in the global namespace` error:
   set(CMAKE_SYSROOT "$ENV{CONDA_BUILD_SYSROOT}")
   link_directories("$ENV{CONDA_PREFIX}/lib")  # resolves link issue for zlib 
-  # Adding sysroot include dir resolves `cassert file not found` error:
-  #include_directories(SYSTEM "$ENV{CONDA_BUILD_SYSROOT}/usr/include")
 endif(DEFINED ENV{CONDA_PREFIX})
 
 # force `Release` build type if left unspecified
@@ -34,11 +37,10 @@ if("${CMAKE_VERSION}" VERSION_GREATER 3.11.999)
   cmake_policy(SET CMP0074 NEW)
 endif()
 
-#TODO: Remove. My ccache doesn't work on Windows for some reasons
-#find_program(CCACHE_EXE ccache)
-#if(CCACHE_EXE)
-#  set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_EXE}")
-#endif()
+find_program(CCACHE_EXE ccache)
+if(CCACHE_EXE)
+  set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_EXE}")
+endif()
 
 option(ENABLE_IWYU "Enable include-what-you-use" OFF)
 if(ENABLE_IWYU)
@@ -724,11 +726,6 @@ if(ENABLE_RENDERING)
 endif()
 
 list(APPEND MAPD_LIBRARIES ${Arrow_LIBRARIES})
-# Dirty hack for conda build
-#if(ENABLE_CONDA)
-#  list(APPEND MAPD_LIBRARIES $ENV{CONDA_PREFIX}/lib/arrow.lib)
-#  message (Status "Adding arrow from conda: $ENV{CONDA_PREFIX}/lib/arrow.lib")
-#endif()
 
 if(ENABLE_FOLLY)
   list(APPEND MAPD_LIBRARIES ${Folly_LIBRARIES})
