@@ -472,10 +472,12 @@ class BaselineJoinHashTableBuilder {
       CHECK(!emitted_keys_count);
       return 0;
     }
-    auto data_mgr = executor->getDataMgr();
-    CudaAllocator allocator(data_mgr, device_id);
-    auto dev_err_buff = reinterpret_cast<CUdeviceptr>(allocator.alloc(sizeof(int)));
-    copy_to_gpu(data_mgr, dev_err_buff, &err, sizeof(err), device_id);
+    auto& data_mgr = executor->getDataMgr();
+    auto allocator = data_mgr.createGpuAllocator(device_id);
+    auto dev_err_buff = allocator->alloc(sizeof(int));
+
+    allocator->copyToDevice(dev_err_buff, &err, sizeof(err));
+
     auto gpu_hash_table_buff = hash_table_->getGpuBuffer();
     CHECK(gpu_hash_table_buff);
     const bool for_semi_join =
@@ -500,7 +502,7 @@ class BaselineJoinHashTableBuilder {
       default:
         UNREACHABLE();
     }
-    const auto key_handler_gpu = transfer_flat_object_to_gpu(*key_handler, allocator);
+    const auto key_handler_gpu = transfer_flat_object_to_gpu(*key_handler, *allocator);
     switch (key_component_width) {
       case 4: {
         fill_baseline_hash_join_buff_on_device<int32_t>(
@@ -513,7 +515,11 @@ class BaselineJoinHashTableBuilder {
             reinterpret_cast<int*>(dev_err_buff),
             key_handler_gpu,
             join_columns.front().num_elems);
-        copy_from_gpu(data_mgr, &err, dev_err_buff, sizeof(err), device_id);
+        copy_from_gpu(data_mgr,
+                      &err,
+                      reinterpret_cast<CUdeviceptr>(dev_err_buff),
+                      sizeof(err),
+                      device_id);
         break;
       }
       case 8: {
@@ -527,59 +533,58 @@ class BaselineJoinHashTableBuilder {
             reinterpret_cast<int*>(dev_err_buff),
             key_handler_gpu,
             join_columns.front().num_elems);
-        copy_from_gpu(data_mgr, &err, dev_err_buff, sizeof(err), device_id);
-        break;
-      }
-      default:
-        UNREACHABLE();
-    }
-    if (err) {
-      return err;
-    }
-    if (HashJoin::layoutRequiresAdditionalBuffers(layout)) {
-      const auto entry_size = key_component_count * key_component_width;
-      auto one_to_many_buff = reinterpret_cast<int32_t*>(
-          gpu_hash_table_buff + keyspace_entry_count * entry_size);
-      init_hash_join_buff_on_device(one_to_many_buff, keyspace_entry_count, -1);
-      switch (key_component_width) {
-        case 4: {
-          const auto composite_key_dict = reinterpret_cast<int32_t*>(gpu_hash_table_buff);
-          fill_one_to_many_baseline_hash_table_on_device<int32_t>(
-              one_to_many_buff,
-              composite_key_dict,
-              keyspace_entry_count,
-              -1,
-              key_component_count,
-              key_handler_gpu,
-              join_columns.front().num_elems);
-
-          break;
-        }
-        case 8: {
-          const auto composite_key_dict = reinterpret_cast<int64_t*>(gpu_hash_table_buff);
-          fill_one_to_many_baseline_hash_table_on_device<int64_t>(
-              one_to_many_buff,
-              composite_key_dict,
-              keyspace_entry_count,
-              -1,
-              key_component_count,
-              key_handler_gpu,
-              join_columns.front().num_elems);
-
-          break;
-        }
+        copy_from_gpu(data_mgr,
+                      &err,
+                      reinterpret_cast<CUdeviceptr>(dev_err_buff),
+                      sizeof(err),
+                      device_id);
         default:
-          UNREACHABLE();
       }
-    }
+        if (err) {
+          const auto entry_size = key_component_count * key_component_width;
+          gpu_hash_table_buff + keyspace_entry_count * entry_size);
+          init_hash_join_buff_on_device(one_to_many_buff, keyspace_entry_count, -1);
+          switch (key_component_width) {
+            case 4: {
+              const auto composite_key_dict =
+                  reinterpret_cast<int32_t*>(gpu_hash_table_buff);
+              fill_one_to_many_baseline_hash_table_on_device<int32_t>(
+                  one_to_many_buff,
+                  composite_key_dict,
+                  keyspace_entry_count,
+                  -1,
+                  key_component_count,
+                  key_handler_gpu,
+                  join_columns.front().num_elems);
+
+              break;
+            }
+            case 8: {
+              const auto composite_key_dict =
+                  reinterpret_cast<int64_t*>(gpu_hash_table_buff);
+              fill_one_to_many_baseline_hash_table_on_device<int64_t>(
+                  one_to_many_buff,
+                  composite_key_dict,
+                  keyspace_entry_count,
+                  -1,
+                  key_component_count,
+                  key_handler_gpu,
+                  join_columns.front().num_elems);
+
+              break;
+            }
+            default:
+              UNREACHABLE();
+          }
+        }
 #else
     UNREACHABLE();
 #endif
-    return err;
-  }
+        return err;
+    }
 
-  std::unique_ptr<BaselineHashTable> getHashTable() { return std::move(hash_table_); }
+    std::unique_ptr<BaselineHashTable> getHashTable() { return std::move(hash_table_); }
 
- private:
-  std::unique_ptr<BaselineHashTable> hash_table_;
-};
+   private:
+    std::unique_ptr<BaselineHashTable> hash_table_;
+  };
