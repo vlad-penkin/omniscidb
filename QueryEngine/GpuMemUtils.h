@@ -44,6 +44,8 @@ class DataMgr;
 
 }  // namespace Data_Namespace
 
+class DeviceAllocator;
+
 void copy_to_gpu(Data_Namespace::DataMgr* data_mgr,
                  CUdeviceptr dst,
                  const void* src,
@@ -57,8 +59,8 @@ void copy_from_gpu(Data_Namespace::DataMgr* data_mgr,
                    const int device_id);
 
 struct GpuGroupByBuffers {
-  CUdeviceptr ptrs;  // ptrs for individual outputs
-  CUdeviceptr data;  // ptr to data allocation
+  int8_t* ptrs;
+  int8_t* data;
   size_t entry_count;
   CUdeviceptr varlen_output_buffer;
 };
@@ -82,10 +84,10 @@ GpuGroupByBuffers create_dev_group_by_buffers(
     const bool has_varlen_output,
     Allocator* insitu_allocator);
 
-void copy_group_by_buffers_from_gpu(Data_Namespace::DataMgr* data_mgr,
+void copy_group_by_buffers_from_gpu(DeviceAllocator& device_allocator,
                                     const std::vector<int64_t*>& group_by_buffers,
                                     const size_t groups_buffer_size,
-                                    const CUdeviceptr group_by_dev_buffers_mem,
+                                    const int8_t* group_by_dev_buffers_mem,
                                     const QueryMemoryDescriptor& query_mem_desc,
                                     const unsigned block_size_x,
                                     const unsigned grid_size_x,
