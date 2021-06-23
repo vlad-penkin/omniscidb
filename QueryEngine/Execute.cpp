@@ -3007,13 +3007,10 @@ int32_t Executor::executePlanWithoutGroupBy(
                                                rows_to_process);
     output_memory_scope.reset(new OutVecOwner(out_vec));
   } else {
-    auto gpu_generated_code = std::dynamic_pointer_cast<GpuCompilationContext>(
-        compilation_result.generated_code);
-    CHECK(gpu_generated_code);
     try {
       out_vec = query_exe_context->launchGpuCode(
           ra_exe_unit,
-          gpu_generated_code.get(),
+          compilation_result.generated_code.get(),
           hoist_literals,
           hoist_buf,
           col_buffers,
@@ -3272,12 +3269,9 @@ int32_t Executor::executePlanWithGroupBy(
                                      rows_to_process);
   } else {
     try {
-      auto gpu_generated_code = std::dynamic_pointer_cast<GpuCompilationContext>(
-          compilation_result.generated_code);
-      CHECK(gpu_generated_code);
       query_exe_context->launchGpuCode(
           ra_exe_unit_copy,
-          gpu_generated_code.get(),
+          compilation_result.generated_code.get(),
           hoist_literals,
           hoist_buf,
           col_buffers,
