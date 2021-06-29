@@ -180,7 +180,6 @@ ResultSetPtr QueryExecutionContext::groupBufferToResults(const size_t i) const {
   return query_buffers_->getResultSetOwned(i);
 }
 
-#ifdef HAVE_CUDA
 namespace {
 
 int32_t aggregate_error_codes(const std::vector<int32_t>& error_codes) {
@@ -199,7 +198,6 @@ int32_t aggregate_error_codes(const std::vector<int32_t>& error_codes) {
 }
 
 }  // namespace
-#endif
 
 std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
     const RelAlgExecutionUnit& ra_exe_unit,
@@ -222,7 +220,6 @@ std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
     RenderAllocatorMap* render_allocator_map) {
   auto timer = DEBUG_TIMER(__func__);
   INJECT_TIMER(lauchGpuCode);
-#ifdef HAVE_CUDA
   CHECK(gpu_allocator_);
   CHECK(query_buffers_);
   CHECK(compilation_context);
@@ -240,16 +237,6 @@ std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
   std::vector<int64_t*> out_vec;
   uint32_t num_fragments = col_buffers.size();
   std::vector<int32_t> error_codes(grid_size_x * block_size_x);
-
-  CUevent start0, stop0;  // preparation
-  cuEventCreate(&start0, 0);
-  cuEventCreate(&stop0, 0);
-  CUevent start1, stop1;  // cuLaunchKernel
-  cuEventCreate(&start1, 0);
-  cuEventCreate(&stop1, 0);
-  CUevent start2, stop2;  // finish
-  cuEventCreate(&start2, 0);
-  cuEventCreate(&stop2, 0);
 
   auto prepareClock = kernel->make_clock();
   auto launchClock = kernel->make_clock();
@@ -556,9 +543,6 @@ std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
   }
 
   return out_vec;
-#else
-  return {};
-#endif
 }
 
 std::vector<int64_t*> QueryExecutionContext::launchCpuCode(
@@ -747,8 +731,6 @@ std::vector<int64_t*> QueryExecutionContext::launchCpuCode(
   return out_vec;
 }
 
-#ifdef HAVE_CUDA
-
 std::vector<int8_t*> QueryExecutionContext::prepareKernelParams(
     const std::vector<std::vector<const int8_t*>>& col_buffers,
     const std::vector<int8_t>& literal_buff,
@@ -886,4 +868,3 @@ std::vector<int8_t*> QueryExecutionContext::prepareKernelParams(
 
   return params;
 }
-#endif
