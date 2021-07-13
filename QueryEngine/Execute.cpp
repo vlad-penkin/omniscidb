@@ -3432,10 +3432,17 @@ int8_t Executor::warpSize() const {
 unsigned Executor::gridSize() const {
   CHECK(data_mgr_);
   const auto cuda_mgr = data_mgr_->getCudaMgr();
-  if (!cuda_mgr) {
-    return 0;
+  const auto l0_mgr = data_mgr_->getL0Mgr();
+
+  if (cuda_mgr) {
+    return grid_size_x_ ? grid_size_x_ : 2 * cuda_mgr->getMinNumMPsForAllDevices();
   }
-  return grid_size_x_ ? grid_size_x_ : 2 * cuda_mgr->getMinNumMPsForAllDevices();
+
+  if (l0_mgr) {
+    return 1;
+  }
+
+  return 0;
 }
 
 unsigned Executor::numBlocksPerMP() const {
@@ -3446,11 +3453,18 @@ unsigned Executor::numBlocksPerMP() const {
 unsigned Executor::blockSize() const {
   CHECK(data_mgr_);
   const auto cuda_mgr = data_mgr_->getCudaMgr();
-  if (!cuda_mgr) {
-    return 0;
+  const auto l0_mgr = data_mgr_->getL0Mgr();
+
+  if (cuda_mgr) {
+    const auto& dev_props = cuda_mgr->getAllDeviceProperties();
+    return block_size_x_ ? block_size_x_ : dev_props.front().maxThreadsPerBlock;
   }
-  const auto& dev_props = cuda_mgr->getAllDeviceProperties();
-  return block_size_x_ ? block_size_x_ : dev_props.front().maxThreadsPerBlock;
+
+  if (l0_mgr) {
+    return 1;
+  }
+
+  return 0;
 }
 
 size_t Executor::maxGpuSlabSize() const {
