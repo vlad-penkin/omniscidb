@@ -651,6 +651,10 @@ CountDistinctDescriptors init_count_distinct_descriptors(
   return count_distinct_descriptors;
 }
 
+bool is_gpu_device(ExecutorDeviceType dt) {
+  return dt != ExecutorDeviceType::CPU;
+}
+
 }  // namespace
 
 std::unique_ptr<QueryMemoryDescriptor> GroupByAndAggregate::initQueryMemoryDescriptor(
@@ -660,11 +664,11 @@ std::unique_ptr<QueryMemoryDescriptor> GroupByAndAggregate::initQueryMemoryDescr
     RenderInfo* render_info,
     const bool output_columnar_hint) {
   const auto shard_count =
-      device_type_ == ExecutorDeviceType::GPU
+      is_gpu_device(device_type_)
           ? shard_count_for_top_groups(ra_exe_unit_, *executor_->getCatalog())
           : 0;
   bool sort_on_gpu_hint =
-      device_type_ == ExecutorDeviceType::GPU && allow_multifrag &&
+      is_gpu_device(device_type_) && allow_multifrag &&
       !ra_exe_unit_.sort_info.order_entries.empty() &&
       gpuCanHandleOrderEntries(ra_exe_unit_.sort_info.order_entries) && !shard_count;
   // must_use_baseline_sort is true iff we'd sort on GPU with the old algorithm
@@ -711,7 +715,7 @@ std::unique_ptr<QueryMemoryDescriptor> GroupByAndAggregate::initQueryMemoryDescr
   auto col_range_info_nosharding = getColRangeInfo();
 
   const auto shard_count =
-      device_type_ == ExecutorDeviceType::GPU
+      is_gpu_device(device_type_)
           ? shard_count_for_top_groups(ra_exe_unit_, *executor_->getCatalog())
           : 0;
 
@@ -829,6 +833,11 @@ bool GroupByAndAggregate::codegen(llvm::Value* filter_result,
   AUTOMATIC_IR_METADATA(executor_->cgen_state_.get());
   CHECK(filter_result);
 
+  auto calling_conv = (co.device_type == ExecutorDeviceType::L0)
+                          ? llvm::CallingConv::SPIR_FUNC
+                          : llvm::CallingConv::C;
+  unsigned int addr_space = (co.device_type == ExecutorDeviceType::L0) ? 4 : 0;
+
   bool can_return_error = false;
   llvm::BasicBlock* filter_false{nullptr};
 
@@ -853,7 +862,8 @@ bool GroupByAndAggregate::codegen(llvm::Value* filter_result,
         LL_BUILDER.CreateStore(LL_INT(int32_t(1)), crt_matched);
         auto total_matched_ptr = get_arg_by_name(ROW_FUNC, "total_matched");
         llvm::Value* old_total_matched_val{nullptr};
-        if (co.device_type == ExecutorDeviceType::GPU) {
+        if (co.device_type == ExecutorDeviceType::GPU ||
+            co.device_type == ExecutorDeviceType::L0) {
           old_total_matched_val =
               LL_BUILDER.CreateAtomicRMW(llvm::AtomicRMWInst::Add,
                                          total_matched_ptr,
@@ -896,7 +906,7 @@ bool GroupByAndAggregate::codegen(llvm::Value* filter_result,
             nullcheck_cond = LL_BUILDER.CreateICmpNE(
                 std::get<0>(agg_out_ptr_w_idx),
                 llvm::ConstantPointerNull::get(
-                    llvm::PointerType::get(get_int_type(64, LL_CONTEXT), 0)));
+                    llvm::PointerType::get(get_int_type(64, LL_CONTEXT), addr_space)));
           }
           DiamondCodegen nullcheck_cfg(
               nullcheck_cond, executor_, false, "groupby_nullcheck", &filter_cfg, false);
@@ -1448,6 +1458,7 @@ bool GroupByAndAggregate::codegenAggCalls(
     const CompilationOptions& co,
     const GpuSharedMemoryContext& gpu_smem_context,
     DiamondCodegen& diamond_codegen) {
+  unsigned int addr_space = (co.device_type == ExecutorDeviceType::L0) ? 4 : 0;
   AUTOMATIC_IR_METADATA(executor_->cgen_state_.get());
   auto agg_out_ptr_w_idx = agg_out_ptr_w_idx_in;
   // TODO(alex): unify the two cases, the output for non-group by queries
@@ -1468,7 +1479,7 @@ bool GroupByAndAggregate::codegenAggCalls(
       query_mem_desc.getQueryDescriptionType() == QueryDescriptionType::Projection) {
     output_buffer_byte_stream = LL_BUILDER.CreateBitCast(
         std::get<0>(agg_out_ptr_w_idx),
-        llvm::PointerType::get(llvm::Type::getInt8Ty(LL_CONTEXT), 0));
+        llvm::PointerType::get(llvm::Type::getInt8Ty(LL_CONTEXT), addr_space));
     output_buffer_byte_stream->setName("out_buff_b_stream");
     CHECK(std::get<1>(agg_out_ptr_w_idx));
     out_row_idx = LL_BUILDER.CreateZExt(std::get<1>(agg_out_ptr_w_idx),
@@ -1513,10 +1524,12 @@ llvm::Value* GroupByAndAggregate::codegenAggColumnPtr(
     llvm::Value* out_row_idx,
     const std::tuple<llvm::Value*, llvm::Value*>& agg_out_ptr_w_idx,
     const QueryMemoryDescriptor& query_mem_desc,
+    const CompilationOptions& co,
     const size_t chosen_bytes,
     const size_t agg_out_off,
     const size_t target_idx) {
   AUTOMATIC_IR_METADATA(executor_->cgen_state_.get());
+  unsigned int addr_space = (co.device_type == ExecutorDeviceType::L0) ? 4 : 0;
   llvm::Value* agg_col_ptr{nullptr};
   if (query_mem_desc.didOutputColumnar()) {
     // TODO(Saman): remove the second columnar branch, and support all query description
@@ -1537,7 +1550,8 @@ llvm::Value* GroupByAndAggregate::codegenAggColumnPtr(
       auto output_ptr = LL_BUILDER.CreateGEP(output_buffer_byte_stream, byte_offset);
       agg_col_ptr = LL_BUILDER.CreateBitCast(
           output_ptr,
-          llvm::PointerType::get(get_int_type((chosen_bytes << 3), LL_CONTEXT), 0));
+          llvm::PointerType::get(get_int_type((chosen_bytes << 3), LL_CONTEXT),
+                                 addr_space));
       agg_col_ptr->setName("out_ptr_target_" + std::to_string(target_idx));
     } else {
       uint32_t col_off = query_mem_desc.getColOffInBytes(agg_out_off);
@@ -1548,7 +1562,8 @@ llvm::Value* GroupByAndAggregate::codegenAggColumnPtr(
       agg_col_ptr = LL_BUILDER.CreateGEP(
           LL_BUILDER.CreateBitCast(
               std::get<0>(agg_out_ptr_w_idx),
-              llvm::PointerType::get(get_int_type((chosen_bytes << 3), LL_CONTEXT), 0)),
+              llvm::PointerType::get(get_int_type((chosen_bytes << 3), LL_CONTEXT),
+                                     addr_space)),
           offset);
     }
   } else {
@@ -1558,7 +1573,8 @@ llvm::Value* GroupByAndAggregate::codegenAggColumnPtr(
     agg_col_ptr = LL_BUILDER.CreateGEP(
         LL_BUILDER.CreateBitCast(
             std::get<0>(agg_out_ptr_w_idx),
-            llvm::PointerType::get(get_int_type((chosen_bytes << 3), LL_CONTEXT), 0)),
+            llvm::PointerType::get(get_int_type((chosen_bytes << 3), LL_CONTEXT),
+                                   addr_space)),
         LL_INT(col_off));
   }
   CHECK(agg_col_ptr);
