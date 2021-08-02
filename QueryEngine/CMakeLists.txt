@@ -264,6 +264,9 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/OmniSciTypes.h ${CMAKE_CURRENT_BINARY_
 if(ENABLE_CUDA)
   add_library(QueryEngine ${query_engine_source_files} ${CMAKE_CURRENT_BINARY_DIR}/TopKSort.o ${CMAKE_CURRENT_BINARY_DIR}/InPlaceSortImpl.o ${CMAKE_CURRENT_BINARY_DIR}/ResultSetSortImpl.o ${CMAKE_CURRENT_BINARY_DIR}/GpuInitGroups.o ${CMAKE_CURRENT_BINARY_DIR}/HashJoinRuntimeGpu.o)
   add_dependencies(QueryEngine QueryEngineFunctionsTargets QueryEngineTableFunctionsFactory_init QueryEngineCudaTargets)
+elseif(ENABLE_L0)
+  add_library(QueryEngine ${query_engine_source_files})
+  add_dependencies(QueryEngine QueryEngineFunctionsTargets QueryEngineTableFunctionsFactory_init QueryEngineL0Targets)
 else()
   add_library(QueryEngine ${query_engine_source_files})
   add_dependencies(QueryEngine QueryEngineFunctionsTargets QueryEngineTableFunctionsFactory_init)
@@ -294,7 +297,19 @@ endif()
 target_link_libraries(QueryEngine ${QUERY_ENGINE_LIBS})
 
 add_custom_command(
-    DEPENDS cuda_mapd_rt.cu JoinHashTable/Runtime/JoinHashTableQueryRuntime.cpp GpuInitGroups.cu GroupByRuntime.cpp TopKRuntime.cpp DateTruncate.cpp DateAdd.cpp ExtractFromTime.cpp GeoOps.cpp StringFunctions.cpp RegexpFunctions.cpp ${CMAKE_SOURCE_DIR}/Utils/ChunkIter.cpp ${CMAKE_SOURCE_DIR}/Utils/StringLike.cpp ${CMAKE_SOURCE_DIR}/Utils/Regexp.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ExtensionFunctions.hpp ${CMAKE_CURRENT_SOURCE_DIR}/ExtensionFunctionsGeo.hpp  ${CMAKE_CURRENT_SOURCE_DIR}/ExtensionFunctionsTesting.hpp ${CMAKE_CURRENT_SOURCE_DIR}/TableFunctions/TableFunctions.hpp ${CMAKE_CURRENT_SOURCE_DIR}/TableFunctions/TableFunctionsTesting.hpp
+  DEPENDS l0_mapd_rt.cpp
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/l0_mapd_rt.bc
+  COMMAND ${llvm_clangpp_cmd}
+  ARGS -cl-std=cl2.0 -O3 -emit-llvm -Xclang -finclude-default-header -target spir64
+  ${CLANG_SDK_INC}
+  ${CLANG_CRT_INC}
+  ${MAPD_DEFINITIONS}
+  -I ${CMAKE_SOURCE_DIR}
+  -c ${CMAKE_CURRENT_SOURCE_DIR}/l0_mapd_rt.cpp
+)
+
+add_custom_command(
+  DEPENDS cuda_mapd_rt.cu JoinHashTable/Runtime/JoinHashTableQueryRuntime.cpp GpuInitGroups.cu GroupByRuntime.cpp TopKRuntime.cpp DateTruncate.cpp DateAdd.cpp ExtractFromTime.cpp GeoOps.cpp StringFunctions.cpp RegexpFunctions.cpp ${CMAKE_SOURCE_DIR}/Utils/ChunkIter.cpp ${CMAKE_SOURCE_DIR}/Utils/StringLike.cpp ${CMAKE_SOURCE_DIR}/Utils/Regexp.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ExtensionFunctions.hpp ${CMAKE_CURRENT_SOURCE_DIR}/ExtensionFunctionsGeo.hpp  ${CMAKE_CURRENT_SOURCE_DIR}/ExtensionFunctionsTesting.hpp ${CMAKE_CURRENT_SOURCE_DIR}/TableFunctions/TableFunctions.hpp ${CMAKE_CURRENT_SOURCE_DIR}/TableFunctions/TableFunctionsTesting.hpp
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cuda_mapd_rt.fatbin
     COMMAND nvcc
     ARGS
@@ -402,6 +417,11 @@ add_custom_target(QueryEngineCudaTargets
         ${CMAKE_CURRENT_BINARY_DIR}/GpuInitGroups.o
         ${CMAKE_CURRENT_BINARY_DIR}/HashJoinRuntimeGpu.o
     )
+
+add_custom_target(QueryEngineL0Targets
+    DEPENDS
+        ${CMAKE_CURRENT_BINARY_DIR}/l0_mapd_rt.bc
+)
 
 add_executable(group_by_hash_test ${group_by_hash_test_files})
 target_link_libraries(group_by_hash_test gtest Logger Shared ${Boost_LIBRARIES} ${PROFILER_LIBS})
