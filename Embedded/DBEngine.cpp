@@ -147,7 +147,7 @@ class DBEngineImpl : public DBEngine {
     prog_config_opts.system_parameters.calcite_keepalive = true;
     try {
       db_handler_ =
-          mapd::make_shared<DBHandler>(prog_config_opts.db_leaves,
+          std::make_shared<DBHandler>(prog_config_opts.db_leaves,
                                        prog_config_opts.string_leaves,
                                        prog_config_opts.base_path,
                                        prog_config_opts.allow_multifrag,
@@ -422,7 +422,7 @@ class DBEngineImpl : public DBEngine {
  private:
   std::string base_path_;
   std::string session_id_;
-  mapd::shared_ptr<DBHandler> db_handler_;
+  std::shared_ptr<DBHandler> db_handler_;
   bool is_temp_db_;
   std::string udf_filename_;
 
