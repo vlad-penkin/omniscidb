@@ -355,7 +355,7 @@ class GeoToH3TestSuite : public H3TestFixture {
  public:
   void executeTest() const {
     ExecutorDeviceType device_type =
-        QR::get()->gpusPresent() ? ExecutorDeviceType::GPU : ExecutorDeviceType::CPU;
+        QR::get()->gpusPresent() ? ExecutorDeviceType::CUDA : ExecutorDeviceType::CPU;
     auto const resolution = this->getHexResolution();
     std::ostringstream query_string_sream;
     query_string_sream << "SELECT hex_id, lon, lat, uncompressed_pt, compressed_pt, "
@@ -443,7 +443,7 @@ class H3ToGeoTestSuite : public H3TestFixture {
 
   void executeTest() const {
     ExecutorDeviceType device_type =
-        QR::get()->gpusPresent() ? ExecutorDeviceType::GPU : ExecutorDeviceType::CPU;
+        QR::get()->gpusPresent() ? ExecutorDeviceType::CUDA : ExecutorDeviceType::CPU;
 
     auto results = run_query(
         "SELECT hex_id, geo_to_h3_hex_id, lon, lat, h3ToLon(geo_to_h3_hex_id) as h3_lon, "

@@ -119,7 +119,7 @@ class ArrowOutput {
         }
         schema = batch_reader->schema();
       }
-      if (device_type == ExecutorDeviceType::GPU) {
+      if (device_type == ExecutorDeviceType::CUDA) {
         // Read schema from IPC memory
         key_t shmem_key = -1;
         std::memcpy(&shmem_key, tdf.sm_handle.data(), sizeof(key_t));
@@ -233,7 +233,7 @@ TDataFrame execute_arrow_ipc(
       result,
       g_session_id,
       sql,
-      device_type == ExecutorDeviceType::GPU ? TDeviceType::GPU : TDeviceType::CPU,
+      device_type == ExecutorDeviceType::CUDA ? TDeviceType::GPU : TDeviceType::CPU,
       0,
       first_n,
       transport_method);
@@ -246,7 +246,7 @@ void deallocate_df(const TDataFrame& df,
   g_client->deallocate_df(
       g_session_id,
       df,
-      device_type == ExecutorDeviceType::GPU ? TDeviceType::GPU : TDeviceType::CPU,
+      device_type == ExecutorDeviceType::CUDA ? TDeviceType::GPU : TDeviceType::CPU,
       device_id);
 }
 
@@ -487,18 +487,18 @@ TEST_F(ArrowIpcBasic, IpcGpuScalarValues) {
     return;
   }
   auto data_frame = execute_arrow_ipc(
-      "SELECT * FROM test_data_scalars;", ExecutorDeviceType::GPU, device_id);
+      "SELECT * FROM test_data_scalars;", ExecutorDeviceType::CUDA, device_id);
 
   ASSERT_TRUE(data_frame.df_size > 0);
 #ifdef HAVE_CUDA
   auto df =
-      ArrowOutput(data_frame, ExecutorDeviceType::GPU, TArrowTransport::SHARED_MEMORY);
+      ArrowOutput(data_frame, ExecutorDeviceType::CUDA, TArrowTransport::SHARED_MEMORY);
 
   test_scalar_values(df.record_batch);
 #else
   ASSERT_TRUE(false) << "Test should be skipped in CPU-only mode!";
 #endif
-  deallocate_df(data_frame, ExecutorDeviceType::GPU);
+  deallocate_df(data_frame, ExecutorDeviceType::CUDA);
 }
 
 TEST_F(ArrowIpcBasic, IpcGpu) {
@@ -508,7 +508,7 @@ TEST_F(ArrowIpcBasic, IpcGpu) {
     return;
   }
   auto data_frame = execute_arrow_ipc(
-      "SELECT * FROM arrow_ipc_test;", ExecutorDeviceType::GPU, device_id);
+      "SELECT * FROM arrow_ipc_test;", ExecutorDeviceType::CUDA, device_id);
   auto ipc_handle = data_frame.sm_handle;
   auto ipc_handle_size = data_frame.sm_size;
 
@@ -516,7 +516,7 @@ TEST_F(ArrowIpcBasic, IpcGpu) {
 
 #ifdef HAVE_CUDA
   auto df =
-      ArrowOutput(data_frame, ExecutorDeviceType::GPU, TArrowTransport::SHARED_MEMORY);
+      ArrowOutput(data_frame, ExecutorDeviceType::CUDA, TArrowTransport::SHARED_MEMORY);
 
   // int column
   auto int_array = df.record_batch->column(0);
@@ -570,7 +570,7 @@ TEST_F(ArrowIpcBasic, IpcGpu) {
 #else
   ASSERT_TRUE(false) << "Test should be skipped in CPU-only mode!";
 #endif
-  deallocate_df(data_frame, ExecutorDeviceType::GPU);
+  deallocate_df(data_frame, ExecutorDeviceType::CUDA);
 }
 
 TEST_F(ArrowIpcBasic, IpcGpuWithCpuQuery) {
@@ -586,7 +586,7 @@ TEST_F(ArrowIpcBasic, IpcGpuWithCpuQuery) {
   };
 
   EXPECT_ANY_THROW(execute_arrow_ipc(
-      "SELECT * FROM arrow_ipc_test;", ExecutorDeviceType::GPU, device_id));
+      "SELECT * FROM arrow_ipc_test;", ExecutorDeviceType::CUDA, device_id));
 }
 
 TEST_F(ArrowIpcBasic, EmptyResultSet) {

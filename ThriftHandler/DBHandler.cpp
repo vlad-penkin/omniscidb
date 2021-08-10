@@ -310,7 +310,7 @@ void DBHandler::initialize(const bool is_new_db) {
     cpu_mode_only_ = true;
   } else {
 #ifdef HAVE_CUDA
-    executor_device_type_ = ExecutorDeviceType::GPU;
+    executor_device_type_ = ExecutorDeviceType::CUDA;
     cpu_mode_only_ = false;
 #else
     executor_device_type_ = ExecutorDeviceType::CPU;
@@ -432,7 +432,7 @@ void DBHandler::initialize(const bool is_new_db) {
   }
 
   switch (executor_device_type_) {
-    case ExecutorDeviceType::GPU:
+    case ExecutorDeviceType::CUDA:
       LOG(INFO) << "Started in GPU mode" << std::endl;
       break;
     case ExecutorDeviceType::CPU:
@@ -1442,7 +1442,7 @@ void DBHandler::sql_execute_df(TDataFrame& _return,
   const auto executor_device_type = session_ptr->get_executor_device_type();
 
   if (results_device_type == TDeviceType::GPU) {
-    if (executor_device_type != ExecutorDeviceType::GPU) {
+    if (executor_device_type != ExecutorDeviceType::CUDA) {
       THROW_MAPD_EXCEPTION(std::string("GPU mode is not allowed in this session"));
     }
     if (!data_mgr_->gpusPresent()) {
@@ -1490,7 +1490,7 @@ void DBHandler::sql_execute_df(TDataFrame& _return,
                          executor_device_type,
                          results_device_type == TDeviceType::CPU
                              ? ExecutorDeviceType::CPU
-                             : ExecutorDeviceType::GPU,
+                             : ExecutorDeviceType::CUDA,
                          static_cast<size_t>(device_id),
                          first_n,
                          transport_method);
@@ -1541,11 +1541,12 @@ void DBHandler::deallocate_df(const TSessionId& session,
   std::vector<char> df_handle(df.df_handle.begin(), df.df_handle.end());
   ArrowResult result{
       sm_handle, df.sm_size, df_handle, df.df_size, serialized_cuda_handle};
-  ArrowResultSet::deallocateArrowResultBuffer(
-      result,
-      device_type == TDeviceType::CPU ? ExecutorDeviceType::CPU : ExecutorDeviceType::GPU,
-      device_id,
-      data_mgr_);
+  ArrowResultSet::deallocateArrowResultBuffer(result,
+                                              device_type == TDeviceType::CPU
+                                                  ? ExecutorDeviceType::CPU
+                                                  : ExecutorDeviceType::CUDA,
+                                              device_id,
+                                              data_mgr_);
 }
 
 std::string DBHandler::apply_copy_to_shim(const std::string& query_str) {
@@ -5646,7 +5647,7 @@ void DBHandler::set_execution_mode_nolock(Catalog_Namespace::SessionInfo* sessio
         e.error_msg = "Cannot switch to GPU mode in a server started in CPU-only mode.";
         throw e;
       }
-      session_ptr->set_executor_device_type(ExecutorDeviceType::GPU);
+      session_ptr->set_executor_device_type(ExecutorDeviceType::CUDA);
       LOG(INFO) << "User " << user_name << " sets GPU mode.";
       break;
     case TExecuteMode::CPU:
@@ -5829,7 +5830,7 @@ void DBHandler::execute_rel_alg_df(TDataFrame& _return,
       std::string(arrow_result.df_handle.begin(), arrow_result.df_handle.end());
   _return.df_buffer =
       std::string(arrow_result.df_buffer.begin(), arrow_result.df_buffer.end());
-  if (results_device_type == ExecutorDeviceType::GPU) {
+  if (results_device_type == ExecutorDeviceType::CUDA) {
     std::lock_guard<std::mutex> map_lock(handle_to_dev_ptr_mutex_);
     CHECK(!ipc_handle_to_dev_ptr_.count(_return.df_handle));
     ipc_handle_to_dev_ptr_.insert(
@@ -7231,7 +7232,7 @@ ExecutionResult DBHandler::getQueries(
               genLiteralStr(query_session_ptr->get_connection_info()));
           logical_values.back().emplace_back(
               genLiteralStr(query_session_ptr->getCatalog().getCurrentDB().dbName));
-          if (query_session_ptr->get_executor_device_type() == ExecutorDeviceType::GPU &&
+          if (query_session_ptr->get_executor_device_type() == ExecutorDeviceType::CUDA &&
               !is_table_import_session) {
             logical_values.back().emplace_back(genLiteralStr("GPU"));
           } else {

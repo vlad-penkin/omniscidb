@@ -41,15 +41,15 @@ using namespace TestHelpers;
 
 bool skip_tests(const ExecutorDeviceType device_type) {
 #ifdef HAVE_CUDA
-  return device_type == ExecutorDeviceType::GPU && !(QR::get()->gpusPresent());
+  return device_type == ExecutorDeviceType::CUDA && !(QR::get()->gpusPresent());
 #else
-  return device_type == ExecutorDeviceType::GPU;
+  return device_type == ExecutorDeviceType::CUDA;
 #endif
 }
 
 #define SKIP_NO_GPU()                                        \
   if (skip_tests(dt)) {                                      \
-    CHECK(dt == ExecutorDeviceType::GPU);                    \
+    CHECK(dt == ExecutorDeviceType::CUDA);                    \
     LOG(WARNING) << "GPU not available, skipping GPU tests"; \
     continue;                                                \
   }
@@ -284,7 +284,7 @@ class GeoSpatialTestTablesFixture : public ::testing::TestWithParam<bool> {
 };
 
 TEST_P(GeoSpatialTestTablesFixture, Basics) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     ASSERT_EQ(static_cast<int64_t>(g_num_rows),
               v<int64_t>(run_simple_agg(
@@ -938,7 +938,7 @@ TEST_P(GeoSpatialTestTablesFixture, Basics) {
 }
 
 TEST_P(GeoSpatialTestTablesFixture, Constructors) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
 
     {
@@ -1033,7 +1033,7 @@ TEST_P(GeoSpatialTestTablesFixture, Constructors) {
     SKIP_ON_AGGREGATOR({
       // ensure transforms run on GPU. transforms use math functions which need to be
       // specialized for GPU
-      if (dt == ExecutorDeviceType::GPU) {
+      if (dt == ExecutorDeviceType::CUDA) {
         const auto query_explain_result = QR::get()->runSelectQuery(
             R"(SELECT ST_Transform(gp4326, 900913) FROM geospatial_test WHERE id = 2;)",
             dt,
@@ -1075,7 +1075,7 @@ TEST_P(GeoSpatialTestTablesFixture, Constructors) {
     SKIP_ON_AGGREGATOR({
       // ensure transforms run on GPU. transforms use math functions which need to be
       // specialized for GPU
-      if (dt == ExecutorDeviceType::GPU) {
+      if (dt == ExecutorDeviceType::CUDA) {
         const auto query_explain_result = QR::get()->runSelectQuery(
             R"(SELECT ST_Transform(gp900913, 4326) FROM geospatial_test WHERE id = 2;)",
             dt,
@@ -1114,7 +1114,7 @@ class GeoSpatialNullTablesFixture : public ::testing::TestWithParam<bool> {
 };
 
 TEST_P(GeoSpatialNullTablesFixture, GeoWithNulls) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     ASSERT_EQ(static_cast<int64_t>(g_num_rows / 2),
               v<int64_t>(run_simple_agg(
@@ -1201,7 +1201,7 @@ TEST_P(GeoSpatialNullTablesFixture, GeoWithNulls) {
 }
 
 TEST_P(GeoSpatialNullTablesFixture, Constructors) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
 
     auto nullcheck_result = [](auto p) {
@@ -1226,7 +1226,7 @@ TEST_P(GeoSpatialNullTablesFixture, Constructors) {
 }
 
 TEST_P(GeoSpatialNullTablesFixture, LazyFetch) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_ALL_ON_AGGREGATOR();
     SKIP_NO_GPU();
     std::vector<std::string> col_names{"p", "l", "poly", "mpoly"};
@@ -1246,7 +1246,7 @@ INSTANTIATE_TEST_SUITE_P(GeospatialNullTests,
                          ::testing::Values(true, false));
 
 TEST(GeoSpatial, Math) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
 
     // ST_Distance
@@ -1948,7 +1948,7 @@ TEST(GeoSpatial, Math) {
 }
 
 TEST(GeoSpatial, Projections) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
 
     ASSERT_EQ("POINT (2 2)",
@@ -1968,10 +1968,10 @@ class GeoSpatialTempTables : public ::testing::Test {
 };
 
 TEST_F(GeoSpatialTempTables, Geos) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     // Currently not supporting cpu retry in distributed, just throwing in gpu mode
-    if (g_aggregator && dt == ExecutorDeviceType::GPU) {
+    if (g_aggregator && dt == ExecutorDeviceType::CUDA) {
       LOG(WARNING) << "Skipping Geos tests on distributed GPU";
       continue;
     }
@@ -2213,7 +2213,7 @@ TEST_P(GeoSpatialJoinTablesFixture, GeoJoins) {
   };
 
   // Test loop joins
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     ASSERT_EQ(static_cast<int64_t>(0),
               v<int64_t>(run_simple_agg(
@@ -2263,7 +2263,7 @@ TEST_P(GeoSpatialJoinTablesFixture, GeoJoins) {
 
   g_enable_overlaps_hashjoin = true;
 
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
 
     // Test query rewrite for simple project
@@ -2365,9 +2365,8 @@ TEST_P(GeoSpatialMultiFragTestTablesFixture, LoopJoin) {
     g_enable_overlaps_hashjoin = enable_overlaps_hashjoin_state;
   };
 
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
-
     ASSERT_EQ(
         static_cast<int64_t>(109),
         v<int64_t>(run_simple_agg(

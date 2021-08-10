@@ -52,15 +52,15 @@ ExecutorDeviceType g_device_type;
 
 bool skip_tests(const ExecutorDeviceType device_type) {
 #ifdef HAVE_CUDA
-  return device_type == ExecutorDeviceType::GPU && !(QR::get()->gpusPresent());
+  return device_type == ExecutorDeviceType::CUDA && !(QR::get()->gpusPresent());
 #else
-  return device_type == ExecutorDeviceType::GPU;
+  return device_type == ExecutorDeviceType::CUDA;
 #endif
 }
 
 #define SKIP_NO_GPU()                                        \
   if (skip_tests(dt)) {                                      \
-    CHECK(dt == ExecutorDeviceType::GPU);                    \
+    CHECK(dt == ExecutorDeviceType::CUDA);                    \
     LOG(WARNING) << "GPU not available, skipping GPU tests"; \
     continue;                                                \
   }
@@ -71,7 +71,7 @@ inline auto sql(std::string_view sql_stmts) {
 
 int deviceCount(const Catalog_Namespace::Catalog* catalog,
                 const ExecutorDeviceType device_type) {
-  if (device_type == ExecutorDeviceType::GPU) {
+  if (device_type == ExecutorDeviceType::CUDA) {
     const auto cuda_mgr = catalog->getDataMgr().getCudaMgr();
     CHECK(cuda_mgr);
     return cuda_mgr->getDeviceCount();
@@ -131,7 +131,7 @@ std::shared_ptr<HashJoin> buildKeyed(std::shared_ptr<Analyzer::BinOper> op) {
 }
 
 TEST(Build, PerfectOneToOne1) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 
@@ -186,7 +186,7 @@ TEST(Build, PerfectOneToOne1) {
 }
 
 TEST(Build, PerfectOneToOne2) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 
@@ -237,7 +237,7 @@ TEST(Build, PerfectOneToOne2) {
 }
 
 TEST(Build, PerfectOneToMany1) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 
@@ -285,7 +285,7 @@ TEST(Build, PerfectOneToMany1) {
 }
 
 TEST(Build, PerfectOneToMany2) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 
@@ -338,7 +338,7 @@ TEST(Build, KeyedOneToOne) {
   CHECK(executor);
   executor->setCatalog(catalog.get());
 
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 
@@ -397,7 +397,7 @@ TEST(Build, KeyedOneToMany) {
   CHECK(executor);
   executor->setCatalog(catalog.get());
 
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 
@@ -458,7 +458,7 @@ TEST(Build, GeoOneToMany1) {
   CHECK(executor);
   executor->setCatalog(catalog.get());
 
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 
@@ -534,7 +534,7 @@ TEST(Build, GeoOneToMany2) {
   CHECK(executor);
   executor->setCatalog(catalog.get());
 
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 
@@ -595,7 +595,7 @@ TEST(Build, GeoOneToMany2) {
 }
 
 TEST(MultiFragment, PerfectOneToOne) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 
@@ -666,7 +666,7 @@ TEST(MultiFragment, PerfectOneToOne) {
 }
 
 TEST(MultiFragment, PerfectOneToMany) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 
@@ -747,7 +747,7 @@ TEST(MultiFragment, KeyedOneToOne) {
   CHECK(executor);
   executor->setCatalog(catalog.get());
 
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 
@@ -837,7 +837,7 @@ TEST(MultiFragment, KeyedOneToMany) {
   CHECK(executor);
   executor->setCatalog(catalog.get());
 
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     g_device_type = dt;
 

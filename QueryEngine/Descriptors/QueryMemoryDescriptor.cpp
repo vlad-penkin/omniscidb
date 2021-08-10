@@ -354,7 +354,7 @@ std::unique_ptr<QueryMemoryDescriptor> QueryMemoryDescriptor::init(
 
         interleaved_bins_on_gpu = keyless_hash && !has_varlen_sample_agg &&
                                   (entry_count <= interleaved_max_threshold) &&
-                                  (device_type == ExecutorDeviceType::GPU) &&
+                                  (device_type == ExecutorDeviceType::CUDA) &&
                                   QueryMemoryDescriptor::countDescriptorsLogicallyEmpty(
                                       count_distinct_descriptors) &&
                                   !output_columnar;
@@ -1098,19 +1098,18 @@ bool QueryMemoryDescriptor::blocksShareMemory() const {
 }
 
 bool QueryMemoryDescriptor::lazyInitGroups(const ExecutorDeviceType device_type) const {
-  return device_type == ExecutorDeviceType::GPU && !render_output_ &&
+  return device_type == ExecutorDeviceType::CUDA && !render_output_ &&
          countDescriptorsLogicallyEmpty(count_distinct_descriptors_);
 }
 
 bool QueryMemoryDescriptor::interleavedBins(const ExecutorDeviceType device_type) const {
-  return interleaved_bins_on_gpu_ && device_type == ExecutorDeviceType::GPU;
+  return interleaved_bins_on_gpu_ && device_type == ExecutorDeviceType::CUDA;
 }
 
 // TODO(Saman): an implementation detail, so move this out of QMD
 bool QueryMemoryDescriptor::isWarpSyncRequired(
     const ExecutorDeviceType device_type) const {
-  // TODO(L0): change?
-  if (device_type != ExecutorDeviceType::GPU) {
+  if (device_type != ExecutorDeviceType::CUDA) {
     return false;
   } else {
     auto cuda_mgr = executor_->cudaMgr();
@@ -1173,7 +1172,7 @@ void QueryMemoryDescriptor::alignPaddedSlots() {
 
 bool QueryMemoryDescriptor::canOutputColumnar() const {
   return usesGetGroupValueFast() && threadsShareMemory() && blocksShareMemory() &&
-         !interleavedBins(ExecutorDeviceType::GPU) &&
+         !interleavedBins(ExecutorDeviceType::CUDA) &&
          countDescriptorsLogicallyEmpty(count_distinct_descriptors_);
 }
 
@@ -1203,7 +1202,7 @@ std::string QueryMemoryDescriptor::toString() const {
   str += "\tThreads Share Memory: " + ::toString(threadsShareMemory()) + "\n";
   str += "\tUses Fast Group Values: " + ::toString(usesGetGroupValueFast()) + "\n";
   str +=
-      "\tLazy Init Groups (GPU): " + ::toString(lazyInitGroups(ExecutorDeviceType::GPU)) +
+      "\tLazy Init Groups (GPU): " + ::toString(lazyInitGroups(ExecutorDeviceType::CUDA)) +
       "\n";
   str += "\tEntry Count: " + std::to_string(entry_count_) + "\n";
   str += "\tMin Val (perfect hash only): " + std::to_string(min_val_) + "\n";

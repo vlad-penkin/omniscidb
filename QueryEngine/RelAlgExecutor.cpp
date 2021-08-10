@@ -647,7 +647,7 @@ ExecutionResult RelAlgExecutor::executeRelAlgSeq(const RaExecutionSequence& seq,
       // Do not allow per-step retry if flag is off or in distributed mode
       // TODO(todd): Determine if and when we can relax this restriction
       // for distributed
-      CHECK(co.device_type == ExecutorDeviceType::GPU);
+      CHECK(co.device_type == ExecutorDeviceType::CUDA);
       if (!g_allow_query_step_cpu_retry || g_cluster) {
         throw;
       }
@@ -709,7 +709,7 @@ ExecutionResult RelAlgExecutor::executeRelAlgSubSeq(
       // Do not allow per-step retry if flag is off or in distributed mode
       // TODO(todd): Determine if and when we can relax this restriction
       // for distributed
-      CHECK(co.device_type == ExecutorDeviceType::GPU);
+      CHECK(co.device_type == ExecutorDeviceType::CUDA);
       if (!g_allow_query_step_cpu_retry || g_cluster) {
         throw;
       }
@@ -1869,7 +1869,7 @@ ExecutionResult RelAlgExecutor::executeTableFunction(const RelTableFunction* tab
   auto table_func_work_unit = createTableFunctionWorkUnit(
       table_func,
       eo.just_explain,
-      /*is_gpu = */ co.device_type == ExecutorDeviceType::GPU);
+      /*is_gpu = */ co.device_type == ExecutorDeviceType::CUDA);
   const auto body = table_func_work_unit.body;
   CHECK(body);
 
@@ -1988,7 +1988,7 @@ std::unique_ptr<WindowFunctionContext> RelAlgExecutor::createWindowFunctionConte
     ColumnCacheMap& column_cache_map,
     std::shared_ptr<RowSetMemoryOwner> row_set_mem_owner) {
   const size_t elem_count = query_infos.front().info.fragments.front().getNumTuples();
-  const auto memory_level = co.device_type == ExecutorDeviceType::GPU
+  const auto memory_level = co.device_type == ExecutorDeviceType::CUDA
                                 ? MemoryLevel::GPU_LEVEL
                                 : MemoryLevel::CPU_LEVEL;
 
@@ -2867,7 +2867,7 @@ RelAlgExecutionUnit decide_approx_count_distinct_implementation(
     // When running distributed, the threshold for using the precise implementation
     // must be consistent across all leaves, otherwise we could have a mix of precise
     // and approximate bitmaps and we cannot aggregate them.
-    const auto device_type = g_cluster ? ExecutorDeviceType::GPU : device_type_in;
+    const auto device_type = g_cluster ? ExecutorDeviceType::CUDA : device_type_in;
     const auto bitmap_sz_bits = arg_range.getIntMax() - arg_range.getIntMin() + 1;
     const auto sub_bitmap_count =
         get_count_distinct_sub_bitmap_count(bitmap_sz_bits, ra_exe_unit, device_type);
@@ -2919,7 +2919,7 @@ void build_render_targets(RenderInfo& render_info,
 inline bool can_use_bump_allocator(const RelAlgExecutionUnit& ra_exe_unit,
                                    const CompilationOptions& co,
                                    const ExecutionOptions& eo) {
-  return g_enable_bump_allocator && (co.device_type == ExecutorDeviceType::GPU) &&
+  return g_enable_bump_allocator && (co.device_type == ExecutorDeviceType::CUDA) &&
          !eo.output_columnar_hint && ra_exe_unit.sort_info.order_entries.empty();
 }
 

@@ -39,12 +39,13 @@ extern bool g_is_test_env;
 
 using namespace TestHelpers;
 
-#define SKIP_NO_GPU()                                        \
-  if (skipTests(dt)) {                                       \
-    CHECK(dt == TExecuteMode::type::GPU);                    \
-    LOG(WARNING) << "GPU not available, skipping GPU tests"; \
-    continue;                                                \
-  }
+#define SKIP_NO_GPU()  \
+  if (skipTests(dt)) { \
+    CHECK(dt == TExecuteMode::type::GPU);
+
+LOG(WARNING) << "GPU not available, skipping GPU tests";
+continue;
+}
 
 class BaseTestFixture : public DBHandlerTestFixture {
  protected:
@@ -489,6 +490,7 @@ TEST_F(UpdateDeleteTestEnv, UpdateDelete_TwoTables) {
   resizeDispatchQueue(g_max_num_executors);
 
   for (auto dt : {TExecuteMode::type::CPU, TExecuteMode::type::GPU}) {
+
     SKIP_NO_GPU();
     setExecuteMode(dt);
 

@@ -2070,7 +2070,7 @@ void Executor::createErrorCheckControlFlow(
 
   llvm::Value* row_count = nullptr;
   if ((run_with_dynamic_watchdog || run_with_allowing_runtime_interrupt) &&
-      device_type == ExecutorDeviceType::GPU) {
+      device_type == ExecutorDeviceType::CUDA) {
     row_count =
         find_variable_in_basic_block<llvm::LoadInst>(query_func, ".entry", "row_count");
   }
@@ -2102,7 +2102,7 @@ void Executor::createErrorCheckControlFlow(
         if (run_with_dynamic_watchdog) {
           CHECK(pos);
           llvm::Value* call_watchdog_lv = nullptr;
-          if (device_type == ExecutorDeviceType::GPU) {
+          if (device_type == ExecutorDeviceType::CUDA) {
             // In order to make sure all threads within a block see the same barrier,
             // only those blocks whose none of their threads have experienced the critical
             // edge will go through the dynamic watchdog computation
@@ -2155,7 +2155,7 @@ void Executor::createErrorCheckControlFlow(
         } else if (run_with_allowing_runtime_interrupt) {
           CHECK(pos);
           llvm::Value* call_check_interrupt_lv = nullptr;
-          if (device_type == ExecutorDeviceType::GPU) {
+          if (device_type == ExecutorDeviceType::CUDA) {
             // approximate how many times the %pos variable
             // is increased --> the number of iteration
             // here we calculate the # bit shift by considering grid/block/fragment sizes
@@ -2261,7 +2261,7 @@ void Executor::createErrorCheckControlFlow(
         if (!err_lv_returned_from_row_func) {
           err_lv_returned_from_row_func = err_lv;
         }
-        if (device_type == ExecutorDeviceType::GPU && g_enable_dynamic_watchdog) {
+        if (device_type == ExecutorDeviceType::CUDA && g_enable_dynamic_watchdog) {
           // let kernel execution finish as expected, regardless of the observed error,
           // unless it is from the dynamic watchdog where all threads within that block
           // return together.
@@ -2512,10 +2512,7 @@ bool is_gpu_shared_mem_supported(const QueryMemoryDescriptor* query_mem_desc_ptr
                                  const ExecutorDeviceType device_type,
                                  const unsigned gpu_blocksize,
                                  const unsigned num_blocks_per_mp) {
-  if (device_type == ExecutorDeviceType::CPU) {
-    return false;
-  }
-  if (device_type == ExecutorDeviceType::L0) {
+  if (is_gpu(device_type)) {
     return false;
   }
   if (query_mem_desc_ptr->didOutputColumnar()) {
@@ -2708,7 +2705,7 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
                           RenderInfo* render_info) {
   auto timer = DEBUG_TIMER(__func__);
 
-  if (co.device_type == ExecutorDeviceType::GPU) {
+  if (co.device_type == ExecutorDeviceType::CUDA) {
     const auto cuda_mgr = data_mgr_->getCudaMgr();
     if (!cuda_mgr) {
       throw QueryMustRunOnCpu();
@@ -2786,7 +2783,7 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
   }
 
   // fixme
-  if (co.device_type == ExecutorDeviceType::GPU) {
+  if (co.device_type == ExecutorDeviceType::CUDA) {
     const size_t num_count_distinct_descs =
         query_mem_desc->getCountDistinctDescriptorsSize();
     for (size_t i = 0; i < num_count_distinct_descs; i++) {
@@ -2824,7 +2821,7 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
             rt_udf_cpu_module, *rt_module_copy, cgen_state_.get());
       }
       break;
-    case ExecutorDeviceType::GPU:
+    case ExecutorDeviceType::CUDA:
       rt_module_copy->setDataLayout(get_gpu_data_layout());
       rt_module_copy->setTargetTriple(get_gpu_target_triple_string());
       if (is_udf_module_present()) {
@@ -3017,9 +3014,7 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
       "multifrag_query" + std::string(co.hoist_literals ? "_hoisted_literals" : ""));
   CHECK(multifrag_query_func);
 
-  if (((co.device_type == ExecutorDeviceType::GPU) ||
-       (co.device_type == ExecutorDeviceType::L0)) &&
-      eo.allow_multifrag) {
+  if (is_gpu(co.device_type) && eo.allow_multifrag) {
     std::cerr << "inserting errors" << std::endl;
     insertErrorCodeChecker(multifrag_query_func, co, eo.allow_runtime_query_interrupt);
   }
@@ -3117,7 +3112,7 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
       compilation_context =
           optimizeAndCodegenCPU(query_func, multifrag_query_func, live_funcs, co);
       break;
-    case ExecutorDeviceType::GPU:
+    case ExecutorDeviceType::CUDA:
       compilation_context = optimizeAndCodegenGPU(query_func,
                                                   multifrag_query_func,
                                                   live_funcs,

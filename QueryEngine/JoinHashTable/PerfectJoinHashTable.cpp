@@ -574,7 +574,7 @@ int PerfectJoinHashTable::initHashTableForDevice(
       CHECK(hash_table);
       // GPU size returns reserved size
       CHECK_LE(hash_table->getHashTableBufferSize(ExecutorDeviceType::CPU),
-               gpu_hash_table->getHashTableBufferSize(ExecutorDeviceType::GPU));
+               gpu_hash_table->getHashTableBufferSize(ExecutorDeviceType::CUDA));
 
       auto device_allocator = data_mgr->createGpuAllocator(device_id);
       device_allocator->copyToDevice(
@@ -836,7 +836,7 @@ std::string PerfectJoinHashTable::toString(const ExecutorDeviceType device_type,
   auto hash_table = getHashTableForDevice(device_id);
 #ifdef HAVE_CUDA
   std::unique_ptr<int8_t[]> buffer_copy;
-  if (device_type == ExecutorDeviceType::GPU) {
+  if (device_type == ExecutorDeviceType::CUDA) {
     buffer_copy = std::make_unique<int8_t[]>(buffer_size);
     auto data_mgr = executor_->getDataMgr() auto device_allocator =
         data_mgr->createGpuAllocator(device_id);
@@ -870,7 +870,7 @@ std::set<DecodedJoinHashBufferEntry> PerfectJoinHashTable::toSet(
   auto hash_table = getHashTableForDevice(device_id);
 #ifdef HAVE_CUDA
   std::unique_ptr<int8_t[]> buffer_copy;
-  if (device_type == ExecutorDeviceType::GPU) {
+  if (device_type == ExecutorDeviceType::CUDA) {
     buffer_copy = std::make_unique<int8_t[]>(buffer_size);
     auto data_mgr = executor_->getDataMgr();
     auto device_allocator = data_mgr->createGpuAllocator(device_id);

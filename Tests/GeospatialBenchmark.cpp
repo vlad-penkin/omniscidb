@@ -124,10 +124,10 @@ BENCHMARK_DEFINE_F(GeospatialMathFixture, GeospatialDistanceGPU)
   // warmup: we want to measure JIT performance, not data load
   QR::get()->clearCpuMemory();
   QR::get()->clearGpuMemory();
-  run_distance_math_benchmark(ExecutorDeviceType::GPU);
+  run_distance_math_benchmark(ExecutorDeviceType::CUDA);
 
   for (auto _ : state) {
-    run_distance_math_benchmark(ExecutorDeviceType::GPU);
+    run_distance_math_benchmark(ExecutorDeviceType::CUDA);
   }
   QR::get()->clearCpuMemory();
   QR::get()->clearGpuMemory();
@@ -247,10 +247,10 @@ BENCHMARK_DEFINE_F(GeospatialTableFixture, GeospatialDistanceGPU)
   // warmup: we want to measure JIT performance, not data load
   QR::get()->clearCpuMemory();
   QR::get()->clearGpuMemory();
-  run_distance_table_benchmark(ExecutorDeviceType::GPU);
+  run_distance_table_benchmark(ExecutorDeviceType::CUDA);
 
   for (auto _ : state) {
-    run_distance_table_benchmark(ExecutorDeviceType::GPU);
+    run_distance_table_benchmark(ExecutorDeviceType::CUDA);
   }
   QR::get()->clearCpuMemory();
   QR::get()->clearGpuMemory();

@@ -174,7 +174,7 @@ class Transform : public Codegen {
 
     auto y_coord_ptr_lv =
         builder.CreateGEP(arr_buff_ptr, cgen_state->llInt(1), "y_coord_ptr");
-    if (co.device_type == ExecutorDeviceType::GPU) {
+    if (co.device_type == ExecutorDeviceType::CUDA) {
       auto fn = cgen_state->module_->getFunction(transform_function_prefix + "y");
       CHECK(fn);
       cgen_state->maybeCloneFunctionRecursive(fn);

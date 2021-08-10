@@ -43,15 +43,15 @@ std::shared_ptr<ResultSet> run_multiple_agg(const std::string& query_str,
 
 bool skip_tests(const ExecutorDeviceType device_type) {
 #ifdef HAVE_CUDA
-  return device_type == ExecutorDeviceType::GPU && !(QR::get()->gpusPresent());
+  return device_type == ExecutorDeviceType::CUDA && !(QR::get()->gpusPresent());
 #else
-  return device_type == ExecutorDeviceType::GPU;
+  return device_type == ExecutorDeviceType::CUDA;
 #endif
 }
 
 #define SKIP_NO_GPU()                                        \
   if (skip_tests(dt)) {                                      \
-    CHECK(dt == ExecutorDeviceType::GPU);                    \
+    CHECK(dt == ExecutorDeviceType::CUDA);                    \
     LOG(WARNING) << "GPU not available, skipping GPU tests"; \
     continue;                                                \
   }
@@ -101,7 +101,7 @@ class TableFunctions : public ::testing::Test {
 };
 
 TEST_F(TableFunctions, BasicProjection) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     {
       const auto rows = run_multiple_agg(
@@ -328,7 +328,7 @@ TEST_F(TableFunctions, BasicProjection) {
 }
 
 TEST_F(TableFunctions, GroupByIn) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     {
       const auto rows = run_multiple_agg(
@@ -374,7 +374,7 @@ TEST_F(TableFunctions, GroupByInAndOut) {
     }
   };
 
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     {
       const auto rows = run_multiple_agg(
@@ -441,7 +441,7 @@ TEST_F(TableFunctions, GroupByInAndOut) {
 }
 
 TEST_F(TableFunctions, ConstantCasts) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     // Numeric constant to float
     {
@@ -503,7 +503,7 @@ TEST_F(TableFunctions, ConstantCasts) {
 }
 
 TEST_F(TableFunctions, Template) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     {
       const auto rows = run_multiple_agg(
@@ -559,7 +559,7 @@ TEST_F(TableFunctions, Template) {
 }
 
 TEST_F(TableFunctions, Unsupported) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
 
     EXPECT_THROW(run_multiple_agg("select * from table(row_copier(cursor(SELECT d, "
@@ -570,7 +570,7 @@ TEST_F(TableFunctions, Unsupported) {
 }
 
 TEST_F(TableFunctions, CallFailure) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
 
     EXPECT_THROW(run_multiple_agg("SELECT out0 FROM TABLE(row_copier(cursor("
@@ -584,7 +584,7 @@ TEST_F(TableFunctions, CallFailure) {
 }
 
 TEST_F(TableFunctions, NamedOutput) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
     {
       const auto rows = run_multiple_agg(

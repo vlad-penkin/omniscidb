@@ -614,7 +614,7 @@ TEST_F(DatabaseObject, SqlEditorAccessTest) {
   CHECK(sys_cat.getMetadataForDB(OMNISCI_DEFAULT_DB, db_meta));
   CHECK(sys_cat.getMetadataForUser("Juventus", user_meta));
   session_juve.reset(new Catalog_Namespace::SessionInfo(
-      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::GPU, ""));
+      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::CUDA, ""));
   auto& cat_mapd = session_juve->getCatalog();
   DBObject mapd_object(OMNISCI_DEFAULT_DB, DBObjectType::DatabaseDBObjectType);
   privObjects.clear();
@@ -661,7 +661,7 @@ TEST_F(DatabaseObject, DBLoginAccessTest) {
   CHECK(sys_cat.getMetadataForDB(OMNISCI_DEFAULT_DB, db_meta));
   CHECK(sys_cat.getMetadataForUser("Bayern", user_meta));
   session_juve.reset(new Catalog_Namespace::SessionInfo(
-      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::GPU, ""));
+      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::CUDA, ""));
   auto& cat_mapd = session_juve->getCatalog();
   DBObject mapd_object(OMNISCI_DEFAULT_DB, DBObjectType::DatabaseDBObjectType);
   privObjects.clear();
@@ -707,7 +707,7 @@ TEST_F(DatabaseObject, TableAccessTest) {
   CHECK(sys_cat.getMetadataForDB(OMNISCI_DEFAULT_DB, db_meta));
   CHECK(sys_cat.getMetadataForUser("Arsenal", user_meta));
   session_ars.reset(new Catalog_Namespace::SessionInfo(
-      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::GPU, ""));
+      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::CUDA, ""));
   auto& cat_mapd = session_ars->getCatalog();
   AccessPrivileges arsenal_privs;
   AccessPrivileges bayern_privs;
@@ -762,7 +762,7 @@ TEST_F(DatabaseObject, ViewAccessTest) {
   CHECK(sys_cat.getMetadataForDB(OMNISCI_DEFAULT_DB, db_meta));
   CHECK(sys_cat.getMetadataForUser("Arsenal", user_meta));
   session_ars.reset(new Catalog_Namespace::SessionInfo(
-      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::GPU, ""));
+      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::CUDA, ""));
   auto& cat_mapd = session_ars->getCatalog();
   AccessPrivileges arsenal_privs;
   ASSERT_NO_THROW(arsenal_privs.add(AccessPrivileges::ALL_VIEW));
@@ -808,7 +808,7 @@ TEST_F(DatabaseObject, DashboardAccessTest) {
   CHECK(sys_cat.getMetadataForDB(OMNISCI_DEFAULT_DB, db_meta));
   CHECK(sys_cat.getMetadataForUser("Arsenal", user_meta));
   session_ars.reset(new Catalog_Namespace::SessionInfo(
-      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::GPU, ""));
+      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::CUDA, ""));
   auto& cat_mapd = session_ars->getCatalog();
   AccessPrivileges arsenal_privs;
   ASSERT_NO_THROW(arsenal_privs.add(AccessPrivileges::ALL_DASHBOARD));
@@ -854,7 +854,7 @@ TEST_F(DatabaseObject, DatabaseAllTest) {
   CHECK(sys_cat.getMetadataForDB(OMNISCI_DEFAULT_DB, db_meta));
   CHECK(sys_cat.getMetadataForUser("Arsenal", user_meta));
   session_ars.reset(new Catalog_Namespace::SessionInfo(
-      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::GPU, ""));
+      sys_cat.getCatalog(db_meta.dbName), user_meta, ExecutorDeviceType::CUDA, ""));
   auto& cat_mapd = session_ars->getCatalog();
   AccessPrivileges arsenal_privs;
   ASSERT_NO_THROW(arsenal_privs.add(AccessPrivileges::ALL_DATABASE));
