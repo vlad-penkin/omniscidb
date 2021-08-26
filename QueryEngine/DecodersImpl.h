@@ -50,8 +50,6 @@ SUFFIX(fixed_width_int_decode)(ADDR_SPACE const int8_t* byte_stream,
 // TODO(alex)
 #ifdef __CUDACC__
       return -1;
-#elif defined(HAVE_L0)
-      return -1;
 #else
 #ifdef _WIN32
       return LLONG_MIN + 1;

@@ -304,11 +304,6 @@ std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
         kernel_params[MAX_MATCHED], &max_matched, sizeof(max_matched));
 
     kernel_params[GROUPBY_BUF] = gpu_group_by_buffers.first;
-    // todo: remove
-    std::vector<void*> param_ptrs;
-    for (auto& param : kernel_params) {
-      param_ptrs.push_back(&param);
-    }
 
     if (g_enable_dynamic_watchdog || (allow_runtime_interrupt && !render_allocator)) {
       auto prepareTime = prepareClock->stop();
@@ -328,7 +323,6 @@ std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
                      shared_memory_size,
                      kernel_params);
     } else {
-      param_ptrs.erase(param_ptrs.begin() + LITERALS);  // TODO(alex): remove
       kernel->launch(grid_size_x,
                      grid_size_y,
                      grid_size_z,
@@ -459,12 +453,6 @@ std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
                                  reinterpret_cast<int8_t*>(out_vec_dev_buffers.data()),
                                  agg_col_count * sizeof(int8_t*));
     kernel_params[GROUPBY_BUF] = out_vec_dev_ptr;
-    // todo: remove
-    std::vector<void*> param_ptrs;
-    for (auto& param : kernel_params) {
-      param_ptrs.push_back(&param);
-    }
-
     if (g_enable_dynamic_watchdog || (allow_runtime_interrupt && !render_allocator)) {
       auto prepareTime = prepareClock->stop();
 
@@ -483,7 +471,6 @@ std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
                      shared_memory_size,
                      kernel_params);
     } else {
-      param_ptrs.erase(param_ptrs.begin() + LITERALS);  // TODO(alex): remove
       kernel->launch(grid_size_x,
                      grid_size_y,
                      grid_size_z,

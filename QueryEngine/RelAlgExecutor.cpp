@@ -3005,6 +3005,7 @@ ExecutionResult RelAlgExecutor::executeWorkUnit(
         if (filter_count_all) {
           ra_exe_unit.scan_limit = std::max(*filter_count_all, size_t(1));
         }
+        // TODO(L0): dead code 
         // ra_exe_unit.scan_limit = 20;
       }
     }

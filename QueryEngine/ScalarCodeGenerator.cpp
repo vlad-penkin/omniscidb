@@ -131,8 +131,9 @@ ScalarCodeGenerator::CompiledExpression ScalarCodeGenerator::compile(
       loaded_args.push_back(b.CreateLoad(wrapper_scalar_expr_func->arg_begin() + i));
     }
     auto error_lv = b.CreateCall(scalar_expr_func, loaded_args);
-    if (co.device_type != ExecutorDeviceType::L0)
+    if (co.device_type != ExecutorDeviceType::L0) {
       b.CreateStore(error_lv, wrapper_scalar_expr_func->arg_begin());
+    }
     b.CreateRetVoid();
     return {scalar_expr_func, wrapper_scalar_expr_func, inputs};
   }
@@ -154,7 +155,7 @@ std::vector<void*> ScalarCodeGenerator::generateNativeCode(
       return generateNativeGPUCode(
           compiled_expression.func, compiled_expression.wrapper_func, co);
     }
-    case ExecutorDeviceType::L0:  // todo wrapper?
+    case ExecutorDeviceType::L0:  // TODO(L0): wrapper?
     default: {
       LOG(FATAL) << "Invalid device type";
       return {};  // satisfy -Wreturn-type

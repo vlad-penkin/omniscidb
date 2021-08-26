@@ -3195,16 +3195,22 @@ void Executor::insertErrorCodeChecker(llvm::Function* query_func,
             llvm::ICmpInst::ICMP_NE, err_code, cgen_state_->llInt(0));
         auto error_bb = llvm::BasicBlock::Create(
             cgen_state_->context_, ".error_exit", query_func, new_bb);
-        unsigned int AS = (co.device_type == ExecutorDeviceType::L0) ? 4 : 0;
-        auto i32_type = llvm::IntegerType::get(cgen_state_->module_->getContext(), 32);
-        auto pi32_ty = llvm::PointerType::get(i32_type, AS);
-        auto error_code_cast_arg =
-            ir_builder.CreateAddrSpaceCast(error_code_arg, pi32_ty);
-        auto record_error_code_call_ = llvm::CallInst::Create(
-            cgen_state_->module_->getFunction("record_error_code"),
-            std::vector<llvm::Value*>{err_code, error_code_cast_arg},
-            "",
-            error_bb);
+        if (co.device_type == ExecutorDeviceType::L0) {
+          unsigned int AS = (co.device_type == ExecutorDeviceType::L0) ? 4 : 0;
+          auto i32_type = llvm::IntegerType::get(cgen_state_->module_->getContext(), 32);
+          auto pi32_ty = llvm::PointerType::get(i32_type, AS);
+          auto error_code_cast_arg =
+              ir_builder.CreateAddrSpaceCast(error_code_arg, pi32_ty);
+          llvm::CallInst::Create(cgen_state_->module_->getFunction("record_error_code"),
+                                 std::vector<llvm::Value*>{err_code, error_code_cast_arg},
+                                 "",
+                                 error_bb);
+        } else {
+          llvm::CallInst::Create(cgen_state_->module_->getFunction("record_error_code"),
+                                 std::vector<llvm::Value*>{err_code, error_code_arg},
+                                 "",
+                                 error_bb);
+        }
         llvm::ReturnInst::Create(cgen_state_->context_, error_bb);
         llvm::ReplaceInstWithInst(&br_instr,
                                   llvm::BranchInst::Create(error_bb, new_bb, err_lv));
