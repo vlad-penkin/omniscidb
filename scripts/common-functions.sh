@@ -202,7 +202,7 @@ function install_llvm() {
       LLVM_SHARED="-DLLVM_BUILD_LLVM_DYLIB=ON -DLLVM_LINK_LLVM_DYLIB=ON"
     fi
 
-    cmake -DCMAKE_BUILD_TYPE=Release \
+    cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DCMAKE_INSTALL_PREFIX=$PREFIX \
         -DLLVM_ENABLE_RTTI=on \
         -DLLVM_USE_INTEL_JITEVENTS=on \
@@ -212,7 +212,7 @@ function install_llvm() {
         -DLLVM_SPIRV_INCLUDE_TESTS=OFF \
         -DLLVM_USE_LINKER=gold \
         ../llvm-$VERS.src
-    makej
+    make -j5
     make install
     popd
 }

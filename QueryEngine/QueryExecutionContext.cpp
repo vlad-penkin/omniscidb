@@ -152,6 +152,12 @@ int64_t QueryExecutionContext::getAggInitValForIndex(const size_t index) const {
   return query_buffers_->getAggInitValForIndex(index);
 }
 
+namespace {
+bool is_gpu_device(ExecutorDeviceType dt) {
+  return dt != ExecutorDeviceType::CPU;
+}
+}  // namespace
+
 ResultSetPtr QueryExecutionContext::getRowSet(
     const RelAlgExecutionUnit& ra_exe_unit,
     const QueryMemoryDescriptor& query_mem_desc) const {
@@ -167,7 +173,7 @@ ResultSetPtr QueryExecutionContext::getRowSet(
   for (size_t i = 0; i < group_by_buffers_size; i += step) {
     results_per_sm.emplace_back(groupBufferToResults(i), std::vector<size_t>{});
   }
-  CHECK(device_type_ == ExecutorDeviceType::GPU);
+  CHECK(is_gpu_device(device_type_));
   return executor_->reduceMultiDeviceResults(
       ra_exe_unit, results_per_sm, row_set_mem_owner_, query_mem_desc);
 }
@@ -285,6 +291,7 @@ std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
     auto gpu_group_by_buffers =
         query_buffers_->createAndInitializeGroupByBufferGpu(ra_exe_unit,
                                                             query_mem_desc_,
+                                                            device_type_,
                                                             kernel_params[INIT_AGG_VALS],
                                                             device_id,
                                                             dispatch_mode_,

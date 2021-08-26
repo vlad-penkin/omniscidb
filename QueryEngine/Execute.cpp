@@ -3427,10 +3427,15 @@ Executor::JoinHashTableOrError Executor::buildHashTableForQualifier(
 int8_t Executor::warpSize() const {
   CHECK(catalog_);
   const auto cuda_mgr = catalog_->getDataMgr().getCudaMgr();
-  CHECK(cuda_mgr);
-  const auto& dev_props = cuda_mgr->getAllDeviceProperties();
-  CHECK(!dev_props.empty());
-  return dev_props.front().warpSize;
+  const auto l0_mgr = catalog_->getDataMgr().getL0Mgr();
+  if (l0_mgr) {
+    return 1;
+  }
+  if (cuda_mgr) {
+    const auto& dev_props = cuda_mgr->getAllDeviceProperties();
+    CHECK(!dev_props.empty());
+    return dev_props.front().warpSize;
+  }
 }
 
 unsigned Executor::gridSize() const {

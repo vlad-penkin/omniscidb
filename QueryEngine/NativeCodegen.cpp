@@ -30,6 +30,7 @@
 
 #ifdef HAVE_L0
 #include "LLVMSPIRVLib/LLVMSPIRVLib.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #endif
 
 #if LLVM_VERSION_MAJOR < 9
@@ -2791,10 +2792,21 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
             rt_udf_gpu_module, *rt_module_copy, cgen_state_.get());
       }
       break;
-    case ExecutorDeviceType::L0:
+    case ExecutorDeviceType::L0: {
       rt_module_copy->setTargetTriple(get_l0_target_triple_string());
       // todo: link udf & rt_udf
+      auto& ctx = rt_module_copy->getContext();
+      std::vector<llvm::Type*> arg_types{llvm::Type::getInt32PtrTy(ctx, 4),
+                                         llvm::Type::getInt32Ty(ctx)};
+      llvm::FunctionType* type =
+          llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), arg_types, false);
+      llvm::Function* f = llvm::Function::Create(type,
+                                                 llvm::Function::ExternalLinkage,
+                                                 llvm::Twine("_Z10atomic_addPU3AS1Vii"),
+                                                 *rt_module_copy);
+      f->setCallingConv(llvm::CallingConv::SPIR_FUNC);
       break;
+    }
 
     default:
       CHECK(false) << "Invalid device type!\n";
@@ -2809,6 +2821,9 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
   const auto agg_slot_count = ra_exe_unit.estimator ? size_t(1) : agg_fnames.size();
 
   const bool is_group_by{query_mem_desc->isGroupBy()};
+
+  std::string dt = co.device_type == ExecutorDeviceType::CPU ? "CPU" : "GPU";
+  std::cerr << "groupby" << is_group_by << " template for device " << dt << std::endl;
   auto [query_func, row_func_call] = is_group_by
                                          ? query_group_by_template(cgen_state_->module_,
                                                                    co.hoist_literals,
@@ -2821,9 +2836,11 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
                                                           co,
                                                           !!ra_exe_unit.estimator,
                                                           gpu_smem_context);
+  std::cerr << "Built query template" << std::endl;
   bind_pos_placeholders("pos_start", true, query_func, cgen_state_->module_);
   bind_pos_placeholders("group_buff_idx", false, query_func, cgen_state_->module_);
   bind_pos_placeholders("pos_step", false, query_func, cgen_state_->module_);
+  std::cerr << "Binded pos_start, group_buff_idx, pos_step" << std::endl;
 
   cgen_state_->query_func_ = query_func;
   cgen_state_->row_func_call_ = row_func_call;
@@ -2846,6 +2863,7 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
                                                co,
                                                cgen_state_->module_,
                                                cgen_state_->context_);
+  std::cerr << "Created row func" << std::endl;
   CHECK(cgen_state_->row_func_);
   cgen_state_->row_func_bb_ =
       llvm::BasicBlock::Create(cgen_state_->context_, "entry", cgen_state_->row_func_);
