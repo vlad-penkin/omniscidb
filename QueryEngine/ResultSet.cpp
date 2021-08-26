@@ -979,6 +979,7 @@ void ResultSet::radixSortOnGpu(
                                   grid_size_,
                                   device_id,
                                   ExecutorDispatchMode::KernelPerFragment,
+                                  ExecutorDeviceType::GPU,
                                   /*num_input_rows=*/-1,
                                   /*prepend_index_buffer=*/true,
                                   /*always_init_group_by_on_host=*/true,

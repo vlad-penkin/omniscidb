@@ -927,6 +927,12 @@ std::tuple<llvm::Function*, llvm::CallInst*> query_group_by_template_impl(
   pos_pre->replaceAllUsesWith(pos_inc);
   delete pos_pre;
 
+#ifndef NDEBUG
+  std::error_code ec;
+  raw_fd_ostream query_template_dump("group_by_query.ll", ec);
+  mod->print(query_template_dump, nullptr);
+#endif
+
   if (verifyFunction(*query_func_ptr, &llvm::errs())) {
     LOG(FATAL) << "Generated invalid code. ";
   }

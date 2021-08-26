@@ -3442,9 +3442,17 @@ Executor::JoinHashTableOrError Executor::buildHashTableForQualifier(
 }
 
 int8_t Executor::warpSize() const {
-  const auto& dev_props = cudaMgr()->getAllDeviceProperties();
-  CHECK(!dev_props.empty());
-  return dev_props.front().warpSize;
+  CHECK(catalog_);
+  const auto cuda_mgr = catalog_->getDataMgr().getCudaMgr();
+  const auto l0_mgr = catalog_->getDataMgr().getL0Mgr();
+  if (l0_mgr) {
+    return 1;
+  }
+  if (cuda_mgr) {
+    const auto& dev_props = cuda_mgr->getAllDeviceProperties();
+    CHECK(!dev_props.empty());
+    return dev_props.front().warpSize;
+  }
 }
 
 // TODO(adb): should these three functions have consistent symantics if cuda mgr does not

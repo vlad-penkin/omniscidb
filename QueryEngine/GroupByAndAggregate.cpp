@@ -181,7 +181,7 @@ ColRangeInfo GroupByAndAggregate::getColRangeInfo() {
   const int64_t baseline_threshold =
       has_count_distinct(ra_exe_unit_)
           ? (device_type_ == ExecutorDeviceType::CUDA ? (Executor::baseline_threshold / 4)
-                                                     : Executor::baseline_threshold)
+                                                      : Executor::baseline_threshold)
           : Executor::baseline_threshold;
   if (ra_exe_unit_.groupby_exprs.size() != 1) {
     try {
@@ -868,12 +868,21 @@ bool GroupByAndAggregate::codegen(llvm::Value* filter_result,
         LL_BUILDER.CreateStore(LL_INT(int32_t(1)), crt_matched);
         auto total_matched_ptr = get_arg_by_name(ROW_FUNC, "total_matched");
         llvm::Value* old_total_matched_val{nullptr};
-        if (is_gpu(co.device_type)) {
-          old_total_matched_val =
-              LL_BUILDER.CreateAtomicRMW(llvm::AtomicRMWInst::Add,
-                                         total_matched_ptr,
-                                         LL_INT(int32_t(1)),
-                                         llvm::AtomicOrdering::Monotonic);
+        if (is_gpu_device(co.device_type)) {
+          if (co.device_type == ExecutorDeviceType::L0) {
+            llvm::Function* atomic_add =
+                executor_->cgen_state_->module_->getFunction("_Z10atomic_addPU3AS1Vii");
+            std::cerr << "got function: " << atomic_add << std::endl;
+
+            std::vector<llvm::Value*> args{total_matched_ptr, LL_INT(int32_t(1))};
+            old_total_matched_val = LL_BUILDER.CreateCall(atomic_add, args);
+          } else {
+            old_total_matched_val =
+                LL_BUILDER.CreateAtomicRMW(llvm::AtomicRMWInst::Add,
+                                           total_matched_ptr,
+                                           LL_INT(int32_t(1)),
+                                           llvm::AtomicOrdering::Monotonic);
+          }
         } else {
           old_total_matched_val = LL_BUILDER.CreateLoad(total_matched_ptr);
           LL_BUILDER.CreateStore(

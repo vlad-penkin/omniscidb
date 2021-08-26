@@ -65,6 +65,7 @@ GpuGroupByBuffers create_dev_group_by_buffers(
     const unsigned grid_size_x,
     const int device_id,
     const ExecutorDispatchMode dispatch_mode,
+    const ExecutorDeviceType device_type,
     const int64_t num_input_rows,
     const bool prepend_index_buffer,
     const bool always_init_group_by_on_host,
@@ -84,6 +85,7 @@ GpuGroupByBuffers create_dev_group_by_buffers(
   if (use_bump_allocator) {
     CHECK(!prepend_index_buffer);
     CHECK(!insitu_allocator);
+    CHECK(device_type != ExecutorDeviceType::L0);
 
     if (dispatch_mode == ExecutorDispatchMode::KernelPerFragment) {
       // Allocate an output buffer equal to the size of the number of rows in the
@@ -93,8 +95,7 @@ GpuGroupByBuffers create_dev_group_by_buffers(
 
       CHECK_GT(num_input_rows, int64_t(0));
       entry_count = num_input_rows;
-      groups_buffer_size =
-          query_mem_desc.getBufferSizeBytes(ExecutorDeviceType::CUDA, entry_count);
+      groups_buffer_size = query_mem_desc.getBufferSizeBytes(device_type, entry_count);
       mem_size = coalesced_size(query_mem_desc,
                                 groups_buffer_size,
                                 query_mem_desc.blocksShareMemory() ? 1 : grid_size_x);
@@ -139,8 +140,7 @@ GpuGroupByBuffers create_dev_group_by_buffers(
   } else {
     entry_count = query_mem_desc.getEntryCount();
     CHECK_GT(entry_count, size_t(0));
-    groups_buffer_size =
-        query_mem_desc.getBufferSizeBytes(ExecutorDeviceType::CUDA, entry_count);
+    groups_buffer_size = query_mem_desc.getBufferSizeBytes(device_type, entry_count);
     mem_size = coalesced_size(query_mem_desc,
                               groups_buffer_size,
                               query_mem_desc.blocksShareMemory() ? 1 : grid_size_x);
@@ -149,6 +149,7 @@ GpuGroupByBuffers create_dev_group_by_buffers(
 
     int8_t* group_by_dev_buffers_allocation{nullptr};
     if (insitu_allocator) {
+      CHECK(device_type != ExecutorDeviceType::L0);
       group_by_dev_buffers_allocation =
           insitu_allocator->alloc(mem_size + prepended_buff_size);
     } else {
@@ -165,8 +166,8 @@ GpuGroupByBuffers create_dev_group_by_buffers(
   CHECK(query_mem_desc.threadsShareMemory());
   const size_t step{block_size_x};
 
-  if (!insitu_allocator && (always_init_group_by_on_host ||
-                            !query_mem_desc.lazyInitGroups(ExecutorDeviceType::CUDA))) {
+  if (!insitu_allocator &&
+      (always_init_group_by_on_host || !query_mem_desc.lazyInitGroups(device_type))) {
     std::vector<int8_t> buff_to_gpu(mem_size);
     auto buff_to_gpu_ptr = buff_to_gpu.data();
 

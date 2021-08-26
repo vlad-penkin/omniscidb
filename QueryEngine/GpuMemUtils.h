@@ -71,6 +71,7 @@ GpuGroupByBuffers create_dev_group_by_buffers(
     const unsigned grid_size_x,
     const int device_id,
     const ExecutorDispatchMode dispatch_mode,
+    const ExecutorDeviceType device_type,
     const int64_t num_input_rows,
     const bool prepend_index_buffer,
     const bool always_init_group_by_on_host,

@@ -819,6 +819,7 @@ GpuGroupByBuffers QueryMemoryInitializer::prepareTopNHeapsDevBuffer(
 GpuGroupByBuffers QueryMemoryInitializer::createAndInitializeGroupByBufferGpu(
     const RelAlgExecutionUnit& ra_exe_unit,
     const QueryMemoryDescriptor& query_mem_desc,
+    const ExecutorDeviceType device_type,
     const int8_t* init_agg_vals_dev_ptr,
     const int device_id,
     const ExecutorDispatchMode dispatch_mode,
@@ -828,8 +829,9 @@ GpuGroupByBuffers QueryMemoryInitializer::createAndInitializeGroupByBufferGpu(
     const bool can_sort_on_gpu,
     const bool output_columnar,
     RenderAllocator* render_allocator) {
-#ifdef HAVE_CUDA
+#if defined(HAVE_CUDA) || defined(HAVE_L0)
   if (query_mem_desc.useStreamingTopN()) {
+    CHECK(device_type != ExecutorDeviceType::L0);
     if (render_allocator) {
       throw StreamingTopNNotSupportedInRenderQuery();
     }
@@ -868,15 +870,18 @@ GpuGroupByBuffers QueryMemoryInitializer::createAndInitializeGroupByBufferGpu(
     varlen_output_info_->cpu_buffer_ptr = varlen_output_buffer_host_ptr_;
   }
   if (render_allocator) {
+    CHECK(device_type != ExecutorDeviceType::L0);
     CHECK_EQ(size_t(0), render_allocator->getAllocatedSize() % 8);
   }
-  if (query_mem_desc.lazyInitGroups(ExecutorDeviceType::CUDA)) {
+  if (query_mem_desc.lazyInitGroups(device_type)) {
+    CHECK(device_type != ExecutorDeviceType::L0);
+#ifdef HAVE_CUDA
     CHECK(!render_allocator);
 
     const size_t step{query_mem_desc.threadsShareMemory() ? block_size_x : 1};
-    size_t groups_buffer_size{query_mem_desc.getBufferSizeBytes(
-        ExecutorDeviceType::CUDA, dev_group_by_buffers.entry_count)};
-    auto group_by_dev_buffer = dev_group_by_buffers.data;
+    size_t groups_buffer_size{
+        query_mem_desc.getBufferSizeBytes(device_type, dev_group_by_buffers.entry_count)};
+    auto group_by_dev_buffer = dev_group_by_buffers.second;
     const size_t col_count = query_mem_desc.getSlotCount();
     int8_t* col_widths_dev_ptr{nullptr};
     if (output_columnar) {
@@ -888,11 +893,10 @@ GpuGroupByBuffers QueryMemoryInitializer::createAndInitializeGroupByBufferGpu(
       device_allocator_->copyToDevice(
           col_widths_dev_ptr, compact_col_widths.data(), col_count * sizeof(int8_t));
     }
-    const int8_t warp_count =
-        query_mem_desc.interleavedBins(ExecutorDeviceType::CUDA) ? warp_size : 1;
+    const int8_t warp_count = query_mem_desc.interleavedBins(device_type) ? warp_size : 1;
     const auto num_group_by_buffers =
         getGroupByBuffersSize() - (query_mem_desc.hasVarlenOutput() ? 1 : 0);
-    for (size_t i = 0; i < num_group_by_buffers; i += step) {
+    for (size_t i = 0; i < getGroupByBuffersSize(); i += step) {
       if (output_columnar) {
         init_columnar_group_by_buffer_on_device(
             reinterpret_cast<int64_t*>(group_by_dev_buffer),
@@ -921,6 +925,7 @@ GpuGroupByBuffers QueryMemoryInitializer::createAndInitializeGroupByBufferGpu(
       }
       group_by_dev_buffer += groups_buffer_size;
     }
+#endif
   }
   return dev_group_by_buffers;
 #else
