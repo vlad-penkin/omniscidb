@@ -611,20 +611,12 @@ ArrowResultSetConverter::getSerializedArrowOutput(
 
 std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::convertToArrow() const {
   auto timer = DEBUG_TIMER(__func__);
-  const auto col_count = results_->colCount();
-  std::vector<std::shared_ptr<arrow::Field>> fields;
-  CHECK(col_names_.empty() || col_names_.size() == col_count);
-  for (size_t i = 0; i < col_count; ++i) {
-    const auto ti = results_->getColType(i);
-    fields.push_back(makeField(col_names_.empty() ? "" : col_names_[i], ti));
-  }
-#if ARROW_CONVERTER_DEBUG
-  VLOG(1) << "Arrow fields: ";
-  for (const auto& f : fields) {
-    VLOG(1) << "\t" << f->ToString(true);
-  }
-#endif
-  return getArrowBatch(arrow::schema(fields));
+  return getArrowBatch(makeSchema());
+}
+
+std::shared_ptr<arrow::Table> ArrowResultSetConverter::convertToArrowTable() const {
+  auto timer = DEBUG_TIMER(__func__);
+  return getArrowTable(makeSchema());
 }
 
 std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
@@ -937,6 +929,38 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
   return ARROW_RECORDBATCH_MAKE(schema, row_count, result_columns);
 }
 
+std::shared_ptr<arrow::Table> ArrowResultSetConverter::getArrowTable(
+    const std::shared_ptr<arrow::Schema>& schema) const {
+  //auto batch = getArrowBatch(schema);
+  //auto res = arrow::Table::FromRecordBatches(schema, {{batch}});
+  //return res.ValueOrDie();
+
+  if (results_->isEmpty()) {
+    return arrow::Table::FromRecordBatches(schema, {});
+  }
+
+
+  const size_t entry_count = top_n_ < 0
+                                 ? results_->entryCount()
+                                 : std::min(size_t(top_n_), results_->entryCount());
+
+  const auto col_count = results_->colCount();
+  size_t row_count = 0;
+
+  std::vector<std::shared_ptr<arrow::ChunkedArray>> result_columns(col_count);
+  std::vector<ColumnBuilder> builders(col_count);
+
+  // Create array builders
+  for (size_t i = 0; i < col_count; ++i) {
+    initializeColumnBuilder(builders[i], results_->getColType(i), schema->field(i));
+  }
+
+  bool use_columnar_converter = results_->isDirectColumnarConversionPossible() &&
+                                results_->getQueryMemDesc().getQueryDescriptionType() ==
+                                    QueryDescriptionType::Projection;
+  
+}
+
 namespace {
 
 std::shared_ptr<arrow::DataType> get_arrow_type(const SQLTypeInfo& sql_type,
@@ -1011,6 +1035,23 @@ std::shared_ptr<arrow::Field> ArrowResultSetConverter::makeField(
     const SQLTypeInfo& target_type) const {
   return arrow::field(
       name, get_arrow_type(target_type, device_type_), !target_type.get_notnull());
+}
+
+std::shared_ptr<arrow::Schema> ArrowResultSetConverter::makeSchema() const {
+  const auto col_count = results_->colCount();
+  std::vector<std::shared_ptr<arrow::Field>> fields;
+  CHECK(col_names_.empty() || col_names_.size() == col_count);
+  for (size_t i = 0; i < col_count; ++i) {
+    const auto ti = results_->getColType(i);
+    fields.push_back(makeField(col_names_.empty() ? "" : col_names_[i], ti));
+  }
+#if ARROW_CONVERTER_DEBUG
+  VLOG(1) << "Arrow fields: ";
+  for (const auto& f : fields) {
+    VLOG(1) << "\t" << f->ToString(true);
+  }
+#endif
+  return arrow::schema(fields);
 }
 
 void ArrowResultSet::deallocateArrowResultBuffer(
