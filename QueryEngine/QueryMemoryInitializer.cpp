@@ -1167,6 +1167,6 @@ std::shared_ptr<VarlenOutputInfo> QueryMemoryInitializer::getVarlenOutputInfo() 
   // shared_ptr so that both the ResultSet and QMI can hold on to the varlen info object
   // and update it as needed
   varlen_output_info_ = std::make_shared<VarlenOutputInfo>(VarlenOutputInfo{
-      static_cast<int64_t>(varlen_output_buffer_), varlen_output_buffer_host_ptr_});
+      reinterpret_cast<int64_t>(varlen_output_buffer_), varlen_output_buffer_host_ptr_});
   return varlen_output_info_;
 }

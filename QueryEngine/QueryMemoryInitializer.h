@@ -226,7 +226,7 @@ class QueryMemoryInitializer {
   size_t num_buffers_;
   std::vector<int64_t*> group_by_buffers_;
   std::shared_ptr<VarlenOutputInfo> varlen_output_info_;
-  CUdeviceptr varlen_output_buffer_;
+  int8_t* varlen_output_buffer_;
   int8_t* varlen_output_buffer_host_ptr_;
 
   CUdeviceptr count_distinct_bitmap_mem_;

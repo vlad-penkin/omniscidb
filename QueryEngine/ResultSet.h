@@ -552,8 +552,7 @@ class ResultSet {
     const size_t storage_idx;
   };
 
-  InternalTargetValue getVarlenOrderEntry(char* str_ptr str_ptr,
-                                          const size_t str_len) const;
+  InternalTargetValue getVarlenOrderEntry(char* str_ptr, const size_t str_len) const;
 
   int64_t lazyReadInt(const int64_t ival,
                       const size_t target_logical_idx,

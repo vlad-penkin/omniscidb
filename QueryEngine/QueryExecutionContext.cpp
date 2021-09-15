@@ -55,7 +55,7 @@ QueryExecutionContext::QueryExecutionContext(
     gpu_allocator_ = std::make_unique<CudaAllocator>(data_mgr, device_id);
   }
   if (device_type == ExecutorDeviceType::L0) {
-    gpu_allocator_ = std::make_unique<L0Allocator>(&data_mgr, device_id);
+    gpu_allocator_ = std::make_unique<L0Allocator>(data_mgr, device_id);
   }
 
   auto render_allocator_map = render_info && render_info->isPotentialInSituRender()
@@ -303,7 +303,7 @@ std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
     gpu_allocator_->copyToDevice(
         kernel_params[MAX_MATCHED], &max_matched, sizeof(max_matched));
 
-    kernel_params[GROUPBY_BUF] = gpu_group_by_buffers.first;
+    kernel_params[GROUPBY_BUF] = gpu_group_by_buffers.ptrs;
 
     if (g_enable_dynamic_watchdog || (allow_runtime_interrupt && !render_allocator)) {
       auto prepareTime = prepareClock->stop();
@@ -521,11 +521,9 @@ std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
         query_mem_desc_.getEntryCount() *
         query_mem_desc_.varlenOutputBufferElemSize().value();
     CHECK(query_buffers_->getVarlenOutputHostPtr());
-    copy_from_gpu(data_mgr,
-                  query_buffers_->getVarlenOutputHostPtr(),
-                  varlen_output_gpu_buf,
-                  varlen_output_buf_bytes,
-                  device_id);
+    gpu_allocator_->copyFromDevice(query_buffers_->getVarlenOutputHostPtr(),
+                                   varlen_output_gpu_buf,
+                                   varlen_output_buf_bytes);
   }
 
   if (g_enable_dynamic_watchdog || (allow_runtime_interrupt && !render_allocator)) {

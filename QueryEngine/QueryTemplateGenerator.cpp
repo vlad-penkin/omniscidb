@@ -141,6 +141,8 @@ llvm::Function* row_process(llvm::Module* mod,
   auto i64_type = IntegerType::get(mod->getContext(), 64);
   auto pi32_type = PointerType::get(i32_type, AS);
   auto pi64_type = PointerType::get(i64_type, AS);
+  auto pi32_stack_type = PointerType::get(i32_type, 0);
+  auto pi64_stack_type = PointerType::get(i64_type, 0);
 
   if (aggr_col_count) {
     for (size_t i = 0; i < aggr_col_count; ++i) {
@@ -790,8 +792,7 @@ std::tuple<llvm::Function*, llvm::CallInst*> query_group_by_template_impl(
         "group_buff_idx_varlen_offset",
         bb_entry);
   } else {
-    varlen_output_buffer =
-        ConstantPointerNull::get(pi64_type));
+    varlen_output_buffer = ConstantPointerNull::get(pi64_type);
   }
   CHECK(varlen_output_buffer);
 

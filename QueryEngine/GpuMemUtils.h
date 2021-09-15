@@ -56,7 +56,7 @@ struct GpuGroupByBuffers {
   int8_t* ptrs;
   int8_t* data;
   size_t entry_count;
-  CUdeviceptr varlen_output_buffer;
+  int8_t*  varlen_output_buffer;
 };
 
 class QueryMemoryDescriptor;

@@ -1069,7 +1069,7 @@ size_t get_context_count(const ExecutorDeviceType device_type,
                          const size_t cpu_count,
                          const size_t gpu_count) {
   return device_type == ExecutorDeviceType::CUDA ? gpu_count
-                                                : static_cast<size_t>(cpu_count);
+                                                 : static_cast<size_t>(cpu_count);
 }
 
 namespace {

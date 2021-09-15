@@ -93,6 +93,8 @@ struct RemoveAddrSpacesPass : llvm::ModulePass {
                                        f->getName(),
                                        &module);
 
+      nf->setAttributes(f->getAttributes());
+
       for (int i = 0; i < f->arg_size(); i++) {
         f->getArg(i)->replaceAllUsesWith(nf->getArg(i));
       }
