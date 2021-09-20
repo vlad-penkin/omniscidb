@@ -91,15 +91,15 @@ class CursorImpl : public Cursor {
       return table_;
     }
     auto col_count = getColCount();
-    if (col_count > 0) {
-      auto row_count = getRowCount();
-      if (row_count > 0) {
-        auto converter =
-            std::make_unique<ArrowResultSetConverter>(result_set_, col_names_, -1);
-        table_ = converter->convertToArrowTable();
-        return table_;
-      }
-    }
+    // if (col_count > 0) {
+    auto row_count = getRowCount();
+    // if (row_count > 0) {
+    auto converter =
+        std::make_unique<ArrowResultSetConverter>(result_set_, col_names_, -1);
+    table_ = converter->convertToArrowTable();
+    return table_;
+    // }
+    //}
     return nullptr;
   }
 

@@ -25,7 +25,67 @@
 #include <arrow/io/file.h>
 #include "Shared/ArrowUtil.h"
 
+#include <gtest/gtest.h>
+
 using namespace EmbeddedDatabase;
+
+static std::shared_ptr<DBEngine> g_dbe;
+
+void import_file(const std::string& file_name, const std::string& table_name) {
+  auto memory_pool = arrow::default_memory_pool();
+  auto arrow_parse_options = arrow::csv::ParseOptions::Defaults();
+  auto arrow_read_options = arrow::csv::ReadOptions::Defaults();
+  auto arrow_convert_options = arrow::csv::ConvertOptions::Defaults();
+  std::shared_ptr<arrow::io::ReadableFile> inp;
+  auto file_result = arrow::io::ReadableFile::Open(file_name);
+  ARROW_THROW_NOT_OK(file_result.status());
+  inp = file_result.ValueOrDie();
+  auto table_reader_result = arrow::csv::TableReader::Make(
+      memory_pool, inp, arrow_read_options, arrow_parse_options, arrow_convert_options);
+  ARROW_THROW_NOT_OK(table_reader_result.status());
+  auto table_reader = table_reader_result.ValueOrDie();
+  std::shared_ptr<arrow::Table> arrowTable;
+  auto arrow_table_result = table_reader->Read();
+  ARROW_THROW_NOT_OK(arrow_table_result.status());
+  arrowTable = arrow_table_result.ValueOrDie();
+  g_dbe->importArrowTable(table_name, arrowTable);
+}
+
+TEST(DBEngine, SimpleSelectAll) {
+  auto cursor = g_dbe->executeDML("select * from test");
+  ASSERT_NE(cursor, nullptr);
+  auto rbatch = cursor->getArrowRecordBatch();
+  ASSERT_NE(rbatch, nullptr);
+  ASSERT_EQ(rbatch->num_columns(), 3);
+  ASSERT_EQ(rbatch->num_rows(), (int64_t)6);
+}
+
+TEST(DBEngine, SimpleSelect) {
+  auto cursor = g_dbe->executeDML("select b, c from test");
+  ASSERT_NE(cursor, nullptr);
+  auto rbatch = cursor->getArrowRecordBatch();
+  ASSERT_NE(rbatch, nullptr);
+  ASSERT_EQ(rbatch->num_columns(), 2);
+  ASSERT_EQ(rbatch->num_rows(), (int64_t)6);
+}
+
+TEST(DBEngine, SimpleArrowTable) {
+  auto cursor = g_dbe->executeDML("select b, c from test");
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable();
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(table->num_columns(), 2);
+  ASSERT_EQ(table->num_rows(), (int64_t)6);
+}
+
+TEST(DBEngine, EmptyArrowTable) {
+  auto cursor = g_dbe->executeDML("select b, c from test where b > 1000");
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable();
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(table->num_columns(), 2);
+  ASSERT_EQ(table->num_rows(), (int64_t)0);
+}
 
 int main(int argc, char* argv[]) {
   std::string base_path;
@@ -65,48 +125,24 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  try {
-    auto opt_str = base_path + " --calcite-port " + std::to_string(calcite_port);
-    if (columnar_output) {
-      opt_str += "--columnar-output";
-    }
-    auto dbe = DBEngine::create(opt_str);
-    if (dbe) {
-      auto memory_pool = arrow::default_memory_pool();
-      auto arrow_parse_options = arrow::csv::ParseOptions::Defaults();
-      auto arrow_read_options = arrow::csv::ReadOptions::Defaults();
-      auto arrow_convert_options = arrow::csv::ConvertOptions::Defaults();
-      std::shared_ptr<arrow::io::ReadableFile> inp;
-      auto file_result = arrow::io::ReadableFile::Open("/localdisk/artemale/test.csv");
-      ARROW_THROW_NOT_OK(file_result.status());
-      inp = file_result.ValueOrDie();
-      auto table_reader_result = arrow::csv::TableReader::Make(memory_pool,
-                                                               inp,
-                                                               arrow_read_options,
-                                                               arrow_parse_options,
-                                                               arrow_convert_options);
-      ARROW_THROW_NOT_OK(table_reader_result.status());
-      auto table_reader = table_reader_result.ValueOrDie();
-      std::shared_ptr<arrow::Table> arrowTable;
-      auto arrow_table_result = table_reader->Read();
-      ARROW_THROW_NOT_OK(arrow_table_result.status());
-      arrowTable = arrow_table_result.ValueOrDie();
-      dbe->importArrowTable("test", arrowTable);
-
-      auto schema = dbe->getTableDetails("test");
-      for (auto& item : schema) {
-        std::cout << item.col_name << std::endl;
-      }
-      auto cursor = dbe->executeDML("select * from test");
-      if (cursor) {
-        std::cout << cursor->getRowCount() << " rows selected" << std::endl;
-        std::shared_ptr<arrow::RecordBatch> rbatch = cursor->getArrowRecordBatch();
-      } else {
-        std::cerr << "Cursor is NULL" << std::endl;
-      }
-    }
-  } catch (std::exception& e) {
-    std::cerr << e.what() << "\n";
+  auto opt_str = base_path + " --calcite-port " + std::to_string(calcite_port);
+  if (columnar_output) {
+    opt_str += " --enable-columnar-output";
   }
-  return 0;
+
+  testing::InitGoogleTest();
+
+  int err = 0;
+  try {
+    g_dbe = DBEngine::create(opt_str);
+    import_file("../../Tests/FsiDataFiles/example_3.csv", "test");
+    err = RUN_ALL_TESTS();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << e.what();
+    return 1;
+  }
+
+  g_dbe.reset();
+
+  return err;
 }
