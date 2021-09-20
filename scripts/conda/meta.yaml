@@ -32,7 +32,7 @@ requirements:
   host:
     - numpy
     - cython
-    - arrow-cpp =2.0
+    - arrow-cpp =3.0
     - bisonpp
     - blosc
     - boost-cpp {{ boost_cpp }}
@@ -79,7 +79,7 @@ outputs:
         - openjdk 8.*
         - xz
         - zlib
-        - arrow-cpp =2.0
+        - arrow-cpp =3.0
         - tbb {{ tbb }}
         - llvm <11
 
@@ -121,7 +121,7 @@ outputs:
         - openjdk 8.*
         - xz
         - zlib
-        - arrow-cpp =2.0
+        - arrow-cpp =3.0
         - libthrift<0.14.0  # ref: modin gh-2840
         - tbb {{ tbb }}
         - {{ pin_subpackage('omniscidb-common', exact=True) }}
@@ -192,7 +192,7 @@ outputs:
         # new tbb needs glibc >= 2.14
         - sysroot_linux-64 >=2.14 # [linux]
       host:
-        - arrow-cpp =2.0
+        - arrow-cpp =3.0
         - bisonpp
         - blosc
         - boost-cpp {{ boost_cpp }}
