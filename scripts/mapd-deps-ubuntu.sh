@@ -121,8 +121,10 @@ install_cmake
 
 # llvm
 # (see common-functions.sh)
-LLVM_BUILD_DYLIB=false
-install_llvm
+LLVM_BUILD_DYLIB=true
+install_llvm_12
+
+install_spirv_translator
 
 # Geo Support
 install_gdal
