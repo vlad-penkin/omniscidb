@@ -441,7 +441,7 @@ void c_arrow(const std::string& query_string, const ExecutorDeviceType device_ty
 
 #define SKIP_NO_GPU()                                        \
   if (skip_tests(dt)) {                                      \
-    CHECK(dt == ExecutorDeviceType::CUDA);                    \
+    CHECK(dt == ExecutorDeviceType::CUDA);                   \
     LOG(WARNING) << "GPU not available, skipping GPU tests"; \
     continue;                                                \
   }
@@ -2817,7 +2817,7 @@ TEST(Select, Simplest) {
 }
 
 TEST(Select, SimplestGroupBy) {
-  for (auto dt : {ExecutorDeviceType::CPU}) {
+  for (auto dt : {ExecutorDeviceType::L0}) {
     c("SELECT x FROM test where x >= 8;", dt);
   }
 }
