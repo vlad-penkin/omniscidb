@@ -850,6 +850,7 @@ GpuGroupByBuffers QueryMemoryInitializer::createAndInitializeGroupByBufferGpu(
                                   grid_size_x,
                                   device_id,
                                   dispatch_mode,
+                                  device_type,
                                   num_rows_,
                                   can_sort_on_gpu,
                                   false,
@@ -857,17 +858,20 @@ GpuGroupByBuffers QueryMemoryInitializer::createAndInitializeGroupByBufferGpu(
                                   query_mem_desc.hasVarlenOutput(),
                                   render_allocator);
   if (query_mem_desc.hasVarlenOutput()) {
-    CHECK(dev_group_by_buffers.varlen_output_buffer);
-    varlen_output_buffer_ = dev_group_by_buffers.varlen_output_buffer;
-    CHECK(query_mem_desc.varlenOutputBufferElemSize());
-    const size_t varlen_output_buf_bytes =
-        query_mem_desc.getEntryCount() *
-        query_mem_desc.varlenOutputBufferElemSize().value();
-    varlen_output_buffer_host_ptr_ =
-        row_set_mem_owner_->allocate(varlen_output_buf_bytes, thread_idx_);
-    CHECK(varlen_output_info_);
-    varlen_output_info_->gpu_start_address = static_cast<int64_t>(varlen_output_buffer_);
-    varlen_output_info_->cpu_buffer_ptr = varlen_output_buffer_host_ptr_;
+    CHECK(device_type != ExecutorDeviceType::L0);
+    CHECK(false);
+    // CHECK(dev_group_by_buffers.varlen_output_buffer);
+    // varlen_output_buffer_ = dev_group_by_buffers.varlen_output_buffer;
+    // CHECK(query_mem_desc.varlenOutputBufferElemSize());
+    // const size_t varlen_output_buf_bytes =
+    //     query_mem_desc.getEntryCount() *
+    //     query_mem_desc.varlenOutputBufferElemSize().value();
+    // varlen_output_buffer_host_ptr_ =
+    //     row_set_mem_owner_->allocate(varlen_output_buf_bytes, thread_idx_);
+    // CHECK(varlen_output_info_);
+    // varlen_output_info_->gpu_start_address =
+    // static_cast<int64_t>(varlen_output_buffer_); varlen_output_info_->cpu_buffer_ptr =
+    // varlen_output_buffer_host_ptr_;
   }
   if (render_allocator) {
     CHECK(device_type != ExecutorDeviceType::L0);
