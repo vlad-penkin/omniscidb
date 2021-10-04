@@ -141,20 +141,18 @@ llvm::Function* row_process(llvm::Module* mod,
   auto i64_type = IntegerType::get(mod->getContext(), 64);
   auto pi32_type = PointerType::get(i32_type, AS);
   auto pi64_type = PointerType::get(i64_type, AS);
-  auto pi32_stack_type = PointerType::get(i32_type, 0);
-  auto pi64_stack_type = PointerType::get(i64_type, 0);
 
   if (aggr_col_count) {
     for (size_t i = 0; i < aggr_col_count; ++i) {
       func_args.push_back(pi64_type);
     }
-  } else {                                 // group by query
-    func_args.push_back(pi64_type);        // groups buffer
-    func_args.push_back(pi64_type);        // varlen output buffer
-    func_args.push_back(pi32_stack_type);  // 1 iff current row matched, else 0
-    func_args.push_back(pi32_type);        // total rows matched from the caller
-    func_args.push_back(pi32_stack_type);  // total rows matched before atomic increment
-    func_args.push_back(pi32_type);        // max number of slots in the output buffer
+  } else {                           // group by query
+    func_args.push_back(pi64_type);  // groups buffer
+    func_args.push_back(pi64_type);  // varlen output buffer
+    func_args.push_back(pi32_type);  // 1 iff current row matched, else 0
+    func_args.push_back(pi32_type);  // total rows matched from the caller
+    func_args.push_back(pi32_type);  // total rows matched before atomic increment
+    func_args.push_back(pi32_type);  // max number of slots in the output buffer
   }
 
   func_args.push_back(pi64_type);  // aggregate init values

@@ -2863,7 +2863,9 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
 
   const bool is_group_by{query_mem_desc->isGroupBy()};
 
-  std::string dt = co.device_type == ExecutorDeviceType::CPU ? "CPU" : "GPU";
+  std::string dt = co.device_type == ExecutorDeviceType::CPU
+                       ? "CPU"
+                       : (co.device_type == ExecutorDeviceType::L0 ? "L0" : "CUDA");
   std::cerr << "groupby" << is_group_by << " template for device " << dt << std::endl;
   auto [query_func, row_func_call] = is_group_by
                                          ? query_group_by_template(cgen_state_->module_,

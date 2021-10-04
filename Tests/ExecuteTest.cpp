@@ -2811,13 +2811,25 @@ TEST(Select, ApproxQuantileValidate) {
 }
 
 TEST(Select, Simplest) {
-  for (auto dt : {ExecutorDeviceType::CPU}) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::L0}) {
     c("SELECT count(x) FROM test where x >= 8;", dt);
   }
 }
 
-TEST(Select, SimplestGroupBy) {
+TEST(Select, SimplestGroupByL0) {
   for (auto dt : {ExecutorDeviceType::L0}) {
+    c("SELECT x FROM test where x >= 8;", dt);
+  }
+}
+
+TEST(Select, SimplestGroupByCPU) {
+  for (auto dt : {ExecutorDeviceType::CPU}) {
+    c("SELECT x FROM test where x >= 8;", dt);
+  }
+}
+
+TEST(Select, SimplestGroupBy) {
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::L0}) {
     c("SELECT x FROM test where x >= 8;", dt);
   }
 }
