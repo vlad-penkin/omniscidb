@@ -434,7 +434,8 @@ extern "C" GPU_RT_STUB void agg_count_distinct_bitmap_skip_val_gpu(int64_t*,
                                                                    const uint64_t,
                                                                    const uint64_t) {}
 
-extern "C" ALWAYS_INLINE uint32_t agg_count_int32(uint32_t* agg, const int32_t) {
+extern "C" ALWAYS_INLINE uint32_t agg_count_int32(ADDR_SPACE uint32_t* agg,
+                                                  const int32_t) {
   return (*agg)++;
 }
 
@@ -464,9 +465,10 @@ DEF_AGG_MIN_INT(16)
 DEF_AGG_MIN_INT(8)
 #undef DEF_AGG_MIN_INT
 
-#define DEF_AGG_ID_INT(n)                                                              \
-  extern "C" ALWAYS_INLINE void agg_id_int##n(int##n##_t* agg, const int##n##_t val) { \
-    *agg = val;                                                                        \
+#define DEF_AGG_ID_INT(n)                                                 \
+  extern "C" ALWAYS_INLINE void agg_id_int##n(ADDR_SPACE int##n##_t* agg, \
+                                              const int##n##_t val) {     \
+    *agg = val;                                                           \
   }
 
 #define DEF_CHECKED_SINGLE_AGG_ID_INT(n)                                  \
@@ -1190,10 +1192,10 @@ extern "C" ALWAYS_INLINE int64_t* get_matching_group_value_perfect_hash(
  * Since it is intended for keyless hash use, it assumes there is no group columns
  * prepending the output buffer.
  */
-extern "C" ALWAYS_INLINE int64_t* get_matching_group_value_perfect_hash_keyless(
-    int64_t* groups_buffer,
-    const uint32_t hashed_index,
-    const uint32_t row_size_quad) {
+extern "C" ALWAYS_INLINE ADDR_SPACE int64_t*
+get_matching_group_value_perfect_hash_keyless(ADDR_SPACE int64_t* groups_buffer,
+                                              const uint32_t hashed_index,
+                                              const uint32_t row_size_quad) {
   return groups_buffer + row_size_quad * hashed_index;
 }
 
@@ -1218,8 +1220,8 @@ extern "C" ALWAYS_INLINE void set_matching_group_value_perfect_hash_columnar(
 #include "GroupByRuntime.cpp"
 #include "JoinHashTable/Runtime/JoinHashTableQueryRuntime.cpp"
 
-extern "C" ALWAYS_INLINE int64_t* get_group_value_fast_keyless(
-    int64_t* groups_buffer,
+extern "C" ALWAYS_INLINE ADDR_SPACE int64_t* get_group_value_fast_keyless(
+    ADDR_SPACE int64_t* groups_buffer,
     const int64_t key,
     const int64_t min_key,
     const int64_t /* bucket */,
@@ -1401,7 +1403,8 @@ extern "C" void multifrag_query_hoisted_literals(
     GLOBAL_ADDR_SPACE const int64_t* join_hash_tables) {
   for (uint32_t i = 0; i < *num_fragments; ++i) {
     query_stub_hoisted_literals(
-        col_buffers ? ((const int8_t ADDR_SPACE* ADDR_SPACE* ADDR_SPACE*)col_buffers)[i] : nullptr,
+        col_buffers ? ((const int8_t ADDR_SPACE* ADDR_SPACE* ADDR_SPACE*)col_buffers)[i]
+                    : nullptr,
         literals,
         &num_rows[i * (*num_tables_ptr)],
         &frag_row_offsets[i * (*num_tables_ptr)],
@@ -1444,16 +1447,18 @@ extern "C" void multifrag_query(GLOBAL_ADDR_SPACE const int8_t* col_buffers,
                                 GLOBAL_ADDR_SPACE const uint32_t* num_tables_ptr,
                                 GLOBAL_ADDR_SPACE const int64_t* join_hash_tables) {
   for (uint32_t i = 0; i < *num_fragments; ++i) {
-    query_stub(col_buffers ? ((const int8_t ADDR_SPACE* ADDR_SPACE* ADDR_SPACE*)col_buffers)[i] : nullptr,
-        &num_rows[i * (*num_tables_ptr)],
-        &frag_row_offsets[i * (*num_tables_ptr)],
-        max_matched,
-        init_agg_value,
-        (int64_t ADDR_SPACE * ADDR_SPACE*)out,
-        i,
-        join_hash_tables,
-        total_matched,
-        error_code);
+    query_stub(col_buffers
+                   ? ((const int8_t ADDR_SPACE* ADDR_SPACE* ADDR_SPACE*)col_buffers)[i]
+                   : nullptr,
+               &num_rows[i * (*num_tables_ptr)],
+               &frag_row_offsets[i * (*num_tables_ptr)],
+               max_matched,
+               init_agg_value,
+               (int64_t ADDR_SPACE * ADDR_SPACE*)out,
+               i,
+               join_hash_tables,
+               total_matched,
+               error_code);
   }
 }
 

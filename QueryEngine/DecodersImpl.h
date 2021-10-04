@@ -126,11 +126,12 @@ extern "C" DEVICE NEVER_INLINE float SUFFIX(
 }
 
 extern "C" DEVICE ALWAYS_INLINE double SUFFIX(
-    fixed_width_double_decode)(const int8_t* byte_stream, const int64_t pos) {
+    fixed_width_double_decode)(ADDR_SPACE const int8_t* byte_stream, const int64_t pos) {
 #ifdef WITH_DECODERS_BOUNDS_CHECKING
   assert(pos >= 0);
 #endif  // WITH_DECODERS_BOUNDS_CHECKING
-  return *(reinterpret_cast<const double*>(&byte_stream[pos * sizeof(double)]));
+  return *(
+      reinterpret_cast<ADDR_SPACE const double*>(&byte_stream[pos * sizeof(double)]));
 }
 
 extern "C" DEVICE NEVER_INLINE double SUFFIX(
