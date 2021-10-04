@@ -50,11 +50,18 @@ inline void run_ddl_statement(const string& input_str) {
   QR::get()->runDDLStatement(input_str);
 }
 
-TargetValue run_simple_agg(const string& query_str) {
-  auto rows = QR::get()->runSQL(query_str, ExecutorDeviceType::CPU, false);
+TargetValue run_simple_agg(const string& query_str,
+                           const ExecutorDeviceType& dt = ExecutorDeviceType::CPU) {
+  auto rows = QR::get()->runSQL(query_str, dt, false);
   auto crt_row = rows->getNextRow(true, true);
   CHECK_EQ(size_t(1), crt_row.size()) << query_str;
   return crt_row[0];
+}
+
+bool g_hoist_literals{true};
+std::shared_ptr<ResultSet> run_multiple_agg(const string& query_str,
+                                            const ExecutorDeviceType device_type) {
+  return QR::get()->runSQL(query_str, device_type, g_hoist_literals, true);
 }
 
 template <typename T>
@@ -157,8 +164,8 @@ dropoff_boroct2010 BIGINT,
 dropoff_cdeligibil TEXT ENCODING NONE,
 dropoff_ntacode TEXT ENCODING NONE,
 dropoff_ntaname TEXT ENCODING NONE,
-dropoff_puma BIGINT) WITH (storage_type='CSV:../../Tests/Import/datafiles/trips_with_headers_top1000.csv', fragment_size=100);
-)";
+dropoff_puma BIGINT) WITH (storage_type='CSV:/omniscidb/Tests/Import/datafiles/trips_with_headers_top1000.csv', fragment_size=100);
+)";  // TODO: path needs fixing
 
 class NycTaxiTest : public ::testing::Test {
  protected:
@@ -178,6 +185,83 @@ TEST_F(NycTaxiTest, RunSimpleQuery) {
   ASSERT_EQ(999,
             v<int64_t>(run_simple_agg(
                 "SELECT count(vendor_id) FROM trips where vendor_id < '5'")));
+}
+
+TEST_F(NycTaxiTest, Q1CPU) {
+  const auto rows = run_multiple_agg("SELECT cab_type, count(*) FROM trips group by 1",
+                                     ExecutorDeviceType::CPU);
+  ASSERT_EQ(size_t(1), rows->rowCount());
+  ASSERT_EQ(size_t(2), rows->colCount());
+  const auto row = rows->getNextRow(true, true);
+  ASSERT_EQ(999, v<int64_t>(row[1]));
+}
+
+TEST_F(NycTaxiTest, Q2CPU) {
+  const auto rows =
+      run_multiple_agg("SELECT passenger_count, avg(total_amount) FROM trips GROUP BY 1;",
+                       ExecutorDeviceType::CPU);
+  ASSERT_EQ(size_t(2), rows->colCount());
+  ASSERT_EQ(size_t(6), rows->rowCount());
+  // todo: content comparison
+}
+
+TEST_F(NycTaxiTest, Q3CPU) {
+  const auto rows = run_multiple_agg(
+      "SELECT passenger_count, extract(year from "
+      "pickup_datetime), count(*) FROM trips GROUP BY 1, 2;",
+      ExecutorDeviceType::CPU);
+  std::cerr << rows->colCount() << " " << rows->rowCount() << std::endl;
+  ASSERT_EQ(size_t(3), rows->colCount());
+  ASSERT_EQ(size_t(6), rows->rowCount());
+}
+
+TEST_F(NycTaxiTest, Q4CPU) {
+  const auto rows = run_multiple_agg(
+      "SELECT passenger_count, extract(year from "
+      "pickup_datetime), cast(trip_distance as int), count(*) FROM trips GROUP BY 1, 2, "
+      "3 ORDER BY 2, 4 desc;",
+      ExecutorDeviceType::CPU);
+  std::cerr << rows->colCount() << " " << rows->rowCount() << std::endl;
+  ASSERT_EQ(size_t(4), rows->colCount());
+  ASSERT_EQ(size_t(40), rows->rowCount());
+}
+
+TEST_F(NycTaxiTest, Q1L0) {
+  const auto rows = run_multiple_agg("SELECT cab_type, count(*) FROM trips group by 1",
+                                     ExecutorDeviceType::L0);
+  ASSERT_EQ(size_t(1), rows->rowCount());
+  ASSERT_EQ(size_t(2), rows->colCount());
+  const auto row = rows->getNextRow(true, true);
+  ASSERT_EQ(999, v<int64_t>(row[1]));
+}
+
+TEST_F(NycTaxiTest, Q2L0) {
+  const auto rows =
+      run_multiple_agg("SELECT passenger_count, avg(total_amount) FROM trips GROUP BY 1;",
+                       ExecutorDeviceType::L0);
+  ASSERT_EQ(size_t(2), rows->colCount());
+  ASSERT_EQ(size_t(6), rows->rowCount());
+}
+
+TEST_F(NycTaxiTest, Q3L0) {
+  const auto rows = run_multiple_agg(
+      "SELECT passenger_count, extract(year from "
+      "pickup_datetime), count(*) FROM trips GROUP BY 1, 2;",
+      ExecutorDeviceType::L0);
+  std::cerr << rows->colCount() << " " << rows->rowCount() << std::endl;
+  ASSERT_EQ(size_t(3), rows->colCount());
+  ASSERT_EQ(size_t(6), rows->rowCount());
+}
+
+TEST_F(NycTaxiTest, Q4L0) {
+  const auto rows = run_multiple_agg(
+      "SELECT passenger_count, extract(year from "
+      "pickup_datetime), cast(trip_distance as int), count(*) FROM trips GROUP BY 1, 2, "
+      "3 ORDER BY 2, 4 desc;",
+      ExecutorDeviceType::L0);
+  std::cerr << rows->colCount() << " " << rows->rowCount() << std::endl;
+  ASSERT_EQ(size_t(4), rows->colCount());
+  ASSERT_EQ(size_t(40), rows->rowCount());
 }
 
 TEST_F(NycTaxiTest, GroupByColumnWithNulls) {
