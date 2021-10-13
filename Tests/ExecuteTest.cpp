@@ -2822,6 +2822,12 @@ TEST(Select, SimplestGroupByL0) {
   }
 }
 
+TEST(Select, MixCpuGpu) {
+  c("SELECT x FROM test where x >= 8;", ExecutorDeviceType::L0);
+  c("SELECT x FROM test where x >= 9;", ExecutorDeviceType::CPU);
+  c("SELECT count(x) FROM test where x >= 10;", ExecutorDeviceType::L0);
+}
+
 TEST(Select, SimplestGroupByCPU) {
   for (auto dt : {ExecutorDeviceType::CPU}) {
     c("SELECT x FROM test where x >= 8;", dt);

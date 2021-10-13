@@ -67,9 +67,19 @@ struct RemoveAddrSpacesPass : llvm::ModulePass {
     }
 
     inst->mutateType(removeAddrSpace(inst->getType()));
-    for (int i = 0; i < inst->getNumOperands(); i++) {
-      auto op = inst->getOperand(i);
-      op->mutateType(removeAddrSpace(op->getType()));
+    for (auto op_iter = inst->op_begin(); op_iter != inst->op_end(); ++op_iter) {
+      llvm::Value* op = *op_iter;
+      if (llvm::isa<llvm::ConstantData>(op)) {
+        if (auto null_ptr = llvm::dyn_cast<llvm::ConstantPointerNull>(op)) {
+          *op_iter = llvm::ConstantPointerNull::get(
+              llvm::cast<llvm::PointerType>(removeAddrSpace(null_ptr->getType())));
+        } else {
+          // We don't need to change non pointers type
+          continue;
+        }
+      } else {
+        op->mutateType(removeAddrSpace(op->getType()));
+      }
     }
   }
 
@@ -122,69 +132,6 @@ struct RemoveAddrSpacesPass : llvm::ModulePass {
 
 char RemoveAddrSpacesPass::ID = 0;
 
-struct CallInstVisitor : llvm::InstVisitor<CallInstVisitor> {
-  void visitCallInst(llvm::CallInst& inst) { visitCallBase(inst); }
-  void visitCallBase(llvm::CallBase& call) {
-    llvm::PointerType* fpty =
-        llvm::cast<llvm::PointerType>(call.getCalledOperand()->getType());
-
-    if (fpty->getElementType() != call.getFunctionType()) {
-      llvm::outs() << "call type: \n" << call.getFunctionType() << "\n";
-      call.getFunctionType()->print(llvm::outs());
-      llvm::outs() << "\n";
-
-      llvm::outs() << "func type: " << fpty->getElementType() << "\n";
-      fpty->getElementType()->print(llvm::outs());
-      llvm::outs() << "\n";
-    }
-  }
-};
-
-struct CallVerifierPass : llvm::FunctionPass {
-  static char ID;
-  CallVerifierPass() : llvm::FunctionPass(ID) {}
-
-  bool runOnFunction(llvm::Function& f) override {
-    CallInstVisitor v;
-    v.visit(f);
-    return false;
-  }
-};
-
-char CallVerifierPass::ID = 1;
-
-struct SortedPrintModulePass : llvm::ModulePass {
-  static char ID;
-  SortedPrintModulePass() : llvm::ModulePass(ID) {}
-
-  bool runOnModule(llvm::Module& m) override {
-    std::vector<llvm::Function*> functions;
-
-    for (auto& f : m) {
-      functions.push_back(&f);
-    }
-
-    std::sort(functions.begin(), functions.end(), [](auto lhs, auto rhs) {
-      return lhs->getName() < rhs->getName();
-    });
-
-    for (auto f : functions) {
-      f->print(llvm::outs());
-    }
-    return false;
-  }
-};
-
-char SortedPrintModulePass::ID = 2;
-
 llvm::Pass* createRemoveAddrSpacesPass() {
   return new RemoveAddrSpacesPass();
 };
-
-llvm::Pass* createCallVerifierPass() {
-  return new CallVerifierPass();
-}
-
-llvm::Pass* createSortedPrintModulePass() {
-  return new SortedPrintModulePass();
-}

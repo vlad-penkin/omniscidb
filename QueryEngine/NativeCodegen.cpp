@@ -2847,10 +2847,7 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
 
   if (co.device_type != ExecutorDeviceType::L0) {
     llvm::legacy::PassManager pass_manager;
-    // pass_manager.add(createSortedPrintModulePass());
     pass_manager.add(createRemoveAddrSpacesPass());
-    // pass_manager.add(createSortedPrintModulePass());
-    pass_manager.add(createCallVerifierPass());
     pass_manager.run(*cgen_state_->module_);
   }
 
