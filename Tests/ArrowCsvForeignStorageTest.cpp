@@ -268,6 +268,24 @@ TEST_F(NycTaxiTest, Q4) {
   });
 }
 
+TEST_F(NycTaxiTest, Q4NoSort) {
+  const auto expected = run_multiple_agg(
+      "SELECT passenger_count, extract(year from "
+      "pickup_datetime), cast(trip_distance as int), count(*) FROM trips GROUP BY 1, 2, "
+      "3;",
+      ExecutorDeviceType::CPU);
+  const auto actual = run_multiple_agg(
+      "SELECT passenger_count, extract(year from "
+      "pickup_datetime), cast(trip_distance as int), count(*) FROM trips GROUP BY 1, 2, "
+      "3;",
+      ExecutorDeviceType::L0);
+
+  compare_results(expected, actual, [](auto e, auto a) {
+    return v<int64_t>(e[0]) == v<int64_t>(a[0]) && v<int64_t>(e[1]) == v<int64_t>(a[1]) &&
+           v<int64_t>(e[2]) == v<int64_t>(a[2]) && v<int64_t>(e[3]) == v<int64_t>(a[3]);
+  });
+}
+
 TEST_F(NycTaxiTest, GroupByColumnWithNulls) {
   // TODO: expect +1 rows when move to arrow 0.15 as current arrow doesn't support
   // headerless csv
