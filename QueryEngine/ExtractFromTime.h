@@ -17,8 +17,24 @@
 #ifndef QUERYENGINE_EXTRACTFROMTIME_H
 #define QUERYENGINE_EXTRACTFROMTIME_H
 
+#ifndef __OPENCL__
 #include <cstdint>
-#include <ctime>
+#define C_API extern "C"
+#else
+typedef signed long int int64_t;
+typedef signed int int32_t;
+typedef unsigned long int uint64_t;
+typedef unsigned int uint32_t;
+
+#define INT32_MAX (2147483647)
+#define INT64_MAX (9223372036854775807)
+
+#define UINT32_MAX (4294967295U)
+#define UINT64_MAX (18446744073709551615)
+
+#define constexpr const
+#define C_API
+#endif
 #include "Shared/funcannotations.h"
 
 static constexpr int64_t kNanoSecsPerSec = 1000000000;
@@ -70,7 +86,7 @@ static constexpr uint32_t kSecsJanToMar1900 = 5097600;
 constexpr unsigned MARJAN = 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31;
 constexpr unsigned JANMAR = 31 + 28;  // leap day handled separately
 
-enum ExtractField {
+typedef enum {
   kYEAR,
   kQUARTER,
   kMONTH,
@@ -90,7 +106,7 @@ enum ExtractField {
   kWEEK_SUNDAY,
   kWEEK_SATURDAY,
   kDATEEPOCH
-};
+} ExtractField;
 
 DEVICE int64_t ExtractFromTime(ExtractField field, const int64_t timeval);
 

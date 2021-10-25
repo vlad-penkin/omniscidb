@@ -298,10 +298,10 @@ list(APPEND QUERY_ENGINE_LIBS L0Mgr)
 target_link_libraries(QueryEngine ${QUERY_ENGINE_LIBS})
 
 add_custom_command(
-  DEPENDS l0_mapd_rt.cpp
+  DEPENDS l0_mapd_rt.cpp ExtractFromTime.cpp
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/l0_mapd_rt.bc
   COMMAND ${llvm_clangpp_cmd}
-  ARGS -cl-std=cl2.0 -O3 -emit-llvm -Xclang -finclude-default-header -target spir64
+  ARGS -D__OPENCL__ -std=c++17 -cl-std=cl2.0 -O3 -emit-llvm -Xclang -finclude-default-header -target spir64
   ${CLANG_SDK_INC}
   ${CLANG_CRT_INC}
   ${MAPD_DEFINITIONS}

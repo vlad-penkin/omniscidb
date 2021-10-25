@@ -21,11 +21,9 @@
 
 #include "ExtractFromTime.h"
 
-#ifndef __CUDACC__
+#if !defined(__CUDACC__) && !defined(__OPENCL__)
 #include <cstdlib>  // abort()
 #endif
-
-namespace {
 
 // Number of days until Wednesday (because 2000-03-01 is a Wednesday.)
 constexpr unsigned MONDAY = 2;
@@ -35,59 +33,53 @@ constexpr unsigned SATURDAY = 4;
 // If OFFSET=MONDAY,
 // then return day-of-era of the Monday of ISO 8601 week 1 in the given year-of-era.
 // Similarly for SUNDAY and SATURDAY. In all cases, week 1 always contains Jan 4.
-template <unsigned OFFSET>
-DEVICE unsigned week_start_from_yoe(unsigned const yoe) {
+C_API DEVICE ALWAYS_INLINE unsigned week_start_from_yoe(unsigned const yoe,
+                                                        unsigned const offset) {
   unsigned const march1 = yoe * 365 + yoe / 4 - yoe / 100;
   unsigned const jan4 = march1 + (MARJAN + 3);
-  unsigned const jan4dow = (jan4 + OFFSET) % 7;
+  unsigned const jan4dow = (jan4 + offset) % 7;
   return jan4 - jan4dow;
 }
 
-}  // namespace
-
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_hour(const int64_t lcltime) {
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t extract_hour(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerDay) / kSecsPerHour;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_minute(const int64_t lcltime) {
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t extract_minute(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerHour) / kSecsPerMin;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_second(const int64_t lcltime) {
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t extract_second(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerMin);
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_millisecond(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerMin * kMilliSecsPerSec);
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_microsecond(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerMin * kMicroSecsPerSec);
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_nanosecond(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerMin * kNanoSecsPerSec);
 }
 
 // First day of epoch is Thursday, so + 4 to have Sunday=0.
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_dow(const int64_t lcltime) {
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t extract_dow(const int64_t lcltime) {
   int64_t const days_past_epoch = floor_div(lcltime, kSecsPerDay);
   return unsigned_mod(days_past_epoch + 4, kDaysPerWeek);
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_quarterday(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerDay) / kSecsPerQuarterDay + 1;
 }
 
-DEVICE int32_t extract_month_fast(const int64_t lcltime) {
+C_API DEVICE int32_t extract_month_fast(const int64_t lcltime) {
   STATIC_QUAL const uint32_t cumulative_month_epoch_starts[kMonsPerYear] = {0,
                                                                             2678400,
                                                                             5270400,
@@ -120,7 +112,7 @@ DEVICE int32_t extract_month_fast(const int64_t lcltime) {
   return (month + 2) % 12 + 1;
 }
 
-DEVICE int32_t extract_quarter_fast(const int64_t lcltime) {
+C_API DEVICE int32_t extract_quarter_fast(const int64_t lcltime) {
   STATIC_QUAL const uint32_t cumulative_quarter_epoch_starts[4] = {
       0, 7776000, 15638400, 23587200};
   STATIC_QUAL const uint32_t cumulative_quarter_epoch_starts_leap_year[4] = {
@@ -144,7 +136,7 @@ DEVICE int32_t extract_quarter_fast(const int64_t lcltime) {
   return quarter + 1;
 }
 
-DEVICE int32_t extract_year_fast(const int64_t lcltime) {
+C_API DEVICE int32_t extract_year_fast(const int64_t lcltime) {
   const uint32_t seconds_1900 = lcltime + kEpochOffsetYear1900;
   const uint32_t leap_years = (seconds_1900 - kSecsJanToMar1900) / kSecondsPer4YearCycle;
   const uint32_t year =
@@ -152,25 +144,22 @@ DEVICE int32_t extract_year_fast(const int64_t lcltime) {
   return year;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_epoch(const int64_t timeval) {
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t extract_epoch(const int64_t timeval) {
   return timeval;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_dateepoch(const int64_t timeval) {
   return timeval - unsigned_mod(timeval, kSecsPerDay);
 }
 
 // First day of epoch is Thursday, so + 3 to have Monday=0, then + 1 at the end.
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_isodow(const int64_t timeval) {
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t extract_isodow(const int64_t timeval) {
   int64_t const days_past_epoch = floor_div(timeval, kSecsPerDay);
   return unsigned_mod(days_past_epoch + 3, kDaysPerWeek) + 1;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_day(const int64_t timeval) {
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t extract_day(const int64_t timeval) {
   int64_t const day = floor_div(timeval, kSecsPerDay);
   unsigned const doe = unsigned_mod(day - kEpochAdjustedDays, kDaysPer400Years);
   unsigned const yoe = (doe - doe / 1460 + doe / 36524 - (doe == 146096)) / 365;
@@ -179,7 +168,7 @@ extract_day(const int64_t timeval) {
   return doy - (153 * moy + 2) / 5 + 1;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_day_of_year(const int64_t timeval) {
   int64_t const day = floor_div(timeval, kSecsPerDay);
   unsigned const doe = unsigned_mod(day - kEpochAdjustedDays, kDaysPer400Years);
@@ -189,40 +178,39 @@ extract_day_of_year(const int64_t timeval) {
                              : 1 - MARJAN);
 }
 
-template <unsigned OFFSET>
-ALWAYS_INLINE DEVICE int64_t extract_week(const int64_t timeval) {
+C_API ALWAYS_INLINE DEVICE int64_t extract_week(const int64_t timeval,
+                                                const int64_t offset) {
   int64_t const day = floor_div(timeval, kSecsPerDay);
   unsigned const doe = unsigned_mod(day - kEpochAdjustedDays, kDaysPer400Years);
   unsigned const yoe = (doe - doe / 1460 + doe / 36524 - (doe == 146096)) / 365;
-  unsigned week_start = week_start_from_yoe<OFFSET>(yoe);
+  unsigned week_start = week_start_from_yoe(yoe, offset);
   if (doe < week_start) {
     if (yoe == 0) {
       // 2000-03-01 is OFFSET days from start of week, week + 9.
-      return (doe + OFFSET) / 7 + 9;
+      return (doe + offset) / 7 + 9;
     } else {
-      week_start = week_start_from_yoe<OFFSET>(yoe - 1);
+      week_start = week_start_from_yoe(yoe - 1, offset);
     }
   }
   return (doe - week_start) / 7 + 1;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_week_monday(const int64_t timeval) {
-  return extract_week<MONDAY>(timeval);
+  return extract_week(timeval, MONDAY);
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_week_sunday(const int64_t timeval) {
-  return extract_week<SUNDAY>(timeval);
+  return extract_week(timeval, SUNDAY);
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_week_saturday(const int64_t timeval) {
-  return extract_week<SATURDAY>(timeval);
+  return extract_week(timeval, SATURDAY);
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_month(const int64_t timeval) {
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t extract_month(const int64_t timeval) {
   if (timeval >= 0LL && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
     return extract_month_fast(timeval);
   }
@@ -234,12 +222,11 @@ extract_month(const int64_t timeval) {
   return moy + (moy < 10 ? 3 : -9);
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_quarter(const int64_t timeval) {
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t extract_quarter(const int64_t timeval) {
   if (timeval >= 0LL && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
     return extract_quarter_fast(timeval);
   }
-  constexpr int64_t quarter[12]{1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 1, 1};
+  static constexpr int64_t quarter[12] = {1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 1, 1};
   int64_t const day = floor_div(timeval, kSecsPerDay);
   unsigned const doe = unsigned_mod(day - kEpochAdjustedDays, kDaysPer400Years);
   unsigned const yoe = (doe - doe / 1460 + doe / 36524 - (doe == 146096)) / 365;
@@ -248,8 +235,7 @@ extract_quarter(const int64_t timeval) {
   return quarter[moy];
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_year(const int64_t timeval) {
+C_API RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t extract_year(const int64_t timeval) {
   if (timeval >= 0LL && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
     return extract_year_fast(timeval);
   }
@@ -306,7 +292,7 @@ DEVICE int64_t ExtractFromTime(ExtractField field, const int64_t timeval) {
       return extract_year(timeval);
   }
 
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__OPENCL__)
   return -1;
 #else
   abort();

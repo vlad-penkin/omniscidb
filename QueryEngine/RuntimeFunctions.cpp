@@ -1006,7 +1006,7 @@ extern "C" int64_t* init_shared_mem(const int64_t* global_groups_buffer,
 }
 
 extern "C" NEVER_INLINE __attribute__((optnone)) void init_group_by_buffer_gpu(
-    int64_t* groups_buffer,
+    ADDR_SPACE int64_t* groups_buffer,
     const int64_t* init_vals,
     const uint32_t groups_buffer_entry_count,
     const uint32_t key_qw_count,
@@ -1020,7 +1020,7 @@ extern "C" NEVER_INLINE __attribute__((optnone)) void init_group_by_buffer_gpu(
 }
 
 extern "C" NEVER_INLINE __attribute__((optnone)) void init_columnar_group_by_buffer_gpu(
-    int64_t* groups_buffer,
+    ADDR_SPACE int64_t* groups_buffer,
     const int64_t* init_vals,
     const uint32_t groups_buffer_entry_count,
     const uint32_t key_qw_count,
@@ -1048,32 +1048,59 @@ extern "C" NEVER_INLINE __attribute__((optnone)) void init_group_by_buffer_impl(
 #endif
 }
 
-template <typename T>
-ALWAYS_INLINE int64_t* get_matching_group_value(int64_t* groups_buffer,
-                                                const uint32_t h,
-                                                const T* key,
-                                                const uint32_t key_count,
-                                                const uint32_t row_size_quad) {
-  auto off = h * row_size_quad;
-  auto row_ptr = reinterpret_cast<T*>(groups_buffer + off);
-  if (*row_ptr == get_empty_key<T>()) {
-    memcpy(row_ptr, key, key_count * sizeof(T));
-    auto row_ptr_i8 = reinterpret_cast<int8_t*>(row_ptr + key_count);
-    return reinterpret_cast<int64_t*>(align_to_int64(row_ptr_i8));
+void my_memcpy(ADDR_SPACE void* dst, const ADDR_SPACE void* src, size_t len) {
+  // TODO(L0): fixme
+  ADDR_SPACE int8_t* i8dst = reinterpret_cast<ADDR_SPACE int8_t*>(dst);
+  const ADDR_SPACE int8_t* i8src = reinterpret_cast<const ADDR_SPACE int8_t*>(src);
+  for (size_t i = 0; i < len; ++i) {
+    i8dst[i] = i8src[i];
   }
-  if (memcmp(row_ptr, key, key_count * sizeof(T)) == 0) {
-    auto row_ptr_i8 = reinterpret_cast<int8_t*>(row_ptr + key_count);
-    return reinterpret_cast<int64_t*>(align_to_int64(row_ptr_i8));
+}
+
+int my_memcmp(const ADDR_SPACE void* lhs, const ADDR_SPACE void* rhs, size_t len) {
+  // TODO(L0): fixme
+  const ADDR_SPACE int8_t* i8lhs = reinterpret_cast<const ADDR_SPACE int8_t*>(lhs);
+  const ADDR_SPACE int8_t* i8rhs = reinterpret_cast<const ADDR_SPACE int8_t*>(rhs);
+
+  for (size_t i = 0; i < len; ++i) {
+    if (i8lhs[i] < i8rhs[i]) {
+      return -1;
+    }
+    if (i8lhs[i] > i8rhs[i]) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+template <typename T>
+ALWAYS_INLINE ADDR_SPACE int64_t* get_matching_group_value(
+    ADDR_SPACE int64_t* groups_buffer,
+    const uint32_t h,
+    const T* key,
+    const uint32_t key_count,
+    const uint32_t row_size_quad) {
+  auto off = h * row_size_quad;
+  auto row_ptr = reinterpret_cast<ADDR_SPACE T*>(groups_buffer + off);
+  if (*row_ptr == get_empty_key<T>()) {
+    my_memcpy(row_ptr, key, key_count * sizeof(T));
+    auto row_ptr_i8 = reinterpret_cast<ADDR_SPACE int8_t*>(row_ptr + key_count);
+    return reinterpret_cast<ADDR_SPACE int64_t*>(align_to_int64(row_ptr_i8));
+  }
+  if (my_memcmp(row_ptr, key, key_count * sizeof(T)) == 0) {
+    auto row_ptr_i8 = reinterpret_cast<ADDR_SPACE int8_t*>(row_ptr + key_count);
+    return reinterpret_cast<ADDR_SPACE int64_t*>(align_to_int64(row_ptr_i8));
   }
   return nullptr;
 }
 
-extern "C" ALWAYS_INLINE int64_t* get_matching_group_value(int64_t* groups_buffer,
-                                                           const uint32_t h,
-                                                           const int64_t* key,
-                                                           const uint32_t key_count,
-                                                           const uint32_t key_width,
-                                                           const uint32_t row_size_quad) {
+extern "C" ALWAYS_INLINE ADDR_SPACE int64_t* get_matching_group_value(
+    ADDR_SPACE int64_t* groups_buffer,
+    const uint32_t h,
+    const int64_t* key,
+    const uint32_t key_count,
+    const uint32_t key_width,
+    const uint32_t row_size_quad) {
   switch (key_width) {
     case 4:
       return get_matching_group_value(groups_buffer,
@@ -1089,13 +1116,14 @@ extern "C" ALWAYS_INLINE int64_t* get_matching_group_value(int64_t* groups_buffe
 }
 
 template <typename T>
-ALWAYS_INLINE int32_t get_matching_group_value_columnar_slot(int64_t* groups_buffer,
-                                                             const uint32_t entry_count,
-                                                             const uint32_t h,
-                                                             const T* key,
-                                                             const uint32_t key_count) {
+ALWAYS_INLINE int32_t
+get_matching_group_value_columnar_slot(ADDR_SPACE int64_t* groups_buffer,
+                                       const uint32_t entry_count,
+                                       const uint32_t h,
+                                       const T* key,
+                                       const uint32_t key_count) {
   auto off = h;
-  auto key_buffer = reinterpret_cast<T*>(groups_buffer);
+  auto key_buffer = reinterpret_cast<ADDR_SPACE T*>(groups_buffer);
   if (key_buffer[off] == get_empty_key<T>()) {
     for (size_t i = 0; i < key_count; ++i) {
       key_buffer[off] = key[i];
@@ -1114,7 +1142,7 @@ ALWAYS_INLINE int32_t get_matching_group_value_columnar_slot(int64_t* groups_buf
 }
 
 extern "C" ALWAYS_INLINE int32_t
-get_matching_group_value_columnar_slot(int64_t* groups_buffer,
+get_matching_group_value_columnar_slot(ADDR_SPACE int64_t* groups_buffer,
                                        const uint32_t entry_count,
                                        const uint32_t h,
                                        const int64_t* key,
@@ -1136,8 +1164,8 @@ get_matching_group_value_columnar_slot(int64_t* groups_buffer,
   return -1;
 }
 
-extern "C" ALWAYS_INLINE int64_t* get_matching_group_value_columnar(
-    int64_t* groups_buffer,
+extern "C" ALWAYS_INLINE ADDR_SPACE int64_t* get_matching_group_value_columnar(
+    ADDR_SPACE int64_t* groups_buffer,
     const uint32_t h,
     const int64_t* key,
     const uint32_t key_qw_count,
@@ -1171,8 +1199,8 @@ extern "C" ALWAYS_INLINE int64_t* get_matching_group_value_columnar(
  *
  * | prepended group columns (64-bit each) | agg columns |
  */
-extern "C" ALWAYS_INLINE int64_t* get_matching_group_value_perfect_hash(
-    int64_t* groups_buffer,
+extern "C" ALWAYS_INLINE ADDR_SPACE int64_t* get_matching_group_value_perfect_hash(
+    ADDR_SPACE int64_t* groups_buffer,
     const uint32_t hashed_index,
     const int64_t* key,
     const uint32_t key_count,
@@ -1229,8 +1257,8 @@ extern "C" ALWAYS_INLINE ADDR_SPACE int64_t* get_group_value_fast_keyless(
   return groups_buffer + row_size_quad * (key - min_key);
 }
 
-extern "C" ALWAYS_INLINE int64_t* get_group_value_fast_keyless_semiprivate(
-    int64_t* groups_buffer,
+extern "C" ALWAYS_INLINE ADDR_SPACE int64_t* get_group_value_fast_keyless_semiprivate(
+    ADDR_SPACE int64_t* groups_buffer,
     const int64_t key,
     const int64_t min_key,
     const int64_t /* bucket */,

@@ -22,15 +22,15 @@ key_hash(const int64_t* key, const uint32_t key_count, const uint32_t key_byte_w
   return MurmurHash3(key, key_byte_width * key_count, 0);
 }
 
-extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE int64_t* get_group_value(
-    int64_t* groups_buffer,
+extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE ADDR_SPACE int64_t* get_group_value(
+    ADDR_SPACE int64_t* groups_buffer,
     const uint32_t groups_buffer_entry_count,
     const int64_t* key,
     const uint32_t key_count,
     const uint32_t key_width,
     const uint32_t row_size_quad) {
   uint32_t h = key_hash(key, key_count, key_width) % groups_buffer_entry_count;
-  int64_t* matching_group = get_matching_group_value(
+  ADDR_SPACE int64_t* matching_group = get_matching_group_value(
       groups_buffer, h, key, key_count, key_width, row_size_quad);
   if (matching_group) {
     return matching_group;
@@ -49,15 +49,15 @@ extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE int64_t* get_group_value(
 
 extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE bool dynamic_watchdog();
 
-extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE int64_t* get_group_value_with_watchdog(
-    int64_t* groups_buffer,
-    const uint32_t groups_buffer_entry_count,
-    const int64_t* key,
-    const uint32_t key_count,
-    const uint32_t key_width,
-    const uint32_t row_size_quad) {
+extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE ADDR_SPACE int64_t*
+get_group_value_with_watchdog(ADDR_SPACE int64_t* groups_buffer,
+                              const uint32_t groups_buffer_entry_count,
+                              const int64_t* key,
+                              const uint32_t key_count,
+                              const uint32_t key_width,
+                              const uint32_t row_size_quad) {
   uint32_t h = key_hash(key, key_count, key_width) % groups_buffer_entry_count;
-  int64_t* matching_group = get_matching_group_value(
+  ADDR_SPACE int64_t* matching_group = get_matching_group_value(
       groups_buffer, h, key, key_count, key_width, row_size_quad);
   if (matching_group) {
     return matching_group;
@@ -82,7 +82,7 @@ extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE int64_t* get_group_value_with_watc
 }
 
 extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE int32_t
-get_group_value_columnar_slot(int64_t* groups_buffer,
+get_group_value_columnar_slot(ADDR_SPACE int64_t* groups_buffer,
                               const uint32_t groups_buffer_entry_count,
                               const int64_t* key,
                               const uint32_t key_count,
@@ -106,7 +106,7 @@ get_group_value_columnar_slot(int64_t* groups_buffer,
 }
 
 extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE int32_t
-get_group_value_columnar_slot_with_watchdog(int64_t* groups_buffer,
+get_group_value_columnar_slot_with_watchdog(ADDR_SPACE int64_t* groups_buffer,
                                             const uint32_t groups_buffer_entry_count,
                                             const int64_t* key,
                                             const uint32_t key_count,
@@ -136,13 +136,13 @@ get_group_value_columnar_slot_with_watchdog(int64_t* groups_buffer,
   return -1;
 }
 
-extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE int64_t* get_group_value_columnar(
-    int64_t* groups_buffer,
-    const uint32_t groups_buffer_entry_count,
-    const int64_t* key,
-    const uint32_t key_qw_count) {
+extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE ADDR_SPACE int64_t*
+get_group_value_columnar(ADDR_SPACE int64_t* groups_buffer,
+                         const uint32_t groups_buffer_entry_count,
+                         const int64_t* key,
+                         const uint32_t key_qw_count) {
   uint32_t h = key_hash(key, key_qw_count, sizeof(int64_t)) % groups_buffer_entry_count;
-  int64_t* matching_group = get_matching_group_value_columnar(
+  ADDR_SPACE int64_t* matching_group = get_matching_group_value_columnar(
       groups_buffer, h, key, key_qw_count, groups_buffer_entry_count);
   if (matching_group) {
     return matching_group;
@@ -159,13 +159,13 @@ extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE int64_t* get_group_value_columnar(
   return NULL;
 }
 
-extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE int64_t*
-get_group_value_columnar_with_watchdog(int64_t* groups_buffer,
+extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE ADDR_SPACE int64_t*
+get_group_value_columnar_with_watchdog(ADDR_SPACE int64_t* groups_buffer,
                                        const uint32_t groups_buffer_entry_count,
                                        const int64_t* key,
                                        const uint32_t key_qw_count) {
   uint32_t h = key_hash(key, key_qw_count, sizeof(int64_t)) % groups_buffer_entry_count;
-  int64_t* matching_group = get_matching_group_value_columnar(
+  ADDR_SPACE int64_t* matching_group = get_matching_group_value_columnar(
       groups_buffer, h, key, key_qw_count, groups_buffer_entry_count);
   if (matching_group) {
     return matching_group;
@@ -189,8 +189,8 @@ get_group_value_columnar_with_watchdog(int64_t* groups_buffer,
   return NULL;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t* get_group_value_fast(
-    int64_t* groups_buffer,
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE ADDR_SPACE int64_t* get_group_value_fast(
+    ADDR_SPACE int64_t* groups_buffer,
     const int64_t key,
     const int64_t min_key,
     const int64_t bucket,
@@ -206,8 +206,8 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t* get_group_value_fast(
   return groups_buffer + off + 1;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t*
-get_group_value_fast_with_original_key(int64_t* groups_buffer,
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE ADDR_SPACE int64_t*
+get_group_value_fast_with_original_key(ADDR_SPACE int64_t* groups_buffer,
                                        const int64_t key,
                                        const int64_t orig_key,
                                        const int64_t min_key,
@@ -225,7 +225,7 @@ get_group_value_fast_with_original_key(int64_t* groups_buffer,
 }
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE uint32_t
-get_columnar_group_bin_offset(int64_t* key_base_ptr,
+get_columnar_group_bin_offset(ADDR_SPACE int64_t* key_base_ptr,
                               const int64_t key,
                               const int64_t min_key,
                               const int64_t bucket) {
@@ -254,7 +254,7 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE ADDR_SPACE int64_t* get_scan_outp
 }
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int32_t
-get_columnar_scan_output_offset(int64_t* output_buffer,
+get_columnar_scan_output_offset(ADDR_SPACE int64_t* output_buffer,
                                 const uint32_t output_buffer_entry_count,
                                 const uint32_t pos,
                                 const int64_t offset_in_fragment) {

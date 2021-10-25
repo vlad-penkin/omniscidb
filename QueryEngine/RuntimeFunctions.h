@@ -122,8 +122,8 @@ extern "C" RUNTIME_EXPORT uint32_t key_hash(const int64_t* key,
                                             const uint32_t key_qw_count,
                                             const uint32_t key_byte_width);
 
-extern "C" RUNTIME_EXPORT int64_t* get_group_value(
-    int64_t* groups_buffer,
+extern "C" RUNTIME_EXPORT ADDR_SPACE int64_t* get_group_value(
+    ADDR_SPACE int64_t* groups_buffer,
     const uint32_t groups_buffer_entry_count,
     const int64_t* key,
     const uint32_t key_count,
@@ -136,90 +136,96 @@ extern "C" bool check_interrupt();
 
 extern "C" bool check_interrupt_init(unsigned command);
 
-extern "C" RUNTIME_EXPORT int64_t* get_group_value_with_watchdog(
-    int64_t* groups_buffer,
+extern "C" RUNTIME_EXPORT ADDR_SPACE int64_t* get_group_value_with_watchdog(
+    ADDR_SPACE int64_t* groups_buffer,
     const uint32_t groups_buffer_entry_count,
     const int64_t* key,
     const uint32_t key_count,
     const uint32_t key_width,
     const uint32_t row_size_quad);
 
-extern "C" RUNTIME_EXPORT int64_t* get_group_value_columnar(
-    int64_t* groups_buffer,
+extern "C" RUNTIME_EXPORT ADDR_SPACE int64_t* get_group_value_columnar(
+    ADDR_SPACE int64_t* groups_buffer,
     const uint32_t groups_buffer_entry_count,
     const int64_t* key,
     const uint32_t key_qw_count);
 
-extern "C" RUNTIME_EXPORT int64_t* get_group_value_columnar_with_watchdog(
-    int64_t* groups_buffer,
+extern "C" RUNTIME_EXPORT ADDR_SPACE int64_t* get_group_value_columnar_with_watchdog(
+    ADDR_SPACE int64_t* groups_buffer,
     const uint32_t groups_buffer_entry_count,
     const int64_t* key,
     const uint32_t key_qw_count);
 
-extern "C" RUNTIME_EXPORT int64_t* get_group_value_fast(int64_t* groups_buffer,
-                                                        const int64_t key,
-                                                        const int64_t min_key,
-                                                        const int64_t bucket,
-                                                        const uint32_t row_size_quad);
+extern "C" RUNTIME_EXPORT ADDR_SPACE int64_t* get_group_value_fast(
+    ADDR_SPACE int64_t* groups_buffer,
+    const int64_t key,
+    const int64_t min_key,
+    const int64_t bucket,
+    const uint32_t row_size_quad);
 
-extern "C" RUNTIME_EXPORT int64_t* get_group_value_fast_with_original_key(
-    int64_t* groups_buffer,
+extern "C" RUNTIME_EXPORT ADDR_SPACE int64_t* get_group_value_fast_with_original_key(
+    ADDR_SPACE int64_t* groups_buffer,
     const int64_t key,
     const int64_t orig_key,
     const int64_t min_key,
     const int64_t bucket,
     const uint32_t row_size_quad);
 
-extern "C" RUNTIME_EXPORT uint32_t get_columnar_group_bin_offset(int64_t* key_base_ptr,
-                                                                 const int64_t key,
-                                                                 const int64_t min_key,
-                                                                 const int64_t bucket);
+extern "C" RUNTIME_EXPORT uint32_t
+get_columnar_group_bin_offset(ADDR_SPACE int64_t* key_base_ptr,
+                              const int64_t key,
+                              const int64_t min_key,
+                              const int64_t bucket);
 
-extern "C" int64_t* get_matching_group_value_perfect_hash(int64_t* groups_buffer,
-                                                          const uint32_t h,
-                                                          const int64_t* key,
-                                                          const uint32_t key_qw_count,
-                                                          const uint32_t row_size_quad);
+extern "C" ADDR_SPACE int64_t* get_matching_group_value_perfect_hash(
+    ADDR_SPACE int64_t* groups_buffer,
+    const uint32_t h,
+    const int64_t* key,
+    const uint32_t key_qw_count,
+    const uint32_t row_size_quad);
 
 extern "C" ADDR_SPACE int64_t* get_matching_group_value_perfect_hash_keyless(
     ADDR_SPACE int64_t* groups_buffer,
     const uint32_t hashed_index,
     const uint32_t row_size_quad);
 
-extern "C" int32_t* get_bucketized_hash_slot(int32_t* buff,
+extern "C" ADDR_SPACE int32_t* get_bucketized_hash_slot(
+    ADDR_SPACE int32_t* buff,
+    const int64_t key,
+    const int64_t min_key,
+    const int64_t bucket_normalization = 1);
+
+extern "C" ADDR_SPACE int32_t* get_hash_slot(ADDR_SPACE int32_t* buff,
                                              const int64_t key,
-                                             const int64_t min_key,
-                                             const int64_t bucket_normalization = 1);
+                                             const int64_t min_key);
 
-extern "C" int32_t* get_hash_slot(int32_t* buff,
-                                  const int64_t key,
-                                  const int64_t min_key);
-
-extern "C" int32_t* get_hash_slot_sharded(int32_t* buff,
-                                          const int64_t key,
-                                          const int64_t min_key,
-                                          const uint32_t entry_count_per_shard,
-                                          const uint32_t num_shards,
-                                          const uint32_t device_count);
-
-extern "C" int32_t* get_bucketized_hash_slot_sharded(int32_t* buff,
+extern "C" ADDR_SPACE int32_t* get_hash_slot_sharded(ADDR_SPACE int32_t* buff,
                                                      const int64_t key,
                                                      const int64_t min_key,
                                                      const uint32_t entry_count_per_shard,
                                                      const uint32_t num_shards,
-                                                     const uint32_t device_count,
-                                                     const int64_t bucket_normalization);
+                                                     const uint32_t device_count);
 
-extern "C" int32_t* get_hash_slot_sharded_opt(int32_t* buff,
-                                              const int64_t key,
-                                              const int64_t min_key,
-                                              const uint32_t entry_count_per_shard,
-                                              const uint32_t shard,
-                                              const uint32_t num_shards,
-                                              const uint32_t device_count);
+extern "C" ADDR_SPACE int32_t* get_bucketized_hash_slot_sharded(
+    ADDR_SPACE int32_t* buff,
+    const int64_t key,
+    const int64_t min_key,
+    const uint32_t entry_count_per_shard,
+    const uint32_t num_shards,
+    const uint32_t device_count,
+    const int64_t bucket_normalization);
 
-extern "C" int32_t* get_bucketized_hash_slot_sharded_opt(
-    int32_t* buff,
+extern "C" ADDR_SPACE int32_t* get_hash_slot_sharded_opt(
+    ADDR_SPACE int32_t* buff,
+    const int64_t key,
+    const int64_t min_key,
+    const uint32_t entry_count_per_shard,
+    const uint32_t shard,
+    const uint32_t num_shards,
+    const uint32_t device_count);
+
+extern "C" ADDR_SPACE int32_t* get_bucketized_hash_slot_sharded_opt(
+    ADDR_SPACE int32_t* buff,
     const int64_t key,
     const int64_t min_key,
     const uint32_t entry_count_per_shard,
@@ -244,25 +250,27 @@ extern "C" void linear_probabilistic_count(uint8_t* bitmap,
 // Regular fixed_width_*_decode are only available from the JIT,
 // we need to call them for lazy fetch columns -- create wrappers.
 
-extern "C" int64_t fixed_width_int_decode_noinline(const int8_t* byte_stream,
+extern "C" int64_t fixed_width_int_decode_noinline(const ADDR_SPACE int8_t* byte_stream,
                                                    const int32_t byte_width,
                                                    const int64_t pos);
 
-extern "C" int64_t fixed_width_unsigned_decode_noinline(const int8_t* byte_stream,
-                                                        const int32_t byte_width,
-                                                        const int64_t pos);
+extern "C" int64_t fixed_width_unsigned_decode_noinline(
+    const ADDR_SPACE int8_t* byte_stream,
+    const int32_t byte_width,
+    const int64_t pos);
 
-extern "C" float fixed_width_float_decode_noinline(const int8_t* byte_stream,
+extern "C" float fixed_width_float_decode_noinline(const ADDR_SPACE int8_t* byte_stream,
                                                    const int64_t pos);
 
-extern "C" double fixed_width_double_decode_noinline(const int8_t* byte_stream,
+extern "C" double fixed_width_double_decode_noinline(const ADDR_SPACE int8_t* byte_stream,
                                                      const int64_t pos);
 
-extern "C" int64_t fixed_width_small_date_decode_noinline(const int8_t* byte_stream,
-                                                          const int32_t byte_width,
-                                                          const int32_t null_val,
-                                                          const int64_t ret_null_val,
-                                                          const int64_t pos);
+extern "C" int64_t fixed_width_small_date_decode_noinline(
+    const ADDR_SPACE int8_t* byte_stream,
+    const int32_t byte_width,
+    const int32_t null_val,
+    const int64_t ret_null_val,
+    const int64_t pos);
 
 extern "C" int8_t* extract_str_ptr_noinline(const uint64_t str_and_len);
 
