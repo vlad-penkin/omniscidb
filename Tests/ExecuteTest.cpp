@@ -2822,6 +2822,12 @@ TEST(Select, SimplestGroupByL0) {
   }
 }
 
+TEST(Sort, SimplestL0) {
+  for (auto dt : {ExecutorDeviceType::L0}) {
+    c("SELECT x FROM test where x >= 8 ORDER BY x;", dt);
+  }
+}
+
 TEST(Select, MixCpuGpu) {
   c("SELECT x FROM test where x >= 8;", ExecutorDeviceType::L0);
   c("SELECT x FROM test where x >= 9;", ExecutorDeviceType::CPU);
