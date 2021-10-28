@@ -559,6 +559,11 @@ class Executor {
     return false;
   }
 
+  bool deviceCanHandleDoubleTypes(const ExecutorDeviceType dt) const {
+    return (dt == ExecutorDeviceType::CPU) || (dt == ExecutorDeviceType::L0) ||
+           isArchPascalOrLater(dt);
+  }
+
   bool needFetchAllFragments(const InputColDescriptor& col_desc,
                              const RelAlgExecutionUnit& ra_exe_unit,
                              const FragmentsList& selected_fragments) const;
