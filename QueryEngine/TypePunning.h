@@ -29,7 +29,7 @@ FORCE_INLINE T* may_alias_ptr(T* ptr) {
 }
 #else
 template <class T>
-    FORCE_INLINE T __attribute__((__may_alias__)) * may_alias_ptr(T* ptr) {
+    FORCE_INLINE ADDR_SPACE T __attribute__((__may_alias__)) * may_alias_ptr(T* ptr) {
   return ptr;
 }
 #endif

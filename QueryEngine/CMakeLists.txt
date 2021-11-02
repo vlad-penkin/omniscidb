@@ -25,6 +25,7 @@ set(query_engine_source_files
     ColumnFetcher.cpp
     ColumnIR.cpp
     CompareIR.cpp
+    CompilationOptions.cpp
     ConstantIR.cpp
     DateTimeIR.cpp
     DateTimePlusRewrite.cpp
@@ -89,6 +90,7 @@ set(query_engine_source_files
     RelAlgTranslator.cpp
     RelAlgTranslatorGeo.cpp
     RelAlgOptimizer.cpp
+    RemoveAddrSpacesPass.cpp
     ResultSet.cpp
     ResultSetBuilder.cpp
     ResultSetIteration.cpp

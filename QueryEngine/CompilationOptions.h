@@ -21,6 +21,8 @@
 
 enum class ExecutorDeviceType { CPU, CUDA, L0 };
 
+std::ostream& operator<<(std::ostream& os, const ExecutorDeviceType& dt);
+
 enum class ExecutorOptLevel { Default, LoopStrengthReduction, ReductionJIT };
 
 enum class ExecutorExplainType { Default, Optimized };

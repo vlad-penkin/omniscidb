@@ -250,6 +250,13 @@ TEST_F(NycTaxiTest, Q3) {
   });
 }
 
+TEST_F(NycTaxiTest, Q3noCPU) {
+  const auto actual = run_multiple_agg(
+      "SELECT passenger_count, extract(year from "
+      "pickup_datetime), count(*) FROM trips GROUP BY 1, 2;",
+      ExecutorDeviceType::L0);
+}
+
 TEST_F(NycTaxiTest, Q4) {
   const auto expected = run_multiple_agg(
       "SELECT passenger_count, extract(year from "

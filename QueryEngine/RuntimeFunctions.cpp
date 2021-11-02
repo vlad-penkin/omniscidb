@@ -174,6 +174,26 @@ DEF_ARITH_NULLABLE_RHS(int64_t, int64_t, mod, %)
 #undef DEF_ARITH_NULLABLE_LHS
 #undef DEF_ARITH_NULLABLE
 
+// standard functions replacements for L0
+#ifdef HAVE_L0
+
+template <typename T, typename U>
+const T& l0_max(const T& lhs, const U& rhs) {
+  return lhs < rhs ? rhs : lhs;
+}
+
+template <typename T, typename U>
+const T& l0_min(const T& lhs, const U& rhs) {
+  return lhs > rhs ? rhs : lhs;
+}
+
+#define MAX l0_max
+#define MIN l0_min
+#else
+#define MAX std::max
+#define MIN std::min
+#endif
+
 extern "C" ALWAYS_INLINE int64_t scale_decimal_up(const int64_t operand,
                                                   const uint64_t scale,
                                                   const int64_t operand_null_val,
@@ -311,7 +331,7 @@ extern "C" ALWAYS_INLINE uint64_t agg_count(ADDR_SPACE uint64_t* agg, const int6
   return (*agg)++;
 }
 
-extern "C" ALWAYS_INLINE void agg_count_distinct_bitmap(int64_t* agg,
+extern "C" ALWAYS_INLINE void agg_count_distinct_bitmap(ADDR_SPACE int64_t* agg,
                                                         const int64_t val,
                                                         const int64_t min_val) {
   const uint64_t bitmap_idx = val - min_val;
@@ -339,7 +359,7 @@ extern "C" NEVER_INLINE void agg_approximate_count_distinct(int64_t* agg,
   const uint32_t index = hash >> (64 - b);
   const uint8_t rank = get_rank(hash << b, 64 - b);
   uint8_t* M = reinterpret_cast<uint8_t*>(*agg);
-  M[index] = std::max(M[index], rank);
+  M[index] = MAX(M[index], rank);
 }
 
 extern "C" GPU_RT_STUB void agg_approximate_count_distinct_gpu(int64_t*,
@@ -370,18 +390,18 @@ extern "C" ALWAYS_INLINE int8_t bit_is_set(const int64_t bitset,
              : 0;
 }
 
-extern "C" ALWAYS_INLINE int64_t agg_sum(int64_t* agg, const int64_t val) {
+extern "C" ALWAYS_INLINE int64_t agg_sum(ADDR_SPACE int64_t* agg, const int64_t val) {
   const auto old = *agg;
   *agg += val;
   return old;
 }
 
-extern "C" ALWAYS_INLINE void agg_max(int64_t* agg, const int64_t val) {
-  *agg = std::max(*agg, val);
+extern "C" ALWAYS_INLINE void agg_max(ADDR_SPACE int64_t* agg, const int64_t val) {
+  *agg = MAX(*agg, val);
 }
 
-extern "C" ALWAYS_INLINE void agg_min(int64_t* agg, const int64_t val) {
-  *agg = std::min(*agg, val);
+extern "C" ALWAYS_INLINE void agg_min(ADDR_SPACE int64_t* agg, const int64_t val) {
+  *agg = MIN(*agg, val);
 }
 
 extern "C" ALWAYS_INLINE void agg_id(ADDR_SPACE int64_t* agg, const int64_t val) {
@@ -416,7 +436,7 @@ extern "C" ALWAYS_INLINE int32_t checked_single_agg_id(int64_t* agg,
   }
 }
 
-extern "C" ALWAYS_INLINE void agg_count_distinct_bitmap_skip_val(int64_t* agg,
+extern "C" ALWAYS_INLINE void agg_count_distinct_bitmap_skip_val(ADDR_SPACE int64_t* agg,
                                                                  const int64_t val,
                                                                  const int64_t min_val,
                                                                  const int64_t skip_val) {
@@ -425,7 +445,7 @@ extern "C" ALWAYS_INLINE void agg_count_distinct_bitmap_skip_val(int64_t* agg,
   }
 }
 
-extern "C" GPU_RT_STUB void agg_count_distinct_bitmap_skip_val_gpu(int64_t*,
+extern "C" GPU_RT_STUB void agg_count_distinct_bitmap_skip_val_gpu(ADDR_SPACE int64_t*,
                                                                    const int64_t,
                                                                    const int64_t,
                                                                    const int64_t,
@@ -439,15 +459,17 @@ extern "C" ALWAYS_INLINE uint32_t agg_count_int32(ADDR_SPACE uint32_t* agg,
   return (*agg)++;
 }
 
-extern "C" ALWAYS_INLINE int32_t agg_sum_int32(int32_t* agg, const int32_t val) {
+extern "C" ALWAYS_INLINE int32_t agg_sum_int32(ADDR_SPACE int32_t* agg,
+                                               const int32_t val) {
   const auto old = *agg;
   *agg += val;
   return old;
 }
 
-#define DEF_AGG_MAX_INT(n)                                                              \
-  extern "C" ALWAYS_INLINE void agg_max_int##n(int##n##_t* agg, const int##n##_t val) { \
-    *agg = std::max(*agg, val);                                                         \
+#define DEF_AGG_MAX_INT(n)                                                 \
+  extern "C" ALWAYS_INLINE void agg_max_int##n(ADDR_SPACE int##n##_t* agg, \
+                                               const int##n##_t val) {     \
+    *agg = MAX(*agg, val);                                                 \
   }
 
 DEF_AGG_MAX_INT(32)
@@ -455,9 +477,10 @@ DEF_AGG_MAX_INT(16)
 DEF_AGG_MAX_INT(8)
 #undef DEF_AGG_MAX_INT
 
-#define DEF_AGG_MIN_INT(n)                                                              \
-  extern "C" ALWAYS_INLINE void agg_min_int##n(int##n##_t* agg, const int##n##_t val) { \
-    *agg = std::min(*agg, val);                                                         \
+#define DEF_AGG_MIN_INT(n)                                                 \
+  extern "C" ALWAYS_INLINE void agg_min_int##n(ADDR_SPACE int##n##_t* agg, \
+                                               const int##n##_t val) {     \
+    *agg = MIN(*agg, val);                                                 \
   }
 
 DEF_AGG_MIN_INT(32)
@@ -511,7 +534,7 @@ DEF_WRITE_PROJECTION_INT(64)
 DEF_WRITE_PROJECTION_INT(32)
 #undef DEF_WRITE_PROJECTION_INT
 
-extern "C" ALWAYS_INLINE int64_t agg_sum_skip_val(int64_t* agg,
+extern "C" ALWAYS_INLINE int64_t agg_sum_skip_val(ADDR_SPACE int64_t* agg,
                                                   const int64_t val,
                                                   const int64_t skip_val) {
   const auto old = *agg;
@@ -525,7 +548,7 @@ extern "C" ALWAYS_INLINE int64_t agg_sum_skip_val(int64_t* agg,
   return old;
 }
 
-extern "C" ALWAYS_INLINE int32_t agg_sum_int32_skip_val(int32_t* agg,
+extern "C" ALWAYS_INLINE int32_t agg_sum_int32_skip_val(ADDR_SPACE int32_t* agg,
                                                         const int32_t val,
                                                         const int32_t skip_val) {
   const auto old = *agg;
@@ -548,7 +571,7 @@ extern "C" ALWAYS_INLINE uint64_t agg_count_skip_val(ADDR_SPACE uint64_t* agg,
   return *agg;
 }
 
-extern "C" ALWAYS_INLINE uint32_t agg_count_int32_skip_val(uint32_t* agg,
+extern "C" ALWAYS_INLINE uint32_t agg_count_int32_skip_val(ADDR_SPACE uint32_t* agg,
                                                            const int32_t val,
                                                            const int32_t skip_val) {
   if (val != skip_val) {
@@ -557,25 +580,25 @@ extern "C" ALWAYS_INLINE uint32_t agg_count_int32_skip_val(uint32_t* agg,
   return *agg;
 }
 
-#define DEF_SKIP_AGG_ADD(base_agg_func)                       \
-  extern "C" ALWAYS_INLINE void base_agg_func##_skip_val(     \
-      DATA_T* agg, const DATA_T val, const DATA_T skip_val) { \
-    if (val != skip_val) {                                    \
-      base_agg_func(agg, val);                                \
-    }                                                         \
+#define DEF_SKIP_AGG_ADD(base_agg_func)                                  \
+  extern "C" ALWAYS_INLINE void base_agg_func##_skip_val(                \
+      ADDR_SPACE DATA_T* agg, const DATA_T val, const DATA_T skip_val) { \
+    if (val != skip_val) {                                               \
+      base_agg_func(agg, val);                                           \
+    }                                                                    \
   }
 
-#define DEF_SKIP_AGG(base_agg_func)                           \
-  extern "C" ALWAYS_INLINE void base_agg_func##_skip_val(     \
-      DATA_T* agg, const DATA_T val, const DATA_T skip_val) { \
-    if (val != skip_val) {                                    \
-      const DATA_T old_agg = *agg;                            \
-      if (old_agg != skip_val) {                              \
-        base_agg_func(agg, val);                              \
-      } else {                                                \
-        *agg = val;                                           \
-      }                                                       \
-    }                                                         \
+#define DEF_SKIP_AGG(base_agg_func)                                      \
+  extern "C" ALWAYS_INLINE void base_agg_func##_skip_val(                \
+      ADDR_SPACE DATA_T* agg, const DATA_T val, const DATA_T skip_val) { \
+    if (val != skip_val) {                                               \
+      const DATA_T old_agg = *agg;                                       \
+      if (old_agg != skip_val) {                                         \
+        base_agg_func(agg, val);                                         \
+      } else {                                                           \
+        *agg = val;                                                      \
+      }                                                                  \
+    }                                                                    \
   }
 
 #define DATA_T int64_t
@@ -603,40 +626,42 @@ DEF_SKIP_AGG(agg_min_int8)
 
 // TODO(alex): fix signature
 
-extern "C" ALWAYS_INLINE uint64_t agg_count_double(uint64_t* agg, const double val) {
+extern "C" ALWAYS_INLINE uint64_t agg_count_double(ADDR_SPACE uint64_t* agg,
+                                                   const double val) {
   return (*agg)++;
 }
 
-extern "C" ALWAYS_INLINE void agg_sum_double(int64_t* agg, const double val) {
-  const auto r = *reinterpret_cast<const double*>(agg) + val;
-  *agg = *reinterpret_cast<const int64_t*>(may_alias_ptr(&r));
+extern "C" ALWAYS_INLINE void agg_sum_double(ADDR_SPACE int64_t* agg, const double val) {
+  const auto r = *reinterpret_cast<const ADDR_SPACE double*>(agg) + val;
+  *agg = *reinterpret_cast<const ADDR_SPACE int64_t*>(may_alias_ptr(&r));
 }
 
-extern "C" ALWAYS_INLINE void agg_max_double(int64_t* agg, const double val) {
-  const auto r = std::max(*reinterpret_cast<const double*>(agg), val);
-  *agg = *(reinterpret_cast<const int64_t*>(may_alias_ptr(&r)));
+extern "C" ALWAYS_INLINE void agg_max_double(ADDR_SPACE int64_t* agg, const double val) {
+  const auto r = MAX(*reinterpret_cast<const ADDR_SPACE double*>(agg), val);
+  *agg = *(reinterpret_cast<const ADDR_SPACE int64_t*>(may_alias_ptr(&r)));
 }
 
-extern "C" ALWAYS_INLINE void agg_min_double(int64_t* agg, const double val) {
-  const auto r = std::min(*reinterpret_cast<const double*>(agg), val);
-  *agg = *(reinterpret_cast<const int64_t*>(may_alias_ptr(&r)));
+extern "C" ALWAYS_INLINE void agg_min_double(ADDR_SPACE int64_t* agg, const double val) {
+  const auto r = MIN(*reinterpret_cast<const ADDR_SPACE double*>(agg), val);
+  *agg = *(reinterpret_cast<const ADDR_SPACE int64_t*>(may_alias_ptr(&r)));
 }
 
-extern "C" ALWAYS_INLINE void agg_id_double(int64_t* agg, const double val) {
-  *agg = *(reinterpret_cast<const int64_t*>(may_alias_ptr(&val)));
+extern "C" ALWAYS_INLINE void agg_id_double(ADDR_SPACE int64_t* agg, const double val) {
+  *agg = *(reinterpret_cast<const ADDR_SPACE int64_t*>(may_alias_ptr(&val)));
 }
 
-extern "C" ALWAYS_INLINE int32_t checked_single_agg_id_double(int64_t* agg,
+extern "C" ALWAYS_INLINE int32_t checked_single_agg_id_double(ADDR_SPACE int64_t* agg,
                                                               const double val,
                                                               const double null_val) {
   if (val == null_val) {
     return 0;
   }
 
-  if (*agg == *(reinterpret_cast<const int64_t*>(may_alias_ptr(&val)))) {
+  if (*agg == *(reinterpret_cast<const ADDR_SPACE int64_t*>(may_alias_ptr(&val)))) {
     return 0;
-  } else if (*agg == *(reinterpret_cast<const int64_t*>(may_alias_ptr(&null_val)))) {
-    *agg = *(reinterpret_cast<const int64_t*>(may_alias_ptr(&val)));
+  } else if (*agg ==
+             *(reinterpret_cast<const ADDR_SPACE int64_t*>(may_alias_ptr(&null_val)))) {
+    *agg = *(reinterpret_cast<const ADDR_SPACE int64_t*>(may_alias_ptr(&val)));
     return 0;
   } else {
     // see Execute::ERR_SINGLE_VALUE_FOUND_MULTIPLE_VALUES
@@ -644,40 +669,42 @@ extern "C" ALWAYS_INLINE int32_t checked_single_agg_id_double(int64_t* agg,
   }
 }
 
-extern "C" ALWAYS_INLINE uint32_t agg_count_float(uint32_t* agg, const float val) {
+extern "C" ALWAYS_INLINE uint32_t agg_count_float(ADDR_SPACE uint32_t* agg,
+                                                  const float val) {
   return (*agg)++;
 }
 
-extern "C" ALWAYS_INLINE void agg_sum_float(int32_t* agg, const float val) {
-  const auto r = *reinterpret_cast<const float*>(agg) + val;
-  *agg = *reinterpret_cast<const int32_t*>(may_alias_ptr(&r));
+extern "C" ALWAYS_INLINE void agg_sum_float(ADDR_SPACE int32_t* agg, const float val) {
+  const auto r = *reinterpret_cast<const ADDR_SPACE float*>(agg) + val;
+  *agg = *reinterpret_cast<const ADDR_SPACE int32_t*>(may_alias_ptr(&r));
 }
 
-extern "C" ALWAYS_INLINE void agg_max_float(int32_t* agg, const float val) {
-  const auto r = std::max(*reinterpret_cast<const float*>(agg), val);
-  *agg = *(reinterpret_cast<const int32_t*>(may_alias_ptr(&r)));
+extern "C" ALWAYS_INLINE void agg_max_float(ADDR_SPACE int32_t* agg, const float val) {
+  const auto r = MAX(*reinterpret_cast<const ADDR_SPACE float*>(agg), val);
+  *agg = *(reinterpret_cast<const ADDR_SPACE int32_t*>(may_alias_ptr(&r)));
 }
 
-extern "C" ALWAYS_INLINE void agg_min_float(int32_t* agg, const float val) {
-  const auto r = std::min(*reinterpret_cast<const float*>(agg), val);
-  *agg = *(reinterpret_cast<const int32_t*>(may_alias_ptr(&r)));
+extern "C" ALWAYS_INLINE void agg_min_float(ADDR_SPACE int32_t* agg, const float val) {
+  const auto r = MIN(*reinterpret_cast<const ADDR_SPACE float*>(agg), val);
+  *agg = *(reinterpret_cast<const ADDR_SPACE int32_t*>(may_alias_ptr(&r)));
 }
 
-extern "C" ALWAYS_INLINE void agg_id_float(int32_t* agg, const float val) {
-  *agg = *(reinterpret_cast<const int32_t*>(may_alias_ptr(&val)));
+extern "C" ALWAYS_INLINE void agg_id_float(ADDR_SPACE int32_t* agg, const float val) {
+  *agg = *(reinterpret_cast<const ADDR_SPACE int32_t*>(may_alias_ptr(&val)));
 }
 
-extern "C" ALWAYS_INLINE int32_t checked_single_agg_id_float(int32_t* agg,
+extern "C" ALWAYS_INLINE int32_t checked_single_agg_id_float(ADDR_SPACE int32_t* agg,
                                                              const float val,
                                                              const float null_val) {
   if (val == null_val) {
     return 0;
   }
 
-  if (*agg == *(reinterpret_cast<const int32_t*>(may_alias_ptr(&val)))) {
+  if (*agg == *(reinterpret_cast<const ADDR_SPACE int32_t*>(may_alias_ptr(&val)))) {
     return 0;
-  } else if (*agg == *(reinterpret_cast<const int32_t*>(may_alias_ptr(&null_val)))) {
-    *agg = *(reinterpret_cast<const int32_t*>(may_alias_ptr(&val)));
+  } else if (*agg ==
+             *(reinterpret_cast<const ADDR_SPACE int32_t*>(may_alias_ptr(&null_val)))) {
+    *agg = *(reinterpret_cast<const ADDR_SPACE int32_t*>(may_alias_ptr(&val)));
     return 0;
   } else {
     // see Execute::ERR_SINGLE_VALUE_FOUND_MULTIPLE_VALUES
@@ -685,7 +712,7 @@ extern "C" ALWAYS_INLINE int32_t checked_single_agg_id_float(int32_t* agg,
   }
 }
 
-extern "C" ALWAYS_INLINE uint64_t agg_count_double_skip_val(uint64_t* agg,
+extern "C" ALWAYS_INLINE uint64_t agg_count_double_skip_val(ADDR_SPACE uint64_t* agg,
                                                             const double val,
                                                             const double skip_val) {
   if (val != skip_val) {
@@ -694,7 +721,7 @@ extern "C" ALWAYS_INLINE uint64_t agg_count_double_skip_val(uint64_t* agg,
   return *agg;
 }
 
-extern "C" ALWAYS_INLINE uint32_t agg_count_float_skip_val(uint32_t* agg,
+extern "C" ALWAYS_INLINE uint32_t agg_count_float_skip_val(ADDR_SPACE uint32_t* agg,
                                                            const float val,
                                                            const float skip_val) {
   if (val != skip_val) {
@@ -703,23 +730,24 @@ extern "C" ALWAYS_INLINE uint32_t agg_count_float_skip_val(uint32_t* agg,
   return *agg;
 }
 
-#define DEF_SKIP_AGG_ADD(base_agg_func)                       \
-  extern "C" ALWAYS_INLINE void base_agg_func##_skip_val(     \
-      ADDR_T* agg, const DATA_T val, const DATA_T skip_val) { \
-    if (val != skip_val) {                                    \
-      base_agg_func(agg, val);                                \
-    }                                                         \
+#define DEF_SKIP_AGG_ADD(base_agg_func)                                  \
+  extern "C" ALWAYS_INLINE void base_agg_func##_skip_val(                \
+      ADDR_SPACE ADDR_T* agg, const DATA_T val, const DATA_T skip_val) { \
+    if (val != skip_val) {                                               \
+      base_agg_func(agg, val);                                           \
+    }                                                                    \
   }
 
 #define DEF_SKIP_AGG(base_agg_func)                                                \
   extern "C" ALWAYS_INLINE void base_agg_func##_skip_val(                          \
-      ADDR_T* agg, const DATA_T val, const DATA_T skip_val) {                      \
+      ADDR_SPACE ADDR_T* agg, const DATA_T val, const DATA_T skip_val) {           \
     if (val != skip_val) {                                                         \
       const ADDR_T old_agg = *agg;                                                 \
-      if (old_agg != *reinterpret_cast<const ADDR_T*>(may_alias_ptr(&skip_val))) { \
+      if (old_agg !=                                                               \
+          *reinterpret_cast<const ADDR_SPACE ADDR_T*>(may_alias_ptr(&skip_val))) { \
         base_agg_func(agg, val);                                                   \
       } else {                                                                     \
-        *agg = *reinterpret_cast<const ADDR_T*>(may_alias_ptr(&val));              \
+        *agg = *reinterpret_cast<const ADDR_SPACE ADDR_T*>(may_alias_ptr(&val));   \
       }                                                                            \
     }                                                                              \
   }
@@ -1331,12 +1359,12 @@ extern "C" ALWAYS_INLINE double percent_window_func(const int64_t output_buff,
   return reinterpret_cast<const double*>(output_buff)[pos];
 }
 
-extern "C" ALWAYS_INLINE double load_double(const int64_t* agg) {
-  return *reinterpret_cast<const double*>(may_alias_ptr(agg));
+extern "C" ALWAYS_INLINE double load_double(ADDR_SPACE const int64_t* agg) {
+  return *reinterpret_cast<const ADDR_SPACE double*>(may_alias_ptr(agg));
 }
 
-extern "C" ALWAYS_INLINE float load_float(const int32_t* agg) {
-  return *reinterpret_cast<const float*>(may_alias_ptr(agg));
+extern "C" ALWAYS_INLINE float load_float(ADDR_SPACE const int32_t* agg) {
+  return *reinterpret_cast<const ADDR_SPACE float*>(may_alias_ptr(agg));
 }
 
 extern "C" ALWAYS_INLINE double load_avg_int(const int64_t* sum,
@@ -1352,18 +1380,20 @@ extern "C" ALWAYS_INLINE double load_avg_decimal(const int64_t* sum,
   return *count != 0 ? (static_cast<double>(*sum) / pow(10, scale)) / *count : null_val;
 }
 
-extern "C" ALWAYS_INLINE double load_avg_double(const int64_t* agg,
-                                                const int64_t* count,
+extern "C" ALWAYS_INLINE double load_avg_double(ADDR_SPACE const int64_t* agg,
+                                                ADDR_SPACE const int64_t* count,
                                                 const double null_val) {
-  return *count != 0 ? *reinterpret_cast<const double*>(may_alias_ptr(agg)) / *count
-                     : null_val;
+  return *count != 0
+             ? *reinterpret_cast<const ADDR_SPACE double*>(may_alias_ptr(agg)) / *count
+             : null_val;
 }
 
-extern "C" ALWAYS_INLINE double load_avg_float(const int32_t* agg,
-                                               const int32_t* count,
+extern "C" ALWAYS_INLINE double load_avg_float(ADDR_SPACE const int32_t* agg,
+                                               ADDR_SPACE const int32_t* count,
                                                const double null_val) {
-  return *count != 0 ? *reinterpret_cast<const float*>(may_alias_ptr(agg)) / *count
-                     : null_val;
+  return *count != 0
+             ? *reinterpret_cast<const ADDR_SPACE float*>(may_alias_ptr(agg)) / *count
+             : null_val;
 }
 
 extern "C" NEVER_INLINE void linear_probabilistic_count(uint8_t* bitmap,

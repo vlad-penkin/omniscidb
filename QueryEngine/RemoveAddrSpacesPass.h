@@ -130,8 +130,4 @@ struct RemoveAddrSpacesPass : llvm::ModulePass {
   }
 };
 
-char RemoveAddrSpacesPass::ID = 0;
-
-llvm::Pass* createRemoveAddrSpacesPass() {
-  return new RemoveAddrSpacesPass();
-};
+llvm::Pass* createRemoveAddrSpacesPass();

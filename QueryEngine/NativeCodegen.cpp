@@ -372,6 +372,10 @@ ExecutionEngineWrapper& ExecutionEngineWrapper::operator=(
 void verify_function_ir(const llvm::Function* func) {
   std::stringstream err_ss;
   llvm::raw_os_ostream err_os(err_ss);
+  auto m = func->getParent();
+  std::error_code ec;
+  llvm::raw_fd_ostream query_failed("failed.ll", ec);
+  m->print(query_failed, nullptr);
   err_os << "\n-----\n";
   if (llvm::verifyFunction(*func, &err_os)) {
     err_os << "\n-----\n";
@@ -2851,6 +2855,14 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
     pass_manager.run(*cgen_state_->module_);
   }
 
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("stripped.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
+
   AUTOMATIC_IR_METADATA(cgen_state_.get());
 
   auto agg_fnames =
@@ -2923,10 +2935,26 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
   cgen_state_->current_func_ = cgen_state_->row_func_;
   cgen_state_->ir_builder_.SetInsertPoint(cgen_state_->row_func_bb_);
 
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("before_build_join.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
+
   preloadFragOffsets(ra_exe_unit.input_descs, query_infos);
   RelAlgExecutionUnit body_execution_unit = ra_exe_unit;
   const auto join_loops =
       buildJoinLoops(body_execution_unit, co, eo, query_infos, column_cache);
+
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("before_outer_table.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
 
   plan_state_->allocateLocalColumnIds(ra_exe_unit.input_col_descs);
   const auto is_not_deleted_bb = codegenSkipDeletedOuterTableRow(ra_exe_unit, co);
@@ -2968,6 +2996,14 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
     hoisted_literals = inlineHoistedLiterals();
   }
 
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("before_row_func.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
+
   // replace the row func placeholder call with the call to the actual row func
   std::vector<llvm::Value*> row_func_args;
   for (size_t i = 0; i < cgen_state_->row_func_call_->getNumArgOperands(); ++i) {
@@ -2981,6 +3017,14 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
   llvm::ReplaceInstWithInst(
       cgen_state_->row_func_call_,
       llvm::CallInst::Create(cgen_state_->row_func_, row_func_args, ""));
+
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("before_replace_filter.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
 
   // replace the filter func placeholder call with the call to the actual filter func
   if (cgen_state_->filter_func_) {
@@ -3029,15 +3073,39 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
       "multifrag_query" + std::string(co.hoist_literals ? "_hoisted_literals" : ""));
   CHECK(multifrag_query_func);
 
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("before_insert_error.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
+
   if (is_gpu(co.device_type) && eo.allow_multifrag) {
     std::cerr << "inserting errors" << std::endl;
     insertErrorCodeChecker(multifrag_query_func, co, eo.allow_runtime_query_interrupt);
+  }
+
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("before_bind_query.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
   }
 
   bind_query(query_func,
              "query_stub" + std::string(co.hoist_literals ? "_hoisted_literals" : ""),
              multifrag_query_func,
              cgen_state_->module_);
+
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("before_mark_dead.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
 
   std::vector<llvm::Function*> root_funcs{query_func, cgen_state_->row_func_};
   if (cgen_state_->filter_func_) {
@@ -3053,6 +3121,14 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
   mark_function_always_inline(cgen_state_->row_func_);
   if (cgen_state_->filter_func_) {
     mark_function_always_inline(cgen_state_->filter_func_);
+  }
+
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("after_mark_inline.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
   }
 
 #ifndef NDEBUG
@@ -3097,6 +3173,13 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
 #else
   LOG(IR) << serialize_llvm_object(cgen_state_->module_) << "\nEnd of IR";
 #endif
+
+  if (co.device_type != ExecutorDeviceType::L0) {
+    llvm::legacy::PassManager pass_manager;
+    pass_manager.add(createRemoveAddrSpacesPass());
+    pass_manager.run(*cgen_state_->module_);
+  }
+
   // Run some basic validation checks on the LLVM IR before code is generated below.
   verify_function_ir(cgen_state_->row_func_);
   verify_function_ir(multifrag_query_func);
@@ -3278,6 +3361,13 @@ bool Executor::compileBody(const RelAlgExecutionUnit& ra_exe_unit,
                            const QueryMemoryDescriptor& query_mem_desc,
                            const CompilationOptions& co,
                            const GpuSharedMemoryContext& gpu_smem_context) {
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("before_ir_metadata.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
   AUTOMATIC_IR_METADATA(cgen_state_.get());
 
   auto calling_conv = (co.device_type == ExecutorDeviceType::L0)
@@ -3306,6 +3396,14 @@ bool Executor::compileBody(const RelAlgExecutionUnit& ra_exe_unit,
     fetch_cache_anchor = std::make_unique<Executor::FetchCacheAnchor>(cgen_state_.get());
   }
 
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("after_cgen_filter.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
+
   // generate the code for the filter
   std::vector<Analyzer::Expr*> primary_quals;
   std::vector<Analyzer::Expr*> deferred_quals;
@@ -3317,11 +3415,25 @@ bool Executor::compileBody(const RelAlgExecutionUnit& ra_exe_unit,
             << " quals";
   }
   llvm::Value* filter_lv = cgen_state_->llBool(true);
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("after_prioritize.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
   CodeGenerator code_generator(this);
   for (auto expr : primary_quals) {
     // Generate the filter for primary quals
     auto cond = code_generator.toBool(code_generator.codegen(expr, true, co).front());
     filter_lv = cgen_state_->ir_builder_.CreateAnd(filter_lv, cond);
+  }
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("after_codegen_primary.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
   }
   CHECK(filter_lv->getType()->isIntegerTy(1));
   llvm::BasicBlock* sc_false{nullptr};
@@ -3342,11 +3454,29 @@ bool Executor::compileBody(const RelAlgExecutionUnit& ra_exe_unit,
     filter_lv = cgen_state_->ir_builder_.CreateAnd(
         filter_lv, code_generator.toBool(code_generator.codegen(expr, true, co).front()));
   }
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("after_deferred.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////////
 
   CHECK(filter_lv->getType()->isIntegerTy(1));
   auto ret = group_by_and_aggregate.codegen(
       filter_lv, sc_false, query_mem_desc, co, gpu_smem_context);
 
+  ////////////////////////////////////////////////////////////////////////////////////
+
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("before_cgen_filter_func.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
+  }
   // Switch the code generation back to the row function if a filter
   // function was enabled.
   if (cgen_state_->filter_func_) {
@@ -3379,6 +3509,13 @@ bool Executor::compileBody(const RelAlgExecutionUnit& ra_exe_unit,
     } else {
       cgen_state_->ir_builder_.CreateRet(cgen_state_->filter_func_call_);
     }
+  }
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("after_cgen_filter_func.ll", ec);
+    cgen_state_->module_->print(rt_mod, nullptr);
   }
   return ret;
 }

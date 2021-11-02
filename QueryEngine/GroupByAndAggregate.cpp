@@ -861,6 +861,14 @@ bool GroupByAndAggregate::codegen(llvm::Value* filter_result,
                               false);
     filter_false = filter_cfg.cond_false_;
 
+    {
+      std::stringstream err_ss;
+      llvm::raw_os_ostream err_os(err_ss);
+      std::error_code ec;
+      llvm::raw_fd_ostream rt_mod("after_diamond.ll", ec);
+      executor_->cgen_state_->module_->print(rt_mod, nullptr);
+    }
+
     if (is_group_by) {
       if (query_mem_desc.getQueryDescriptionType() == QueryDescriptionType::Projection &&
           !query_mem_desc.useStreamingTopN()) {
@@ -893,8 +901,31 @@ bool GroupByAndAggregate::codegen(llvm::Value* filter_result,
         LL_BUILDER.CreateStore(old_total_matched_val, old_total_matched_ptr);
       }
 
+      {
+        std::stringstream err_ss;
+        llvm::raw_os_ostream err_os(err_ss);
+        std::error_code ec;
+        llvm::raw_fd_ostream rt_mod("before_codegen_group_by.ll", ec);
+        executor_->cgen_state_->module_->print(rt_mod, nullptr);
+      }
+      ///////////////////////////////////////////////////////////////////////////////
+
       auto agg_out_ptr_w_idx = codegenGroupBy(query_mem_desc, co, filter_cfg);
+      {
+        std::stringstream err_ss;
+        llvm::raw_os_ostream err_os(err_ss);
+        std::error_code ec;
+        llvm::raw_fd_ostream rt_mod("after_codegen_group_by.ll", ec);
+        executor_->cgen_state_->module_->print(rt_mod, nullptr);
+      }
       auto varlen_output_buffer = codegenVarlenOutputBuffer(query_mem_desc);
+      {
+        std::stringstream err_ss;
+        llvm::raw_os_ostream err_os(err_ss);
+        std::error_code ec;
+        llvm::raw_fd_ostream rt_mod("after_codegen_varlen.ll", ec);
+        executor_->cgen_state_->module_->print(rt_mod, nullptr);
+      }
       if (query_mem_desc.usesGetGroupValueFast() ||
           query_mem_desc.getQueryDescriptionType() ==
               QueryDescriptionType::GroupByPerfectHash) {
@@ -965,6 +996,14 @@ bool GroupByAndAggregate::codegen(llvm::Value* filter_result,
                                            filter_cfg);
       }
     }
+  }
+  ///////////////////////////////////////////////////////////////////////////////
+  {
+    std::stringstream err_ss;
+    llvm::raw_os_ostream err_os(err_ss);
+    std::error_code ec;
+    llvm::raw_fd_ostream rt_mod("after_complete_block.ll", ec);
+    executor_->cgen_state_->module_->print(rt_mod, nullptr);
   }
 
   if (ra_exe_unit_.join_quals.empty()) {

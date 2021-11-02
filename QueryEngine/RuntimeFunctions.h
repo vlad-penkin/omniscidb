@@ -25,91 +25,95 @@
 #include <limits>
 #include <type_traits>
 
-extern "C" int64_t agg_sum(int64_t* agg, const int64_t val);
+extern "C" int64_t agg_sum(ADDR_SPACE int64_t* agg, const int64_t val);
 
-extern "C" void agg_max(int64_t* agg, const int64_t val);
+extern "C" void agg_max(ADDR_SPACE int64_t* agg, const int64_t val);
 
-extern "C" void agg_min(int64_t* agg, const int64_t val);
+extern "C" void agg_min(ADDR_SPACE int64_t* agg, const int64_t val);
 
-extern "C" void agg_sum_double(int64_t* agg, const double val);
+extern "C" void agg_sum_double(ADDR_SPACE int64_t* agg, const double val);
 
-extern "C" void agg_max_double(int64_t* agg, const double val);
+extern "C" void agg_max_double(ADDR_SPACE int64_t* agg, const double val);
 
-extern "C" void agg_min_double(int64_t* agg, const double val);
+extern "C" void agg_min_double(ADDR_SPACE int64_t* agg, const double val);
 
-extern "C" int32_t agg_sum_int32_skip_val(int32_t* agg,
+extern "C" int32_t agg_sum_int32_skip_val(ADDR_SPACE int32_t* agg,
                                           const int32_t val,
                                           const int32_t skip_val);
 
-extern "C" int64_t agg_sum_skip_val(int64_t* agg,
+extern "C" int64_t agg_sum_skip_val(ADDR_SPACE int64_t* agg,
                                     const int64_t val,
                                     const int64_t skip_val);
 
-extern "C" void agg_max_skip_val(int64_t* agg, const int64_t val, const int64_t skip_val);
+extern "C" void agg_max_skip_val(ADDR_SPACE int64_t* agg,
+                                 const int64_t val,
+                                 const int64_t skip_val);
 
-extern "C" void agg_min_skip_val(int64_t* agg, const int64_t val, const int64_t skip_val);
+extern "C" void agg_min_skip_val(ADDR_SPACE int64_t* agg,
+                                 const int64_t val,
+                                 const int64_t skip_val);
 
-extern "C" void agg_sum_float_skip_val(int32_t* agg,
+extern "C" void agg_sum_float_skip_val(ADDR_SPACE int32_t* agg,
                                        const float val,
                                        const float skip_val);
 
-extern "C" void agg_sum_double_skip_val(int64_t* agg,
+extern "C" void agg_sum_double_skip_val(ADDR_SPACE int64_t* agg,
                                         const double val,
                                         const double skip_val);
 
-extern "C" void agg_max_double_skip_val(int64_t* agg,
+extern "C" void agg_max_double_skip_val(ADDR_SPACE int64_t* agg,
                                         const double val,
                                         const double skip_val);
 
-extern "C" void agg_min_double_skip_val(int64_t* agg,
+extern "C" void agg_min_double_skip_val(ADDR_SPACE int64_t* agg,
                                         const double val,
                                         const double skip_val);
 
-extern "C" int32_t agg_sum_int32(int32_t* agg, const int32_t val);
+extern "C" int32_t agg_sum_int32(ADDR_SPACE int32_t* agg, const int32_t val);
 
-extern "C" void agg_max_int32(int32_t* agg, const int32_t val);
-extern "C" void agg_max_int16(int16_t* agg, const int16_t val);
-extern "C" void agg_max_int8(int8_t* agg, const int8_t val);
+extern "C" void agg_max_int32(ADDR_SPACE int32_t* agg, const int32_t val);
+extern "C" void agg_max_int16(ADDR_SPACE int16_t* agg, const int16_t val);
+extern "C" void agg_max_int8(ADDR_SPACE int8_t* agg, const int8_t val);
 
-extern "C" void agg_min_int32(int32_t* agg, const int32_t val);
-extern "C" void agg_min_int16(int16_t* agg, const int16_t val);
-extern "C" void agg_min_int8(int8_t* agg, const int8_t val);
+extern "C" void agg_min_int32(ADDR_SPACE int32_t* agg, const int32_t val);
+extern "C" void agg_min_int16(ADDR_SPACE int16_t* agg, const int16_t val);
+extern "C" void agg_min_int8(ADDR_SPACE int8_t* agg, const int8_t val);
 
-extern "C" void agg_sum_float(int32_t* agg, const float val);
+extern "C" void agg_sum_float(ADDR_SPACE int32_t* agg, const float val);
 
-extern "C" void agg_max_float(int32_t* agg, const float val);
+extern "C" void agg_max_float(ADDR_SPACE int32_t* agg, const float val);
 
-extern "C" void agg_min_float(int32_t* agg, const float val);
+extern "C" void agg_min_float(ADDR_SPACE int32_t* agg, const float val);
 
-extern "C" void agg_max_int32_skip_val(int32_t* agg,
+extern "C" void agg_max_int32_skip_val(ADDR_SPACE int32_t* agg,
                                        const int32_t val,
                                        const int32_t skip_val);
-extern "C" void agg_max_int16_skip_val(int16_t* agg,
+extern "C" void agg_max_int16_skip_val(ADDR_SPACE int16_t* agg,
                                        const int16_t val,
                                        const int16_t skip_val);
-extern "C" void agg_max_int8_skip_val(int8_t* agg,
+extern "C" void agg_max_int8_skip_val(ADDR_SPACE int8_t* agg,
                                       const int8_t val,
                                       const int8_t skip_val);
 
-extern "C" void agg_min_int32_skip_val(int32_t* agg,
+extern "C" void agg_min_int32_skip_val(ADDR_SPACE int32_t* agg,
                                        const int32_t val,
                                        const int32_t skip_val);
-extern "C" void agg_min_int16_skip_val(int16_t* agg,
+extern "C" void agg_min_int16_skip_val(ADDR_SPACE int16_t* agg,
                                        const int16_t val,
                                        const int16_t skip_val);
-extern "C" void agg_min_int8_skip_val(int8_t* agg,
+extern "C" void agg_min_int8_skip_val(ADDR_SPACE int8_t* agg,
                                       const int8_t val,
                                       const int8_t skip_val);
 
-extern "C" void agg_max_float_skip_val(int32_t* agg,
+extern "C" void agg_max_float_skip_val(ADDR_SPACE int32_t* agg,
                                        const float val,
                                        const float skip_val);
 
-extern "C" void agg_min_float_skip_val(int32_t* agg,
+extern "C" void agg_min_float_skip_val(ADDR_SPACE int32_t* agg,
                                        const float val,
                                        const float skip_val);
 
-extern "C" void agg_count_distinct_bitmap(int64_t* agg,
+extern "C" void agg_count_distinct_bitmap(ADDR_SPACE int64_t* agg,
                                           const int64_t val,
                                           const int64_t min_val);
 

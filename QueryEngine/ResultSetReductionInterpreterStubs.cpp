@@ -20,6 +20,9 @@
 
 #include "Shared/funcannotations.h"
 
+#include <llvm/IR/LegacyPassManager.h>
+#include "RemoveAddrSpacesPass.h"
+
 namespace {
 
 // Creates an empty stub function, with the fixed signature required by the interpreter.
@@ -145,14 +148,16 @@ extern "C" RUNTIME_EXPORT const void* read_stub_arg_pvoid(const void* inputs_han
   return inputs[i].ptr;
 }
 
-extern "C" RUNTIME_EXPORT const int8_t* read_stub_arg_pi8(const void* inputs_handle,
-                                                          const int32_t i) {
-  return static_cast<const int8_t*>(read_stub_arg_pvoid(inputs_handle, i));
+extern "C" RUNTIME_EXPORT const ADDR_SPACE int8_t* read_stub_arg_pi8(
+    ADDR_SPACE const void* inputs_handle,
+    const int32_t i) {
+  return static_cast<const ADDR_SPACE int8_t*>(read_stub_arg_pvoid(inputs_handle, i));
 }
 
-extern "C" RUNTIME_EXPORT const int32_t* read_stub_arg_pi32(const void* inputs_handle,
-                                                            const int32_t i) {
-  return static_cast<const int32_t*>(read_stub_arg_pvoid(inputs_handle, i));
+extern "C" RUNTIME_EXPORT const ADDR_SPACE int32_t* read_stub_arg_pi32(
+    ADDR_SPACE const void* inputs_handle,
+    const int32_t i) {
+  return static_cast<const ADDR_SPACE int32_t*>(read_stub_arg_pvoid(inputs_handle, i));
 }
 
 extern "C" RUNTIME_EXPORT const int32_t* read_stub_arg_pi64(const void* inputs_handle,
@@ -250,6 +255,12 @@ StubGenerator::Stub StubGenerator::generateStub(const std::string& name,
     cgen_state->emitExternalCall(write_arg_name, void_type, {output, value});
   }
   cgen_state->ir_builder_.CreateRetVoid();
+
+  // todo: remove
+  llvm::legacy::PassManager pass_manager;
+  pass_manager.add(createRemoveAddrSpacesPass());
+  pass_manager.run(*cgen_state->module_);
+
   verify_function_ir(function);
   CompilationOptions co{
       ExecutorDeviceType::CPU, false, ExecutorOptLevel::ReductionJIT, false};
