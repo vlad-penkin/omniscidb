@@ -3,10 +3,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 add_definitions("-DBASE_PATH=\"${TEST_BASE_PATH}\"")
 
-# add_executable(H3LibExtFuncTest H3LibExtFuncTest.cpp)
-# target_link_libraries(H3LibExtFuncTest ${EXECUTE_TEST_LIBS})
+add_executable(H3LibExtFuncTest H3LibExtFuncTest.cpp)
+target_link_libraries(H3LibExtFuncTest ${EXECUTE_TEST_LIBS})
 
-# add_test(H3LibExtFuncTest H3LibExtFuncTest ${TEST_ARGS})
+add_test(H3LibExtFuncTest H3LibExtFuncTest ${TEST_ARGS})
 
 # Creating some symlinks to make hardcoded paths to bin/calcite-1.0-SNAPSHOT-jar-with-dependencies.jar
 # and QueryEngine/RuntimeFunctions.bc
