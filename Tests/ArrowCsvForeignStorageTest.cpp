@@ -168,7 +168,7 @@ dropoff_boroct2010 BIGINT,
 dropoff_cdeligibil TEXT ENCODING NONE,
 dropoff_ntacode TEXT ENCODING NONE,
 dropoff_ntaname TEXT ENCODING NONE,
-dropoff_puma BIGINT) WITH (storage_type='CSV:/omniscidb/Tests/Import/datafiles/trips_with_headers_top1000.csv', fragment_size=100);
+dropoff_puma BIGINT) WITH (storage_type='CSV:../../Tests/Import/datafiles/trips_with_headers_top1000.csv', fragment_size=100);
 )";  // TODO: path needs fixing
 
 class NycTaxiTest : public ::testing::Test {

@@ -372,10 +372,6 @@ ExecutionEngineWrapper& ExecutionEngineWrapper::operator=(
 void verify_function_ir(const llvm::Function* func) {
   std::stringstream err_ss;
   llvm::raw_os_ostream err_os(err_ss);
-  auto m = func->getParent();
-  std::error_code ec;
-  llvm::raw_fd_ostream query_failed("failed.ll", ec);
-  m->print(query_failed, nullptr);
   err_os << "\n-----\n";
   if (llvm::verifyFunction(*func, &err_os)) {
     err_os << "\n-----\n";
@@ -3289,13 +3285,6 @@ bool Executor::compileBody(const RelAlgExecutionUnit& ra_exe_unit,
                            const QueryMemoryDescriptor& query_mem_desc,
                            const CompilationOptions& co,
                            const GpuSharedMemoryContext& gpu_smem_context) {
-  {
-    std::stringstream err_ss;
-    llvm::raw_os_ostream err_os(err_ss);
-    std::error_code ec;
-    llvm::raw_fd_ostream rt_mod("before_ir_metadata.ll", ec);
-    cgen_state_->module_->print(rt_mod, nullptr);
-  }
   AUTOMATIC_IR_METADATA(cgen_state_.get());
 
   auto calling_conv = (co.device_type == ExecutorDeviceType::L0)
