@@ -1094,7 +1094,8 @@ TEST(Select, NullGroupBy) {
 }
 
 TEST(Select, FilterAndSimpleAggregation) {
-  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
+  for (auto dt :
+       {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA, ExecutorDeviceType::L0}) {
     SKIP_NO_GPU();
     c("SELECT COUNT(*) FROM test;", dt);
     c("SELECT COUNT(f) FROM test;", dt);
@@ -2823,9 +2824,9 @@ TEST(Select, SimplestGroupByL0) {
 }
 
 TEST(Sort, SimplestL0) {
-  for (auto dt : {ExecutorDeviceType::L0}) {
-    c("SELECT x FROM test where x >= 8 ORDER BY x;", dt);
-  }
+  for (auto dt : {ExecutorDeviceType::L0}) {
+    c("SELECT x FROM test where x >= 8 ORDER BY x;", dt);
+  }
 }
 
 TEST(Select, MixCpuGpu) {
