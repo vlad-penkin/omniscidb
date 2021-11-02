@@ -18,10 +18,12 @@
 
 #include "IRCodegenUtils.h"
 #include "LoopControlFlow/JoinLoop.h"
+#include "RemoveAddrSpacesPass.h"
 #include "ResultSetReductionJIT.h"
 #include "ResultSetReductionOps.h"
 
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/LegacyPassManager.h>
 
 llvm::Type* llvm_type(const Type type, llvm::LLVMContext& ctx) {
   switch (type) {
@@ -412,5 +414,11 @@ void translate_function(const Function* function,
     CHECK(it_ok.second);
   }
   translate_body(function->body(), function, llvm_function, reduction_code, m, f);
+
+  // todo: remove
+  llvm::legacy::PassManager pass_manager;
+  pass_manager.add(createRemoveAddrSpacesPass());
+  pass_manager.run(*cgen_state->module_);
+
   verify_function_ir(llvm_function);
 }
