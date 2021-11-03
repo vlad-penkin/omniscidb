@@ -31,7 +31,7 @@ class PerfectJoinHashTableBuilder {
                             const int device_id,
                             const int device_count,
                             const Executor* executor) {
-#ifdef HAVE_CUDA
+#if defined(HAVE_CUDA) || defined(HAVE_L0)
     if (shard_count) {
       const auto shards_per_device = (shard_count + device_count - 1) / device_count;
       CHECK_GT(shards_per_device, 0u);
@@ -44,19 +44,31 @@ class PerfectJoinHashTableBuilder {
             ? hash_entry_info.getNormalizedHashEntryCount()
             : 2 * hash_entry_info.getNormalizedHashEntryCount() + join_column.num_elems;
     CHECK(!hash_table_);
+    #ifdef HAVE_CUDA
     hash_table_ =
         std::make_unique<PerfectHashTable>(executor->getDataMgr(),
                                            layout,
                                            ExecutorDeviceType::CUDA,
                                            hash_entry_info.getNormalizedHashEntryCount(),
                                            join_column.num_elems);
+    #elif defined(HAVE_L0)
+    hash_table_ =
+        std::make_unique<PerfectHashTable>(executor->getDataMgr(),
+                                           layout,
+                                           ExecutorDeviceType::L0,
+                                           hash_entry_info.getNormalizedHashEntryCount(),
+                                           join_column.num_elems);
+    #else
+    UNREACHABLE();
+    #endif
+
     hash_table_->allocateGpuMemory(total_count, device_id);
 #else
     UNREACHABLE();
 #endif  // HAVE_CUDA
   }
 
-#ifdef HAVE_CUDA
+#if defined(HAVE_CUDA) || defined(HAVE_L0)
   void initHashTableOnGpu(const ChunkKey& chunk_key,
                           const JoinColumn& join_column,
                           const ExpressionRange& col_range,
@@ -72,7 +84,7 @@ class PerfectJoinHashTableBuilder {
                           const Executor* executor) {
     auto data_mgr = executor->getDataMgr();
     Data_Namespace::AbstractBuffer* gpu_hash_table_err_buff =
-        CudaAllocator::allocGpuAbstractBuffer(data_mgr, sizeof(int), device_id);
+        DeviceAllocator::allocGpuAbstractBuffer(data_mgr, sizeof(int), device_id);
     ScopeGuard cleanup_error_buff = [&data_mgr, gpu_hash_table_err_buff]() {
       data_mgr->free(gpu_hash_table_err_buff);
     };

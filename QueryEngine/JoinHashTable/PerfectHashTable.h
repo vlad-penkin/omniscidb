@@ -55,7 +55,7 @@ class PerfectHashTable : public HashTable {
   void allocateGpuMemory(const size_t entries, const int device_id) {
     CHECK_GE(device_id, 0);
     CHECK(!gpu_hash_table_buff_);
-    gpu_hash_table_buff_ = CudaAllocator::allocGpuAbstractBuffer(
+    gpu_hash_table_buff_ = DeviceAllocator::allocGpuAbstractBuffer(
         data_mgr_, entries * sizeof(int32_t), device_id);
   }
 

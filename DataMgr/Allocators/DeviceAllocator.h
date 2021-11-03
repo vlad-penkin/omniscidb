@@ -23,6 +23,7 @@
 #pragma once
 
 #include "Logger/Logger.h"
+#include "DataMgr/DataMgr.h"
 
 #ifdef HAVE_CUDA
 #include <cuda.h>
@@ -45,6 +46,16 @@ class Allocator {
 
 class DeviceAllocator : public Allocator {
  public:
+  static Data_Namespace::AbstractBuffer* allocGpuAbstractBuffer(
+      Data_Namespace::DataMgr* data_mgr,
+      const size_t num_bytes,
+      const int device_id) {
+    CHECK(data_mgr);
+    auto ab = data_mgr->alloc(Data_Namespace::GPU_LEVEL, device_id, num_bytes);
+    CHECK_EQ(ab->getPinCount(), 1);
+    return ab;
+  }
+
   virtual void free(Data_Namespace::AbstractBuffer* ab) const = 0;
 
   virtual void copyToDevice(void* device_dst,

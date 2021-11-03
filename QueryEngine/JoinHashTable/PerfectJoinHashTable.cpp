@@ -326,13 +326,13 @@ void PerfectJoinHashTable::reify() {
   CHECK_EQ(inner_outer_pairs_.size(), size_t(1));
 
   std::vector<ColumnsForDevice> columns_per_device;
-  std::vector<std::unique_ptr<CudaAllocator>> dev_buff_owners;
+  std::vector<std::unique_ptr<DeviceAllocator>> dev_buff_owners;
   try {
     auto data_mgr = executor_->getDataMgr();
     if (memory_level_ == Data_Namespace::MemoryLevel::GPU_LEVEL) {
       for (int device_id = 0; device_id < device_count_; ++device_id) {
         dev_buff_owners.emplace_back(
-            std::make_unique<CudaAllocator>(data_mgr, device_id));
+            data_mgr->createGpuAllocator(device_id));
       }
     }
     for (int device_id = 0; device_id < device_count_; ++device_id) {
@@ -502,7 +502,7 @@ int PerfectJoinHashTable::initHashTableForDevice(
     // TODO: what is this for?
     return 0;
   }
-#ifndef HAVE_CUDA
+#if !defined(HAVE_CUDA) && !defined(HAVE_L0)
   CHECK_EQ(Data_Namespace::CPU_LEVEL, effective_memory_level);
 #endif
   int err{0};
@@ -551,8 +551,10 @@ int PerfectJoinHashTable::initHashTableForDevice(
     }
     // Transfer the hash table on the GPU if we've only built it on CPU
     // but the query runs on GPU (join on dictionary encoded columns).
+    //
+    // Could potentially require HAVE_L0 in the future.
     if (memory_level_ == Data_Namespace::GPU_LEVEL) {
-#ifdef HAVE_CUDA
+#ifdef HAVE_CUDA                                                              
       const auto& ti = inner_col->get_type_info();
       CHECK(ti.is_string());
       auto data_mgr = executor_->getDataMgr();
@@ -592,7 +594,7 @@ int PerfectJoinHashTable::initHashTableForDevice(
       hash_tables_for_device_[device_id] = hash_table;
     }
   } else {
-#ifdef HAVE_CUDA
+#if defined(HAVE_CUDA) || defined(HAVE_L0)
     PerfectJoinHashTableBuilder builder;
     CHECK_EQ(Data_Namespace::GPU_LEVEL, effective_memory_level);
     builder.allocateDeviceMemory(join_column,

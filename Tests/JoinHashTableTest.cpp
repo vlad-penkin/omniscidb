@@ -130,6 +130,58 @@ std::shared_ptr<HashJoin> buildKeyed(std::shared_ptr<Analyzer::BinOper> op) {
       op, memory_level, HashType::OneToOne, device_count, column_cache, executor.get());
 }
 
+TEST(Build, PerfectOneToOne1_L0) {
+  g_device_type = ExecutorDeviceType::L0;
+
+  JoinHashTableCacheInvalidator::invalidateCaches();
+
+  // | perfect one-to-one | payloads 0 1 2 3 4 5 6 7 8 9 |
+  const DecodedJoinHashBufferSet s1 = {{{0}, {0}},
+                                        {{1}, {1}},
+                                        {{2}, {2}},
+                                        {{3}, {3}},
+                                        {{4}, {4}},
+                                        {{5}, {5}},
+                                        {{6}, {6}},
+                                        {{7}, {7}},
+                                        {{8}, {8}},
+                                        {{9}, {9}}};
+
+  sql(R"(
+    drop table if exists table1;
+    drop table if exists table2;
+
+    create table table1 (nums1 integer);
+    create table table2 (nums2 integer);
+
+    insert into table1 values (1);
+    insert into table1 values (8);
+
+    insert into table2 values (0);
+    insert into table2 values (1);
+    insert into table2 values (2);
+    insert into table2 values (3);
+    insert into table2 values (4);
+    insert into table2 values (5);
+    insert into table2 values (6);
+    insert into table2 values (7);
+    insert into table2 values (8);
+    insert into table2 values (9);
+  )");
+
+  auto hash_table = buildPerfect("table1", "nums1", "table2", "nums2");
+  EXPECT_EQ(hash_table->getHashType(), HashType::OneToOne);
+
+  auto s2 = hash_table->toSet(g_device_type, 0);
+
+  EXPECT_EQ(s1, s2);
+
+  sql(R"(
+    drop table if exists table1;
+    drop table if exists table2;
+  )");
+}
+
 TEST(Build, PerfectOneToOne1) {
   for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::CUDA}) {
     SKIP_NO_GPU();
