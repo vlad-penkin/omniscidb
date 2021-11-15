@@ -97,6 +97,7 @@ using namespace std::string_literals;
 
 class MapDAggHandler;
 class MapDLeafHandler;
+class RelAlgExecutor;
 
 // Multiple concurrent requests for the same session can occur.  For that reason, each
 // request briefly takes a lock to make a copy of the appropriate SessionInfo object. Then
@@ -771,6 +772,13 @@ class DBHandler : public OmniSciIf {
                           const size_t device_id,
                           const int32_t first_n,
                           const TArrowTransport::type transport_method) const;
+
+  ExecutionResult executeRelAlgQuery(RelAlgExecutor& ra_executor,
+                                     const Catalog_Namespace::Catalog& cat,
+                                     const CompilationOptions& co,
+                                     const ExecutionOptions& eo,
+                                     const bool just_explain_plan,
+                                     RenderInfo* render_info) const;
 
   void executeDdl(TQueryResult& _return,
                   const std::string& query_ra,
