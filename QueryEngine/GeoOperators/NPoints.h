@@ -49,11 +49,13 @@ class NPoints : public Codegen {
     auto coords_cd =
         get_column_descriptor(coords_column_id, col_var->get_table_id(), *cat_);
     CHECK(coords_cd);
+    CHECK(!coords_cd->isVirtualCol);
 
     operand_owned_ = std::make_unique<Analyzer::ColumnVar>(coords_cd->columnType,
                                                            col_var->get_table_id(),
                                                            coords_column_id,
-                                                           col_var->get_rte_idx());
+                                                           col_var->get_rte_idx(),
+                                                           false);
     return operand_owned_.get();
   }
 

@@ -101,7 +101,8 @@ std::shared_ptr<RangeJoinHashTable> RangeJoinHashTable::getInstance(
       makeExpr<Analyzer::ColumnVar>(coords_cd->columnType,
                                     coords_cd->tableId,
                                     coords_cd->columnId,
-                                    range_expr_col_var->get_rte_idx());
+                                    range_expr_col_var->get_rte_idx(),
+                                    false);
 
   std::vector<InnerOuter> inner_outer_pairs;
   inner_outer_pairs.emplace_back(

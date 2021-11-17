@@ -371,7 +371,8 @@ RelAlgExecutionUnit QueryRewriter::rewriteColumnarUpdate(
     auto col_to_update_desc =
         std::make_shared<const InputColDescriptor>(col_to_update_var->get_column_id(),
                                                    col_to_update_var->get_table_id(),
-                                                   col_to_update_var->get_rte_idx());
+                                                   col_to_update_var->get_rte_idx(),
+                                                   col_to_update_var->is_virtual());
     auto existing_col_desc_it = std::find_if(
         input_col_descs.begin(),
         input_col_descs.end(),
@@ -421,6 +422,7 @@ RelAlgExecutionUnit QueryRewriter::rewriteColumnarDelete(
   CHECK_EQ(ra_exe_unit_in.target_exprs.size(), size_t(1));
   CHECK(ra_exe_unit_in.groupby_exprs.size() == 1 &&
         !ra_exe_unit_in.groupby_exprs.front());
+  CHECK(!delete_column->is_virtual());
 
   // TODO(adb): is this possible?
   if (ra_exe_unit_in.join_quals.size() > 0) {
@@ -478,7 +480,8 @@ RelAlgExecutionUnit QueryRewriter::rewriteColumnarDelete(
     auto delete_col_desc =
         std::make_shared<const InputColDescriptor>(delete_column->get_column_id(),
                                                    delete_column->get_table_id(),
-                                                   delete_column->get_rte_idx());
+                                                   delete_column->get_rte_idx(),
+                                                   false);
     input_col_descs.push_back(delete_col_desc);
     target_exprs_owned_.emplace_back(case_expr);
   } else {
@@ -486,7 +489,8 @@ RelAlgExecutionUnit QueryRewriter::rewriteColumnarDelete(
     auto delete_col_desc =
         std::make_shared<const InputColDescriptor>(delete_column->get_column_id(),
                                                    delete_column->get_table_id(),
-                                                   delete_column->get_rte_idx());
+                                                   delete_column->get_rte_idx(),
+                                                   false);
     input_col_descs.push_back(delete_col_desc);
     target_exprs_owned_.emplace_back(deleted_constant);
   }

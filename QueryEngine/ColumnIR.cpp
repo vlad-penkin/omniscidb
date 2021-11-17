@@ -127,7 +127,7 @@ std::vector<llvm::Value*> CodeGenerator::codegenColVar(const Analyzer::ColumnVar
         auto col0_ti = cd0->columnType;
         CHECK(!cd0->isVirtualCol);
         auto col0_var = makeExpr<Analyzer::ColumnVar>(
-            col0_ti, col_var->get_table_id(), cd0->columnId, rte_idx);
+            col0_ti, col_var->get_table_id(), cd0->columnId, rte_idx, false);
         auto col = codegenColVar(col0_var.get(), fetch_column, false, co);
         cols.insert(cols.end(), col.begin(), col.end());
         if (!fetch_column && plan_state_->isLazyFetchColumn(col_var)) {

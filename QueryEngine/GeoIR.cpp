@@ -63,7 +63,8 @@ std::vector<llvm::Value*> CodeGenerator::codegenGeoColumnVar(
     const auto col_var = Analyzer::ColumnVar(cd->columnType,
                                              geo_col_var->get_table_id(),
                                              column_id,
-                                             geo_col_var->get_rte_idx());
+                                             geo_col_var->get_rte_idx(),
+                                             false);
     const auto lv_vec = codegen(&col_var, /*fetch_columns=*/true, co);
     CHECK_EQ(lv_vec.size(), size_t(1));  // ptr
     return lv_vec;

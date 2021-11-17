@@ -415,7 +415,7 @@ std::shared_ptr<Analyzer::Expr> RelAlgTranslator::translateInput(
       col_ti.set_notnull(false);
     }
     return std::make_shared<Analyzer::ColumnVar>(
-        col_ti, table_desc->tableId, cd->columnId, rte_idx);
+        col_ti, table_desc->tableId, cd->columnId, rte_idx, cd->isVirtualCol);
   }
   CHECK(!in_metainfo.empty()) << "for " << source->toString();
   CHECK_GE(rte_idx, 0);
@@ -430,7 +430,8 @@ std::shared_ptr<Analyzer::Expr> RelAlgTranslator::translateInput(
     }
   }
 
-  return std::make_shared<Analyzer::ColumnVar>(col_ti, -source->getId(), col_id, rte_idx);
+  return std::make_shared<Analyzer::ColumnVar>(
+      col_ti, -source->getId(), col_id, rte_idx, false);
 }
 
 std::shared_ptr<Analyzer::Expr> RelAlgTranslator::translateUoper(

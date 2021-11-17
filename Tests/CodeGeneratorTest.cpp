@@ -90,7 +90,7 @@ TEST(CodeGeneratorTest, IntegerColumn) {
   int table_id = 1;
   int column_id = 5;
   int rte_idx = 0;
-  auto col = makeExpr<Analyzer::ColumnVar>(ti, table_id, column_id, rte_idx);
+  auto col = makeExpr<Analyzer::ColumnVar>(ti, table_id, column_id, rte_idx, false);
   const auto compiled_expr = code_generator.compile(col.get(), true, co);
   verify_function_ir(compiled_expr.func);
   ASSERT_EQ(compiled_expr.inputs.size(), size_t(1));
@@ -117,7 +117,7 @@ TEST(CodeGeneratorTest, IntegerExpr) {
   int table_id = 1;
   int column_id = 5;
   int rte_idx = 0;
-  auto lhs = makeExpr<Analyzer::ColumnVar>(ti, table_id, column_id, rte_idx);
+  auto lhs = makeExpr<Analyzer::ColumnVar>(ti, table_id, column_id, rte_idx, false);
   Datum d;
   d.intval = 42;
   auto rhs = makeExpr<Analyzer::Constant>(kINT, false, d);

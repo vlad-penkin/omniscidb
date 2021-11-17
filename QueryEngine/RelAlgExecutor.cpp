@@ -1159,12 +1159,12 @@ void collect_used_input_desc(
     auto it = input_to_nest_level.find(input_ra);
     if (it != input_to_nest_level.end()) {
       const int input_desc = it->second;
+      auto scan = dynamic_cast<const RelScan*>(input_ra);
       input_col_descs_unique.insert(std::make_shared<const InputColDescriptor>(
-          dynamic_cast<const RelScan*>(input_ra)
-              ? cat.getColumnIdBySpi(table_id, col_id + 1)
-              : col_id,
+          scan ? cat.getColumnIdBySpi(table_id, col_id + 1) : col_id,
           table_id,
-          input_desc));
+          input_desc,
+          scan ? scan->isVirtualCol(col_id) : false));
     } else if (!dynamic_cast<const RelLogicalUnion*>(ra_node)) {
       throw std::runtime_error("Bushy joins not supported");
     }
@@ -1627,8 +1627,8 @@ void RelAlgExecutor::executeUpdate(const RelAlgNode* node,
 
       auto cd = cat_.getMetadataForColumn(td->tableId, update_column_names.front());
       CHECK(cd);
-      auto projected_column_to_update =
-          makeExpr<Analyzer::ColumnVar>(cd->columnType, td->tableId, cd->columnId, 0);
+      auto projected_column_to_update = makeExpr<Analyzer::ColumnVar>(
+          cd->columnType, td->tableId, cd->columnId, 0, cd->isVirtualCol);
       const auto rewritten_exe_unit = query_rewrite->rewriteColumnarUpdate(
           work_unit.exe_unit, projected_column_to_update);
       if (rewritten_exe_unit.target_exprs.front()->get_type_info().is_varlen()) {
@@ -1735,7 +1735,7 @@ void RelAlgExecutor::executeDelete(const RelAlgNode* node,
       auto cd = cat_.getDeletedColumn(table_descriptor);
       CHECK(cd);
       auto delete_column_expr = makeExpr<Analyzer::ColumnVar>(
-          cd->columnType, table_descriptor->tableId, cd->columnId, 0);
+          cd->columnType, table_descriptor->tableId, cd->columnId, 0, false);
       const auto rewritten_exe_unit =
           query_rewrite->rewriteColumnarDelete(work_unit.exe_unit, delete_column_expr);
       execute_delete_ra_exe_unit(rewritten_exe_unit, is_aggregate);
@@ -1911,8 +1911,11 @@ std::shared_ptr<Analyzer::Expr> transform_to_inner(const Analyzer::Expr* expr) {
   if (!col) {
     throw std::runtime_error("Only columns supported in the window partition for now");
   }
-  return makeExpr<Analyzer::ColumnVar>(
-      col->get_type_info(), col->get_table_id(), col->get_column_id(), 1);
+  return makeExpr<Analyzer::ColumnVar>(col->get_type_info(),
+                                       col->get_table_id(),
+                                       col->get_column_id(),
+                                       1,
+                                       col->is_virtual());
 }
 
 }  // namespace
@@ -3902,11 +3905,12 @@ std::vector<std::shared_ptr<Analyzer::Expr>> synthesize_inputs(
   const auto scan_ra = dynamic_cast<const RelScan*>(input);
   int input_idx = 0;
   for (const auto& input_meta : in_metainfo) {
-    inputs.push_back(
-        std::make_shared<Analyzer::ColumnVar>(input_meta.get_type_info(),
-                                              table_id,
-                                              scan_ra ? input_idx + 1 : input_idx,
-                                              rte_idx));
+    inputs.push_back(std::make_shared<Analyzer::ColumnVar>(
+        input_meta.get_type_info(),
+        table_id,
+        scan_ra ? input_idx + 1 : input_idx,
+        rte_idx,
+        scan_ra ? scan_ra->isVirtualCol(input_idx) : false));
     ++input_idx;
   }
   return inputs;
@@ -4096,7 +4100,7 @@ std::vector<std::shared_ptr<Analyzer::Expr>> target_exprs_for_union(
   target_exprs.reserve(tmis.size());
   for (size_t i = 0; i < tmis.size(); ++i) {
     target_exprs.push_back(std::make_shared<Analyzer::ColumnVar>(
-        tmis[i].get_type_info(), negative_node_id, i, 0));
+        tmis[i].get_type_info(), negative_node_id, i, 0, false));
   }
   return target_exprs;
 }
@@ -4350,7 +4354,8 @@ RelAlgExecutor::TableFunctionWorkUnit RelAlgExecutor::createTableFunctionWorkUni
       int32_t comp_param = input_exprs_owned[input_pos]->get_type_info().get_comp_param();
       ti.set_comp_param(comp_param);
     }
-    target_exprs_owned_.push_back(std::make_shared<Analyzer::ColumnVar>(ti, 0, i, -1));
+    target_exprs_owned_.push_back(
+        std::make_shared<Analyzer::ColumnVar>(ti, 0, i, -1, false));
     table_func_outputs.push_back(target_exprs_owned_.back().get());
   }
   const TableFunctionExecutionUnit exe_unit = {

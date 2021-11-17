@@ -908,7 +908,8 @@ Executor::buildIsDeletedCb(const RelAlgExecutionUnit& ra_exe_unit,
   const auto deleted_expr = makeExpr<Analyzer::ColumnVar>(deleted_cd->columnType,
                                                           input_desc.getTableId(),
                                                           deleted_cd->columnId,
-                                                          input_desc.getNestLevel());
+                                                          input_desc.getNestLevel(),
+                                                          false);
   return [this, deleted_expr, level_idx, &co](const std::vector<llvm::Value*>& prev_iters,
                                               llvm::Value* have_more_inner_rows) {
     const auto matching_row_index = addJoinLoopIterator(prev_iters, level_idx + 1);

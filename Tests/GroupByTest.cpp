@@ -95,19 +95,22 @@ TEST_F(HighCardinalityStringEnv, PerfectHashNoFallback) {
 
   auto input_descs = std::vector<InputDescriptor>{InputDescriptor(td->tableId, 0)};
   std::list<std::shared_ptr<const InputColDescriptor>> input_col_descs;
-  input_col_descs.push_back(
-      std::make_shared<InputColDescriptor>(cd->columnId, td->tableId, 0));
-  input_col_descs.push_back(
-      std::make_shared<InputColDescriptor>(filter_cd->columnId, td->tableId, 0));
+  input_col_descs.push_back(std::make_shared<InputColDescriptor>(
+      cd->columnId, td->tableId, 0, cd->isVirtualCol));
+  input_col_descs.push_back(std::make_shared<InputColDescriptor>(
+      filter_cd->columnId, td->tableId, 0, filter_cd->isVirtualCol));
 
   std::vector<InputTableInfo> table_infos = get_table_infos(input_descs, executor.get());
 
   auto count_expr = makeExpr<Analyzer::AggExpr>(
       SQLTypeInfo(kBIGINT, false), kCOUNT, nullptr, false, nullptr);
-  auto group_expr =
-      makeExpr<Analyzer::ColumnVar>(cd->columnType, td->tableId, cd->columnId, 0);
-  auto filter_col_expr = makeExpr<Analyzer::ColumnVar>(
-      filter_cd->columnType, td->tableId, filter_cd->columnId, 0);
+  auto group_expr = makeExpr<Analyzer::ColumnVar>(
+      cd->columnType, td->tableId, cd->columnId, 0, cd->isVirtualCol);
+  auto filter_col_expr = makeExpr<Analyzer::ColumnVar>(filter_cd->columnType,
+                                                       td->tableId,
+                                                       filter_cd->columnId,
+                                                       0,
+                                                       filter_cd->isVirtualCol);
   Datum d{int64_t(1)};
   auto filter_val_expr = makeExpr<Analyzer::Constant>(SQLTypeInfo(kINT, false), false, d);
   auto simple_filter_expr = makeExpr<Analyzer::BinOper>(SQLTypeInfo(kBOOLEAN, false),
@@ -191,19 +194,22 @@ TEST_F(HighCardinalityStringEnv, BaselineFallbackTest) {
 
   auto input_descs = std::vector<InputDescriptor>{InputDescriptor(td->tableId, 0)};
   std::list<std::shared_ptr<const InputColDescriptor>> input_col_descs;
-  input_col_descs.push_back(
-      std::make_shared<InputColDescriptor>(cd->columnId, td->tableId, 0));
-  input_col_descs.push_back(
-      std::make_shared<InputColDescriptor>(filter_cd->columnId, td->tableId, 0));
+  input_col_descs.push_back(std::make_shared<InputColDescriptor>(
+      cd->columnId, td->tableId, 0, cd->isVirtualCol));
+  input_col_descs.push_back(std::make_shared<InputColDescriptor>(
+      filter_cd->columnId, td->tableId, 0, filter_cd->isVirtualCol));
 
   std::vector<InputTableInfo> table_infos = get_table_infos(input_descs, executor.get());
 
   auto count_expr = makeExpr<Analyzer::AggExpr>(
       SQLTypeInfo(kBIGINT, false), kCOUNT, nullptr, false, nullptr);
-  auto group_expr =
-      makeExpr<Analyzer::ColumnVar>(cd->columnType, td->tableId, cd->columnId, 0);
-  auto filter_col_expr = makeExpr<Analyzer::ColumnVar>(
-      filter_cd->columnType, td->tableId, filter_cd->columnId, 0);
+  auto group_expr = makeExpr<Analyzer::ColumnVar>(
+      cd->columnType, td->tableId, cd->columnId, 0, cd->isVirtualCol);
+  auto filter_col_expr = makeExpr<Analyzer::ColumnVar>(filter_cd->columnType,
+                                                       td->tableId,
+                                                       filter_cd->columnId,
+                                                       0,
+                                                       filter_cd->isVirtualCol);
   Datum d{int64_t(1)};
   auto filter_val_expr = makeExpr<Analyzer::Constant>(SQLTypeInfo(kINT, false), false, d);
   auto simple_filter_expr = makeExpr<Analyzer::BinOper>(SQLTypeInfo(kBOOLEAN, false),
@@ -281,17 +287,17 @@ TEST_F(HighCardinalityStringEnv, BaselineNoFilters) {
 
   auto input_descs = std::vector<InputDescriptor>{InputDescriptor(td->tableId, 0)};
   std::list<std::shared_ptr<const InputColDescriptor>> input_col_descs;
-  input_col_descs.push_back(
-      std::make_shared<InputColDescriptor>(cd->columnId, td->tableId, 0));
-  input_col_descs.push_back(
-      std::make_shared<InputColDescriptor>(filter_cd->columnId, td->tableId, 0));
+  input_col_descs.push_back(std::make_shared<InputColDescriptor>(
+      cd->columnId, td->tableId, 0, cd->isVirtualCol));
+  input_col_descs.push_back(std::make_shared<InputColDescriptor>(
+      filter_cd->columnId, td->tableId, 0, filter_cd->isVirtualCol));
 
   std::vector<InputTableInfo> table_infos = get_table_infos(input_descs, executor.get());
 
   auto count_expr = makeExpr<Analyzer::AggExpr>(
       SQLTypeInfo(kBIGINT, false), kCOUNT, nullptr, false, nullptr);
-  auto group_expr =
-      makeExpr<Analyzer::ColumnVar>(cd->columnType, td->tableId, cd->columnId, 0);
+  auto group_expr = makeExpr<Analyzer::ColumnVar>(
+      cd->columnType, td->tableId, cd->columnId, 0, cd->isVirtualCol);
 
   RelAlgExecutionUnit ra_exe_unit{input_descs,
                                   input_col_descs,

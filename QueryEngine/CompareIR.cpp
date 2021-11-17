@@ -315,7 +315,8 @@ llvm::Value* CodeGenerator::codegenOverlaps(const SQLOps optype,
     geoargs.push_back(makeExpr<Analyzer::ColumnVar>(coords_cd->columnType,
                                                     coords_cd->tableId,
                                                     coords_cd->columnId,
-                                                    lhs_col->get_rte_idx()));
+                                                    lhs_col->get_rte_idx(),
+                                                    coords_cd->isVirtualCol));
 
     Datum input_compression;
     input_compression.intval =
@@ -348,7 +349,8 @@ llvm::Value* CodeGenerator::codegenOverlaps(const SQLOps optype,
     auto bbox_col_var = makeExpr<Analyzer::ColumnVar>(poly_bounds_cd->columnType,
                                                       poly_bounds_cd->tableId,
                                                       poly_bounds_cd->columnId,
-                                                      rhs_col->get_rte_idx());
+                                                      rhs_col->get_rte_idx(),
+                                                      poly_bounds_cd->isVirtualCol);
 
     const auto bbox_contains_func_oper =
         makeExpr<Analyzer::FunctionOper>(SQLTypeInfo(kBOOLEAN, false),

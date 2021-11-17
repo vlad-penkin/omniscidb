@@ -831,8 +831,11 @@ class RelAlgNode {
 
 class RelScan : public RelAlgNode {
  public:
-  RelScan(const TableDescriptor* td, const std::vector<std::string>& field_names)
+  RelScan(const TableDescriptor* td,
+          const std::vector<const ColumnDescriptor*>& cds,
+          const std::vector<std::string>& field_names)
       : td_(td)
+      , cds_(cds)
       , field_names_(field_names)
       , hint_applied_(false)
       , hints_(std::make_unique<Hints>()) {}
@@ -848,6 +851,17 @@ class RelScan : public RelAlgNode {
   const std::vector<std::string>& getFieldNames() const { return field_names_; }
 
   const std::string getFieldName(const size_t i) const { return field_names_[i]; }
+
+  bool isVirtualCol(const size_t col_idx) const {
+    // We might pass SPI for a GEO column field. It's never virtual.
+    // TODO: stop using physical column ids in execution part.
+    if (col_idx >= SPIMAP_MAGIC1) {
+      return false;
+    }
+
+    CHECK_LT(col_idx, cds_.size());
+    return cds_[col_idx]->isVirtualCol;
+  }
 
   std::string toString() const override {
     return cat(
@@ -896,6 +910,7 @@ class RelScan : public RelAlgNode {
 
  private:
   const TableDescriptor* td_;
+  const std::vector<const ColumnDescriptor*> cds_;
   const std::vector<std::string> field_names_;
   bool hint_applied_;
   std::unique_ptr<Hints> hints_;

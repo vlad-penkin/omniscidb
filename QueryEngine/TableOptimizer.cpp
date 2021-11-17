@@ -217,9 +217,9 @@ DeletedColumnStats TableOptimizer::getDeletedColumnStats(
   const auto column_id = cd->columnId;
 
   const auto input_col_desc =
-      std::make_shared<const InputColDescriptor>(column_id, td->tableId, 0);
+      std::make_shared<const InputColDescriptor>(column_id, td->tableId, 0, false);
   const auto col_expr =
-      makeExpr<Analyzer::ColumnVar>(cd->columnType, td->tableId, column_id, 0);
+      makeExpr<Analyzer::ColumnVar>(cd->columnType, td->tableId, column_id, 0, false);
   const auto count_expr =
       makeExpr<Analyzer::AggExpr>(cd->columnType, kCOUNT, col_expr, false, nullptr);
 
@@ -319,10 +319,10 @@ void TableOptimizer::recomputeColumnMetadata(
   }
 
   const auto column_id = cd->columnId;
-  const auto input_col_desc =
-      std::make_shared<const InputColDescriptor>(column_id, td->tableId, 0);
-  const auto col_expr =
-      makeExpr<Analyzer::ColumnVar>(cd->columnType, td->tableId, column_id, 0);
+  const auto input_col_desc = std::make_shared<const InputColDescriptor>(
+      column_id, td->tableId, 0, cd->isVirtualCol);
+  const auto col_expr = makeExpr<Analyzer::ColumnVar>(
+      cd->columnType, td->tableId, column_id, 0, cd->isVirtualCol);
   auto max_expr =
       makeExpr<Analyzer::AggExpr>(cd->columnType, kMAX, col_expr, false, nullptr);
   auto min_expr =

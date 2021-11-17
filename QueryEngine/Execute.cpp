@@ -389,7 +389,7 @@ std::vector<ColumnLazyFetchInfo> Executor::getColLazyFetchInfo(
           auto col0_ti = cd0->columnType;
           CHECK(!cd0->isVirtualCol);
           auto col0_var = makeExpr<Analyzer::ColumnVar>(
-              col0_ti, col_var->get_table_id(), cd0->columnId, rte_idx);
+              col0_ti, col_var->get_table_id(), cd0->columnId, rte_idx, false);
           auto local_col0_id = plan_state_->getLocalColumnId(col0_var.get(), false);
           col_lazy_fetch_info.emplace_back(
               ColumnLazyFetchInfo{true, local_col0_id, col0_ti});
@@ -1394,15 +1394,15 @@ RelAlgExecutionUnit replace_scan_limit(const RelAlgExecutionUnit& ra_exe_unit_in
 }  // namespace
 
 TemporaryTable Executor::executeWorkUnit(size_t& max_groups_buffer_entry_guess,
-                                       const bool is_agg,
-                                       const std::vector<InputTableInfo>& query_infos,
-                                       const RelAlgExecutionUnit& ra_exe_unit_in,
-                                       const CompilationOptions& co,
-                                       const ExecutionOptions& eo,
-                                       const Catalog_Namespace::Catalog& cat,
-                                       RenderInfo* render_info,
-                                       const bool has_cardinality_estimation,
-                                       ColumnCacheMap& column_cache) {
+                                         const bool is_agg,
+                                         const std::vector<InputTableInfo>& query_infos,
+                                         const RelAlgExecutionUnit& ra_exe_unit_in,
+                                         const CompilationOptions& co,
+                                         const ExecutionOptions& eo,
+                                         const Catalog_Namespace::Catalog& cat,
+                                         RenderInfo* render_info,
+                                         const bool has_cardinality_estimation,
+                                         ColumnCacheMap& column_cache) {
   VLOG(1) << "Executor " << executor_id_ << " is executing work unit:" << ra_exe_unit_in;
 
   ScopeGuard cleanup_post_execution = [this] {
@@ -1620,8 +1620,8 @@ TemporaryTable Executor::executeWorkUnitImpl(
         order_map[ra_exe_unit.input_descs[i].getTableId()] = i;
       }
     }
-    return resultsUnion(shared_context, ra_exe_unit,
-        !eo.multifrag_result, eo.preserve_order, order_map);
+    return resultsUnion(
+        shared_context, ra_exe_unit, !eo.multifrag_result, eo.preserve_order, order_map);
   } while (static_cast<size_t>(crt_min_byte_width) <= sizeof(int64_t));
 
   return std::make_shared<ResultSet>(std::vector<TargetInfo>{},
@@ -2623,52 +2623,52 @@ FetchResult Executor::fetchChunks(
       ///   frag_col_buffers[it->second] = column_fetcher.getResultSetColumn(
       ///     col_id.get(), memory_level_for_column, device_id, device_allocator);
       /// } else {
-        if (needFetchAllFragments(*col_id, ra_exe_unit, selected_fragments)) {
-          // determine if we need special treatment to linearlize multi-frag table
-          // i.e., a column that is classified as varlen type, i.e., array
-          // for now, we only support fixed-length array that contains
-          // geo point coordianates but we can support more types in this way
-          if (needLinearizeAllFragments(
-                  cd, *col_id, ra_exe_unit, selected_fragments, memory_level)) {
-            bool for_lazy_fetch = false;
-            if (plan_state_->columns_to_not_fetch_.find(tbl_col_ids) !=
-                plan_state_->columns_to_not_fetch_.end()) {
-              for_lazy_fetch = true;
-              VLOG(2) << "Try to linearize lazy fetch column (col_id: " << cd->columnId
-                      << ", col_name: " << cd->columnName << ")";
-            }
-            frag_col_buffers[it->second] = column_fetcher.linearizeColumnFragments(
-                table_id,
-                col_id->getColId(),
-                all_tables_fragments,
-                chunks,
-                chunk_iterators,
-                for_lazy_fetch ? Data_Namespace::CPU_LEVEL : memory_level,
-                for_lazy_fetch ? 0 : device_id,
-                device_allocator,
-                thread_idx);
-          } else {
-            frag_col_buffers[it->second] =
-                column_fetcher.getAllTableColumnFragments(table_id,
-                                                          col_id->getColId(),
-                                                          all_tables_fragments,
-                                                          memory_level_for_column,
-                                                          device_id,
-                                                          device_allocator,
-                                                          thread_idx);
+      if (needFetchAllFragments(*col_id, ra_exe_unit, selected_fragments)) {
+        // determine if we need special treatment to linearlize multi-frag table
+        // i.e., a column that is classified as varlen type, i.e., array
+        // for now, we only support fixed-length array that contains
+        // geo point coordianates but we can support more types in this way
+        if (needLinearizeAllFragments(
+                cd, *col_id, ra_exe_unit, selected_fragments, memory_level)) {
+          bool for_lazy_fetch = false;
+          if (plan_state_->columns_to_not_fetch_.find(tbl_col_ids) !=
+              plan_state_->columns_to_not_fetch_.end()) {
+            for_lazy_fetch = true;
+            VLOG(2) << "Try to linearize lazy fetch column (col_id: " << cd->columnId
+                    << ", col_name: " << cd->columnName << ")";
           }
+          frag_col_buffers[it->second] = column_fetcher.linearizeColumnFragments(
+              table_id,
+              col_id->getColId(),
+              all_tables_fragments,
+              chunks,
+              chunk_iterators,
+              for_lazy_fetch ? Data_Namespace::CPU_LEVEL : memory_level,
+              for_lazy_fetch ? 0 : device_id,
+              device_allocator,
+              thread_idx);
         } else {
           frag_col_buffers[it->second] =
-              column_fetcher.getOneTableColumnFragment(table_id,
-                                                       frag_id,
-                                                       col_id->getColId(),
-                                                       all_tables_fragments,
-                                                       chunks,
-                                                       chunk_iterators,
-                                                       memory_level_for_column,
-                                                       device_id,
-                                                       device_allocator);
+              column_fetcher.getAllTableColumnFragments(table_id,
+                                                        col_id->getColId(),
+                                                        all_tables_fragments,
+                                                        memory_level_for_column,
+                                                        device_id,
+                                                        device_allocator,
+                                                        thread_idx);
         }
+      } else {
+        frag_col_buffers[it->second] =
+            column_fetcher.getOneTableColumnFragment(table_id,
+                                                     frag_id,
+                                                     col_id->getColId(),
+                                                     all_tables_fragments,
+                                                     chunks,
+                                                     chunk_iterators,
+                                                     memory_level_for_column,
+                                                     device_id,
+                                                     device_allocator);
+      }
       ///}
       //}
     }
@@ -2791,31 +2791,31 @@ FetchResult Executor::fetchUnionChunks(
             plan_state_->columns_to_fetch_.end()) {
           memory_level_for_column = Data_Namespace::CPU_LEVEL;
         }
-        ///if (col_id->getScanDesc().getSourceType() == InputSourceType::RESULT) {
+        /// if (col_id->getScanDesc().getSourceType() == InputSourceType::RESULT) {
         ///  frag_col_buffers[it->second] = column_fetcher.getResultSetColumn(
         ///      col_id.get(), memory_level_for_column, device_id, device_allocator);
         ///} else {
-          if (needFetchAllFragments(*col_id, ra_exe_unit, selected_fragments)) {
-            frag_col_buffers[it->second] =
-                column_fetcher.getAllTableColumnFragments(table_id,
-                                                          col_id->getColId(),
-                                                          all_tables_fragments,
-                                                          memory_level_for_column,
-                                                          device_id,
-                                                          device_allocator,
-                                                          thread_idx);
-          } else {
-            frag_col_buffers[it->second] =
-                column_fetcher.getOneTableColumnFragment(table_id,
-                                                         frag_id,
-                                                         col_id->getColId(),
-                                                         all_tables_fragments,
-                                                         chunks,
-                                                         chunk_iterators,
-                                                         memory_level_for_column,
-                                                         device_id,
-                                                         device_allocator);
-          }
+        if (needFetchAllFragments(*col_id, ra_exe_unit, selected_fragments)) {
+          frag_col_buffers[it->second] =
+              column_fetcher.getAllTableColumnFragments(table_id,
+                                                        col_id->getColId(),
+                                                        all_tables_fragments,
+                                                        memory_level_for_column,
+                                                        device_id,
+                                                        device_allocator,
+                                                        thread_idx);
+        } else {
+          frag_col_buffers[it->second] =
+              column_fetcher.getOneTableColumnFragment(table_id,
+                                                       frag_id,
+                                                       col_id->getColId(),
+                                                       all_tables_fragments,
+                                                       chunks,
+                                                       chunk_iterators,
+                                                       memory_level_for_column,
+                                                       device_id,
+                                                       device_allocator);
+        }
         ///}
       }
       all_frag_col_buffers.push_back(frag_col_buffers);
@@ -3597,7 +3597,7 @@ std::tuple<RelAlgExecutionUnit, PlanState::DeletedColumnsMap> Executor::addDelet
     if (!found) {
       // add deleted column
       ra_exe_unit_with_deleted.input_col_descs.emplace_back(new InputColDescriptor(
-          deleted_cd->columnId, deleted_cd->tableId, input_table.getNestLevel()));
+          deleted_cd->columnId, deleted_cd->tableId, input_table.getNestLevel(), false));
       add_deleted_col_to_map(deleted_cols_map, deleted_cd);
     }
   }
@@ -3893,7 +3893,7 @@ AggregatedColRange Executor::computeColRangesCache(
     CHECK(cd);
     if (ExpressionRange::typeSupportsRange(cd->columnType)) {
       const auto col_var = boost::make_unique<Analyzer::ColumnVar>(
-          cd->columnType, phys_input.table_id, phys_input.col_id, 0);
+          cd->columnType, phys_input.table_id, phys_input.col_id, 0, cd->isVirtualCol);
       const auto col_range = getLeafColumnRange(col_var.get(), query_infos, this, false);
       agg_col_range_cache.setColRange(phys_input, col_range);
     }

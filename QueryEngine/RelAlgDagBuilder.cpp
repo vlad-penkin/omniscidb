@@ -2282,12 +2282,21 @@ class RelAlgDispatcher {
     CHECK(scan_ra.IsObject());
     const auto td = getTableFromScanNode(cat_, scan_ra);
     const auto field_names = getFieldNamesFromScanNode(scan_ra);
+    std::vector<const ColumnDescriptor*> cds;
+    cds.reserve(field_names.size());
+    for (size_t i = 0; i < field_names.size(); ++i) {
+      auto cd = cat_.getMetadataForColumn(td->tableId, field_names[i]);
+      // A temporary code to make sure column descriptors list is correct.
+      // TODO: remove
+      CHECK_EQ(cd, cat_.getMetadataForColumnBySpi(td->tableId, i + 1));
+      cds.push_back(cd);
+    }
+    auto scan_node = std::make_shared<RelScan>(td, cds, field_names);
     if (scan_ra.HasMember("hints")) {
-      auto scan_node = std::make_shared<RelScan>(td, field_names);
       getRelAlgHints(scan_ra, scan_node);
       return scan_node;
     }
-    return std::make_shared<RelScan>(td, field_names);
+    return scan_node;
   }
 
   std::shared_ptr<RelProject> dispatchProject(const rapidjson::Value& proj_ra,
