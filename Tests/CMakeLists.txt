@@ -130,7 +130,7 @@ target_link_libraries(ThreadingTestSTD gtest Logger Shared ${LLVM_LINKER_FLAGS})
 target_link_libraries(JoinHashTableTest ${EXECUTE_TEST_LIBS})
 target_link_libraries(CachedHashTableTest ${EXECUTE_TEST_LIBS})
 target_link_libraries(UtilTest OSDependent)
-target_link_libraries(EncoderTest gtest ${Arrow_LIBRARIES} Catalog ImportExport Parser DataMgr Logger)
+target_link_libraries(EncoderTest gtest DataMgr Shared Logger)
 #Requires thrift_handler for DBHandler test fixture
 target_link_libraries(SQLHintTest ${EXECUTE_TEST_LIBS})
 target_link_libraries(QuantileCpuTest gtest ${MAPD_LIBRARIES})
