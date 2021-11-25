@@ -170,3 +170,11 @@ int64_t result_set::lazy_decode(const ColumnLazyFetchInfo& col_lazy_fetch,
   }
   return val;
 }
+
+// ACCESSORS
+size_t ResultSetStorage::getColOffInBytes(size_t column_idx) const{
+  return query_mem_desc_.getColOffInBytes(column_idx);
+}
+// 
+// TODO: ADD CACHING TO ResultSetStorage::binSearchRowCount()
+//

@@ -35,6 +35,7 @@
 #include <atomic>
 #include <functional>
 #include <list>
+#include <utility>  //  std::pair
 
 /*
  * Stores the underlying buffer and the meta-data for a result set. The buffer
@@ -405,12 +406,21 @@ class ResultSet {
                             int8_t* output_buffer,
                             const size_t output_buffer_size) const;
 
-  bool isDirectColumnarConversionPossible() const;
 
   bool didOutputColumnar() const { return this->query_mem_desc_.didOutputColumnar(); }
 
+  //  Columnar Conversion checker functions
+  bool isDirectColumnarConversionPossible() const;
   bool isZeroCopyColumnarConversionPossible(size_t column_idx) const;
+  bool isChunkedZeroCopyColumnarConversionPossible(size_t column_idx) const;
+
+  //  Buffer Accessors
   const int8_t* getColumnarBuffer(size_t column_idx) const;
+
+  //  returns vector of std::pair<chunk buffer ptr, chunk row count>
+  std::vector<std::pair<const int8_t*, size_t>>
+      getChunkedColumnarBuffer(size_t column_idx) const;
+
 
   QueryDescriptionType getQueryDescriptionType() const {
     return query_mem_desc_.getQueryDescriptionType();
@@ -791,7 +801,25 @@ class ResultSet {
   friend class ResultSetManager;
   friend class ResultSetRowIterator;
   friend class ColumnarResults;
+//  FOR DEBUGGING PUPROSES
+public:
+  template <typename TYPE>
+  void inspectStorage(size_t n);
 };
+
+template <typename TYPE>
+void ResultSet::inspectStorage(size_t n)
+{
+  // ResultSetStorage
+  TYPE * values_ptr = reinterpret_cast<TYPE*> (storage_->getUnderlyingBuffer());  //  int8_t* getUnderlyingBuffer() const;
+  // size_t entryCount = storage_->getEntryCount();                               //  size_t getEntryCount() const { return query_mem_desc_.getEntryCount(); }
+  std::cout << "\n== ResultSet::inspectStorage ==\n";
+  for (size_t i = 0; i<n; i++) {
+    std::cout << "## buffer["<<i<<"]:\t"<<values_ptr[i] << "\n";
+  }
+  std::cout << "=================================\n";
+}
+
 
 ResultSetRowIterator::value_type ResultSetRowIterator::operator*() const {
   if (!global_entry_idx_valid_) {

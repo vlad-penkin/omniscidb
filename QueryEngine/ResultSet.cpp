@@ -1083,10 +1083,44 @@ bool ResultSet::isZeroCopyColumnarConversionPossible(size_t column_idx) const {
          (lazy_fetch_info_.empty() || !lazy_fetch_info_[column_idx].is_lazily_fetched);
 }
 
+bool ResultSet::isChunkedZeroCopyColumnarConversionPossible(size_t column_idx) const {
+  return query_mem_desc_.didOutputColumnar() 
+      && query_mem_desc_.getQueryDescriptionType() == QueryDescriptionType::Projection
+      && storage_  
+      && (lazy_fetch_info_.empty() || !lazy_fetch_info_[column_idx].is_lazily_fetched)
+      ;
+}
+
 const int8_t* ResultSet::getColumnarBuffer(size_t column_idx) const {
   CHECK(isZeroCopyColumnarConversionPossible(column_idx));
   return storage_->getUnderlyingBuffer() + query_mem_desc_.getColOffInBytes(column_idx);
 }
+
+std::vector<std::pair<const int8_t*, size_t>> ResultSet::getChunkedColumnarBuffer(size_t column_idx) const {
+  CHECK(isChunkedZeroCopyColumnarConversionPossible(column_idx));
+
+  std::vector<std::pair<const int8_t*, size_t>> retval;
+  retval.reserve(1+appended_storage_.size());
+
+  // std::cout 
+  //   << "\n## [ResultSet::getChunkedColumnarBuffer], column_idx: "<< column_idx
+  //   << ", appended_storage_.size(): " << appended_storage_.size()
+  //   << ", query_mem_desc_.getColOffInBytes(): " << query_mem_desc_.getColOffInBytes(column_idx)
+  //   << ", storage_->getColOffInBytes():       " << storage_->getColOffInBytes(column_idx)
+  //   << ", row count: " << storage_->binSearchRowCount()
+  //   << std::endl;
+
+  retval.push_back({storage_->getUnderlyingBuffer() + storage_->getColOffInBytes(column_idx), storage_->binSearchRowCount()});
+
+ for (auto & chunk_uptr: appended_storage_) {
+    const int8_t * ptr = chunk_uptr->getUnderlyingBuffer() + chunk_uptr->getColOffInBytes(column_idx);
+    size_t         row_count = chunk_uptr->binSearchRowCount();
+    retval.push_back({ptr, row_count});
+  }
+
+  return retval;
+}
+
 
 // returns a bitmap (and total number) of all single slot targets
 std::tuple<std::vector<bool>, size_t> ResultSet::getSingleSlotTargetBitmap() const {

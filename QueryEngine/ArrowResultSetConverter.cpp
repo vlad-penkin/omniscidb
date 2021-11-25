@@ -42,6 +42,7 @@ using key_t = size_t;
 #include "arrow/ipc/api.h"
 
 #include "Shared/ArrowUtil.h"
+#include "Shared/threading.h"
 
 #ifdef HAVE_CUDA
 #include <arrow/gpu/cuda_api.h>
@@ -261,6 +262,146 @@ void convert_column(ResultSetPtr result,
         new arrow::NumericArray<ARROW_TYPE>(entry_count, values, is_valid, null_count));
   } else {
     out.reset(new arrow::NumericArray<ARROW_TYPE>(entry_count, values));
+  }
+}
+
+// ==============================================================
+// convert_column() specialization for arrow::ChunkedArray output
+// ==============================================================
+template <typename C_TYPE,
+          typename ARROW_TYPE = typename arrow::CTypeTraits<C_TYPE>::ArrowType>
+void convert_column(ResultSetPtr result,
+                    size_t col,
+                    size_t entry_count,
+                    std::shared_ptr<arrow::ChunkedArray>& out)
+{
+  std::cout << " NEW VERSION OF convert_column(), col: " << std::setw(4) << col << ". CONVERSION BEGIN... ";
+  CHECK(sizeof(C_TYPE) == result->getColType(col).get_size());
+
+  using arrow_buffer_t = std::shared_ptr<arrow::Buffer>;
+  std::vector<arrow_buffer_t> values;
+  arrow_buffer_t              is_valid;
+
+  CHECK(result->isChunkedZeroCopyColumnarConversionPossible(col));
+
+  auto chunks = result->getChunkedColumnarBuffer(col);
+  size_t total_row_count = 0;
+  for (auto & [chunk_ptr, chunk_rows_count]: chunks) {
+    const int64_t buf_size = chunk_rows_count * sizeof(C_TYPE);
+    total_row_count += chunk_rows_count;
+    values.emplace_back(new ResultSetBuffer(reinterpret_cast<const uint8_t*>(chunk_ptr),
+                                            buf_size,
+                                            result ));
+  }
+
+  CHECK_EQ(total_row_count, entry_count);
+
+  std::vector<std::shared_ptr<arrow::Array>>
+    v_arrow_num_array_sp(values.size(), nullptr);
+
+  //  TODO: parallelize
+  for (size_t idx = 0; idx<values.size(); idx++) {
+
+    size_t chunk_rows_count = chunks[idx].second;
+
+    int64_t null_count = 0;
+    auto res = arrow::AllocateBuffer((chunk_rows_count + 7) / 8);
+    CHECK(res.ok());
+    is_valid = std::move(res).ValueOrDie();
+
+    auto is_valid_data = is_valid->mutable_data();
+
+    const null_type_t<C_TYPE>* vals =
+        reinterpret_cast<const null_type_t<C_TYPE>*>(values[idx]->data());
+    null_type_t<C_TYPE> null_val = null_type<C_TYPE>::value;
+
+    size_t unroll_count = chunk_rows_count & 0xFFFFFFFFFFFFFFF8ULL;
+    //  TODO: parallelize
+    for (size_t i = 0; i < unroll_count; i += 8) {
+      uint8_t valid_byte = 0;
+      uint8_t valid;
+      valid = vals[i + 0] != null_val;
+      valid_byte |= valid << 0;
+      null_count += !valid;
+      valid = vals[i + 1] != null_val;
+      valid_byte |= valid << 1;
+      null_count += !valid;
+      valid = vals[i + 2] != null_val;
+      valid_byte |= valid << 2;
+      null_count += !valid;
+      valid = vals[i + 3] != null_val;
+      valid_byte |= valid << 3;
+      null_count += !valid;
+      valid = vals[i + 4] != null_val;
+      valid_byte |= valid << 4;
+      null_count += !valid;
+      valid = vals[i + 5] != null_val;
+      valid_byte |= valid << 5;
+      null_count += !valid;
+      valid = vals[i + 6] != null_val;
+      valid_byte |= valid << 6;
+      null_count += !valid;
+      valid = vals[i + 7] != null_val;
+      valid_byte |= valid << 7;
+      null_count += !valid;
+      is_valid_data[i >> 3] = valid_byte;
+    }
+    if (unroll_count != chunk_rows_count) {
+      uint8_t valid_byte = 0;
+      for (size_t i = unroll_count; i < chunk_rows_count; ++i) {
+        bool valid = vals[i] != null_val;
+        valid_byte |= valid << (i & 7);
+        null_count += !valid;
+      }
+      is_valid_data[unroll_count >> 3] = valid_byte;
+    }
+
+    if (!null_count) {
+      is_valid.reset();
+    }
+
+    // TODO: support date/time + scaling
+    // TODO: support booleans
+
+    using numarray_t = arrow::NumericArray<ARROW_TYPE>;
+    v_arrow_num_array_sp[idx] = null_count 
+      ? std::make_shared<numarray_t>(chunk_rows_count, values[idx], is_valid, null_count)
+      : std::make_shared<numarray_t>(chunk_rows_count, values[idx]);
+  } // loop over values vector
+
+  out = std::make_shared<arrow::ChunkedArray>(std::move(v_arrow_num_array_sp));
+  std::cout << "CONVERSION COMPLETED."<< std::endl;
+}
+
+
+template <typename ArrowArrayType>
+void convert_column(SQLTypes physical_type,
+                    ResultSetPtr results,
+                    size_t col_idx,
+                    size_t entry_count,
+                    std::shared_ptr<ArrowArrayType>& out) {
+  switch (physical_type) {
+    case kTINYINT:
+      convert_column<int8_t>(results, col_idx, entry_count, out);
+      break;
+    case kSMALLINT:
+      convert_column<int16_t>(results, col_idx, entry_count, out);
+      break;
+    case kINT:
+      convert_column<int32_t>(results, col_idx, entry_count, out);
+      break;
+    case kBIGINT:
+      convert_column<int64_t>(results, col_idx, entry_count, out);
+      break;
+    case kFLOAT:
+      convert_column<float>(results, col_idx, entry_count, out);
+      break;
+    case kDOUBLE:
+      convert_column<double>(results, col_idx, entry_count, out);
+      break;
+    default:
+      throw std::runtime_error(toString(physical_type) +
+                               " is not supported in Arrow column converter.");
   }
 }
 
@@ -611,20 +752,119 @@ ArrowResultSetConverter::getSerializedArrowOutput(
 
 std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::convertToArrow() const {
   auto timer = DEBUG_TIMER(__func__);
-  const auto col_count = results_->colCount();
-  std::vector<std::shared_ptr<arrow::Field>> fields;
-  CHECK(col_names_.empty() || col_names_.size() == col_count);
-  for (size_t i = 0; i < col_count; ++i) {
-    const auto ti = results_->getColType(i);
-    fields.push_back(makeField(col_names_.empty() ? "" : col_names_[i], ti));
+  return getArrowBatch(makeSchema());
+}
+
+std::shared_ptr<arrow::Table> ArrowResultSetConverter::convertToArrowTable() const {
+  auto timer = DEBUG_TIMER(__func__);
+  return getArrowTable(makeSchema());
+}
+
+size_t convert_rowwise(
+    ResultSetPtr results,
+    const std::vector<ArrowResultSetConverter::ColumnBuilder>& builders,
+    ExecutorDeviceType device_type,
+    std::vector<std::shared_ptr<ValueArray>>& value_seg,
+    std::vector<std::shared_ptr<std::vector<bool>>>& null_bitmap_seg,
+    const std::vector<bool>& non_lazy_cols,
+    const size_t start_entry,
+    const size_t end_entry) {
+  const auto col_count = results->colCount();
+  CHECK_EQ(value_seg.size(), col_count);
+  CHECK_EQ(null_bitmap_seg.size(), col_count);
+  const auto entry_count = end_entry - start_entry;
+  size_t seg_row_count = 0;
+  for (size_t i = start_entry; i < end_entry; ++i) {
+    auto row = results->getRowAtNoTranslations(i, non_lazy_cols);
+    if (row.empty()) {
+      continue;
+    }
+    ++seg_row_count;
+    for (size_t j = 0; j < col_count; ++j) {
+      if (!non_lazy_cols.empty() && non_lazy_cols[j]) {
+        continue;
+      }
+
+      auto scalar_value = boost::get<ScalarTargetValue>(&row[j]);
+      // TODO(miyu): support more types other than scalar.
+      CHECK(scalar_value);
+      const auto& column = builders[j];
+      switch (column.physical_type) {
+        case kBOOLEAN:
+          create_or_append_value<bool, int64_t>(*scalar_value, value_seg[j], entry_count);
+          create_or_append_validity<int64_t>(
+              *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
+          break;
+        case kTINYINT:
+          create_or_append_value<int8_t, int64_t>(
+              *scalar_value, value_seg[j], entry_count);
+          create_or_append_validity<int64_t>(
+              *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
+          break;
+        case kSMALLINT:
+          create_or_append_value<int16_t, int64_t>(
+              *scalar_value, value_seg[j], entry_count);
+          create_or_append_validity<int64_t>(
+              *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
+          break;
+        case kINT:
+          create_or_append_value<int32_t, int64_t>(
+              *scalar_value, value_seg[j], entry_count);
+          create_or_append_validity<int64_t>(
+              *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
+          break;
+        case kBIGINT:
+          create_or_append_value<int64_t, int64_t>(
+              *scalar_value, value_seg[j], entry_count);
+          create_or_append_validity<int64_t>(
+              *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
+          break;
+        case kDECIMAL:
+          create_or_append_value<int64_t, int64_t>(
+              *scalar_value, value_seg[j], entry_count);
+          create_or_append_validity<int64_t>(
+              *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
+          break;
+        case kFLOAT:
+          create_or_append_value<float, float>(*scalar_value, value_seg[j], entry_count);
+          create_or_append_validity<float>(
+              *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
+          break;
+        case kDOUBLE:
+          create_or_append_value<double, double>(
+              *scalar_value, value_seg[j], entry_count);
+          create_or_append_validity<double>(
+              *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
+          break;
+        case kTIME:
+          create_or_append_value<int32_t, int64_t>(
+              *scalar_value, value_seg[j], entry_count);
+          create_or_append_validity<int64_t>(
+              *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
+          break;
+        case kDATE:
+          device_type == ExecutorDeviceType::GPU
+              ? create_or_append_value<int64_t, int64_t>(
+                    *scalar_value, value_seg[j], entry_count)
+              : create_or_append_value<int32_t, int64_t>(
+                    *scalar_value, value_seg[j], entry_count);
+          create_or_append_validity<int64_t>(
+              *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
+          break;
+        case kTIMESTAMP:
+          create_or_append_value<int64_t, int64_t>(
+              *scalar_value, value_seg[j], entry_count);
+          create_or_append_validity<int64_t>(
+              *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
+          break;
+        default:
+          // TODO(miyu): support more scalar types.
+          throw std::runtime_error(column.col_type.get_type_name() +
+                                   " is not supported in Arrow result sets.");
+      }
+    }
   }
-#if ARROW_CONVERTER_DEBUG
-  VLOG(1) << "Arrow fields: ";
-  for (const auto& f : fields) {
-    VLOG(1) << "\t" << f->ToString(true);
-  }
-#endif
-  return getArrowBatch(arrow::schema(fields));
+  return seg_row_count;
 }
 
 std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
@@ -635,9 +875,6 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
   // If so, we return an arrow result set that only
   // contains the schema (no record batch will be serialized).
   if (results_->isEmpty()) {
-    for (auto& field : schema->fields()) {
-      result_columns.push_back(arrow::MakeArrayOfNull(field->type(), 0).ValueOrDie());
-    }
     return ARROW_RECORDBATCH_MAKE(schema, 0, result_columns);
   }
 
@@ -652,27 +889,8 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
   std::vector<ColumnBuilder> builders(col_count);
 
   // Create array builders
-  {
-    auto timer = DEBUG_TIMER("initialize column builders");
-    std::vector<std::future<void>> child_threads;
-    for (size_t i = 0; i < col_count; ++i) {
-      auto col_type = results_->getColType(i);
-      if (col_type.is_dict_encoded_string()) {
-        child_threads.push_back(
-            std::async(std::launch::async,
-                       &ArrowResultSetConverter::initializeColumnBuilder,
-                       this,
-                       std::ref(builders[i]),
-                       col_type,
-                       schema->field(i)));
-      } else {
-        initializeColumnBuilder(builders[i], col_type, schema->field(i));
-      }
-    }
-
-    for (auto& child : child_threads) {
-      child.wait();
-    }
+  for (size_t i = 0; i < col_count; ++i) {
+    initializeColumnBuilder(builders[i], results_->getColType(i), schema->field(i));
   }
 
   // TODO(miyu): speed up for columnar buffers
@@ -681,103 +899,14 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
                    const std::vector<bool>& non_lazy_cols,
                    const size_t start_entry,
                    const size_t end_entry) -> size_t {
-    CHECK_EQ(value_seg.size(), col_count);
-    CHECK_EQ(null_bitmap_seg.size(), col_count);
-    const auto entry_count = end_entry - start_entry;
-    size_t seg_row_count = 0;
-    for (size_t i = start_entry; i < end_entry; ++i) {
-      auto row = results_->getRowAtNoTranslations(i, non_lazy_cols);
-      if (row.empty()) {
-        continue;
-      }
-      ++seg_row_count;
-      for (size_t j = 0; j < col_count; ++j) {
-        if (!non_lazy_cols.empty() && non_lazy_cols[j]) {
-          continue;
-        }
-
-        auto scalar_value = boost::get<ScalarTargetValue>(&row[j]);
-        // TODO(miyu): support more types other than scalar.
-        CHECK(scalar_value);
-        const auto& column = builders[j];
-        switch (column.physical_type) {
-          case kBOOLEAN:
-            create_or_append_value<bool, int64_t>(
-                *scalar_value, value_seg[j], entry_count);
-            create_or_append_validity<int64_t>(
-                *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
-            break;
-          case kTINYINT:
-            create_or_append_value<int8_t, int64_t>(
-                *scalar_value, value_seg[j], entry_count);
-            create_or_append_validity<int64_t>(
-                *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
-            break;
-          case kSMALLINT:
-            create_or_append_value<int16_t, int64_t>(
-                *scalar_value, value_seg[j], entry_count);
-            create_or_append_validity<int64_t>(
-                *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
-            break;
-          case kINT:
-            create_or_append_value<int32_t, int64_t>(
-                *scalar_value, value_seg[j], entry_count);
-            create_or_append_validity<int64_t>(
-                *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
-            break;
-          case kBIGINT:
-            create_or_append_value<int64_t, int64_t>(
-                *scalar_value, value_seg[j], entry_count);
-            create_or_append_validity<int64_t>(
-                *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
-            break;
-          case kDECIMAL:
-            create_or_append_value<int64_t, int64_t>(
-                *scalar_value, value_seg[j], entry_count);
-            create_or_append_validity<int64_t>(
-                *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
-            break;
-          case kFLOAT:
-            create_or_append_value<float, float>(
-                *scalar_value, value_seg[j], entry_count);
-            create_or_append_validity<float>(
-                *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
-            break;
-          case kDOUBLE:
-            create_or_append_value<double, double>(
-                *scalar_value, value_seg[j], entry_count);
-            create_or_append_validity<double>(
-                *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
-            break;
-          case kTIME:
-            create_or_append_value<int32_t, int64_t>(
-                *scalar_value, value_seg[j], entry_count);
-            create_or_append_validity<int64_t>(
-                *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
-            break;
-          case kDATE:
-            device_type_ == ExecutorDeviceType::GPU
-                ? create_or_append_value<int64_t, int64_t>(
-                      *scalar_value, value_seg[j], entry_count)
-                : create_or_append_value<int32_t, int64_t>(
-                      *scalar_value, value_seg[j], entry_count);
-            create_or_append_validity<int64_t>(
-                *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
-            break;
-          case kTIMESTAMP:
-            create_or_append_value<int64_t, int64_t>(
-                *scalar_value, value_seg[j], entry_count);
-            create_or_append_validity<int64_t>(
-                *scalar_value, column.col_type, null_bitmap_seg[j], entry_count);
-            break;
-          default:
-            // TODO(miyu): support more scalar types.
-            throw std::runtime_error(column.col_type.get_type_name() +
-                                     " is not supported in Arrow result sets.");
-        }
-      }
-    }
-    return seg_row_count;
+    return convert_rowwise(results_,
+                           builders,
+                           device_type_,
+                           value_seg,
+                           null_bitmap_seg,
+                           non_lazy_cols,
+                           start_entry,
+                           end_entry);
   };
 
   auto convert_columns = [&](std::vector<std::shared_ptr<arrow::Array>>& result,
@@ -789,30 +918,8 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
         continue;
       }
 
-      const auto& column = builders[col];
-      switch (column.physical_type) {
-        case kTINYINT:
-          convert_column<int8_t>(results_, col, entry_count, result[col]);
-          break;
-        case kSMALLINT:
-          convert_column<int16_t>(results_, col, entry_count, result[col]);
-          break;
-        case kINT:
-          convert_column<int32_t>(results_, col, entry_count, result[col]);
-          break;
-        case kBIGINT:
-          convert_column<int64_t>(results_, col, entry_count, result[col]);
-          break;
-        case kFLOAT:
-          convert_column<float>(results_, col, entry_count, result[col]);
-          break;
-        case kDOUBLE:
-          convert_column<double>(results_, col, entry_count, result[col]);
-          break;
-        default:
-          throw std::runtime_error(column.col_type.get_type_name() +
-                                   " is not supported in Arrow column converter.");
-      }
+      convert_column(
+          builders[col].physical_type, results_, col, entry_count, result[col]);
     }
   };
 
@@ -959,6 +1066,126 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
   return ARROW_RECORDBATCH_MAKE(schema, row_count, result_columns);
 }
 
+std::shared_ptr<arrow::Table> ArrowResultSetConverter::getArrowTable(
+    const std::shared_ptr<arrow::Schema>& schema) const {
+  // auto batch = getArrowBatch(schema);
+  // auto res = arrow::Table::FromRecordBatches(schema, {{batch}});
+  // return res.ValueOrDie();
+  const auto col_count = results_->colCount();
+  std::vector<std::shared_ptr<arrow::ChunkedArray>> result_columns(col_count);
+
+  if (results_->isEmpty()) {
+    for (size_t col_idx = 0; col_idx < col_count; ++col_idx) {
+      result_columns[col_idx] = std::make_shared<arrow::ChunkedArray>(
+          arrow::MakeArrayOfNull(schema->field(col_idx)->type(), 0).ValueOrDie());
+    }
+    return arrow::Table::Make(schema, result_columns, 0);
+  }
+
+  const size_t entry_count = top_n_ < 0
+                                 ? results_->entryCount()
+                                 : std::min(size_t(top_n_), results_->entryCount());
+
+  std::vector<ColumnBuilder> builders(col_count);
+  for (size_t col_idx = 0; col_idx < col_count; ++col_idx) {
+    initializeColumnBuilder(
+        builders[col_idx], results_->getColType(col_idx), schema->field(col_idx));
+  }
+
+  bool columnar_conversion_possible =
+      results_->isDirectColumnarConversionPossible() &&
+      results_->getQueryMemDesc().getQueryDescriptionType() ==
+          QueryDescriptionType::Projection;
+
+  std::vector<bool> columnar_conversion(col_count, false);
+  const auto& lazy_fetch_info = results_->getLazyFetchInfo();
+  if (columnar_conversion_possible) {
+    for (size_t col_idx = 0; col_idx < col_count; ++col_idx) {
+      bool use_columnar_conversion = columnar_conversion_possible;
+
+      // Lazily fetched column are not supportd by columnar converter.
+      bool is_lazy =
+          lazy_fetch_info.empty() ? false : lazy_fetch_info[col_idx].is_lazily_fetched;
+
+      use_columnar_conversion = use_columnar_conversion && !is_lazy;
+
+      // Some types are not supported by columnar converter.
+      switch (builders[col_idx].physical_type) {
+        case kBOOLEAN:
+        case kTIME:
+        case kDATE:
+        case kTIMESTAMP:
+          use_columnar_conversion = false;
+          break;
+        default:
+          break;
+      }
+
+      // Dictionaries are not supported by columnar converter.
+      if (builders[col_idx].field->type()->id() == arrow::Type::DICTIONARY) {
+        use_columnar_conversion = false;
+      }
+
+      columnar_conversion[col_idx] = use_columnar_conversion;
+    }
+  }
+
+  {
+    auto timer = DEBUG_TIMER("columnar conversion");
+    // threading::parallel_for((size_t)0, col_count, [&](size_t col_idx) {
+    for (size_t col_idx = 0; col_idx < col_count; ++col_idx) {
+      if (columnar_conversion[col_idx]) {
+        convert_column(builders[col_idx].physical_type,
+                       results_,
+                       col_idx,
+                       entry_count,
+                       result_columns[col_idx]);
+      }
+    }
+  }
+
+  {
+    auto timer = DEBUG_TIMER("row-wise conversion");
+    std::vector<std::shared_ptr<ValueArray>> column_values(col_count, nullptr);
+    std::vector<std::shared_ptr<std::vector<bool>>> null_bitmaps(col_count, nullptr);
+    // TODO: add parallel for rowwise
+    {
+      auto timer = DEBUG_TIMER("fetch data single thread");
+      auto row_count = convert_rowwise(results_,
+                                       builders,
+                                       device_type_,
+                                       column_values,
+                                       null_bitmaps,
+                                       columnar_conversion,
+                                       size_t(0),
+                                       entry_count);
+      CHECK_LE(row_count, entry_count);
+    }
+
+    {
+      auto timer = DEBUG_TIMER("append data single thread");
+      for (int i = 0; i < schema->num_fields(); ++i) {
+        if (!columnar_conversion[i]) {
+          append(builders[i], *column_values[i], null_bitmaps[i]);
+        }
+      }
+    }
+
+    {
+      auto timer = DEBUG_TIMER("finish builders single thread");
+      for (size_t col_idx = 0; col_idx < col_count; ++col_idx) {
+        if (!columnar_conversion[col_idx]) {
+          result_columns[col_idx] = std::make_shared<arrow::ChunkedArray>(
+              finishColumnBuilder(builders[col_idx]));
+        }
+      }
+    }
+  }
+  
+// ORIGINAL: return arrow::Table::Make(schema, result_columns, entry_count);
+  return arrow::Table::Make(schema, result_columns);
+}
+
 namespace {
 
 std::shared_ptr<arrow::DataType> get_arrow_type(const SQLTypeInfo& sql_type,
@@ -1033,6 +1260,23 @@ std::shared_ptr<arrow::Field> ArrowResultSetConverter::makeField(
     const SQLTypeInfo& target_type) const {
   return arrow::field(
       name, get_arrow_type(target_type, device_type_), !target_type.get_notnull());
+}
+
+std::shared_ptr<arrow::Schema> ArrowResultSetConverter::makeSchema() const {
+  const auto col_count = results_->colCount();
+  std::vector<std::shared_ptr<arrow::Field>> fields;
+  CHECK(col_names_.empty() || col_names_.size() == col_count);
+  for (size_t i = 0; i < col_count; ++i) {
+    const auto ti = results_->getColType(i);
+    fields.push_back(makeField(col_names_.empty() ? "" : col_names_[i], ti));
+  }
+#if ARROW_CONVERTER_DEBUG
+  VLOG(1) << "Arrow fields: ";
+  for (const auto& f : fields) {
+    VLOG(1) << "\t" << f->ToString(true);
+  }
+#endif
+  return arrow::schema(fields);
 }
 
 void ArrowResultSet::deallocateArrowResultBuffer(
