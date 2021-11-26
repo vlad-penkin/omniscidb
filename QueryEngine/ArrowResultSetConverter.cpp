@@ -275,7 +275,7 @@ void convert_column(ResultSetPtr result,
                     size_t entry_count,
                     std::shared_ptr<arrow::ChunkedArray>& out)
 {
-  std::cout << " NEW VERSION OF convert_column(), col: " << std::setw(4) << col << ". CONVERSION BEGIN... ";
+  // std::cout << " NEW VERSION OF convert_column(), col: " << std::setw(4) << col << ". CONVERSION BEGIN... ";
   CHECK(sizeof(C_TYPE) == result->getColType(col).get_size());
 
   using arrow_buffer_t = std::shared_ptr<arrow::Buffer>;
@@ -370,7 +370,7 @@ void convert_column(ResultSetPtr result,
   } // loop over values vector
 
   out = std::make_shared<arrow::ChunkedArray>(std::move(v_arrow_num_array_sp));
-  std::cout << "CONVERSION COMPLETED."<< std::endl;
+  // std::cout << "CONVERSION COMPLETED."<< std::endl;
 }
 
 

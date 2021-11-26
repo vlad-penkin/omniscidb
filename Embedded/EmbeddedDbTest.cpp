@@ -45,6 +45,28 @@ extern bool g_enable_lazy_fetch;
 // DBEngine Instance
 static std::shared_ptr<EmbeddedDatabase::DBEngine> g_dbe;
 
+// Forward Declarations
+void create_table (std::string table_name, size_t chunk_size = 0);
+void import_file(const std::string& file_name, const std::string& table_name);
+void MainChunkedConversionTest(size_t chunk_size);
+std::string parse_cli_args(int argc, char* argv[]);
+
+// Definitions
+#define INPUT_CSV_FILE "./embedded_db_test.csv"
+
+//#define VERBOSE  //  Enable if you wish to see the content of the chunks
+#ifdef VERBOSE
+#define INFO(cmd) cmd;
+#else
+#define INFO(cmd) do { } while(0)
+#endif
+
+
+
+                              // ===============
+                              //  TESTS GO HERE
+                              // ===============
+
 // =================================================================================
 // TODO:
 // главное проследить, чтобы достаточное количество путей проверялось.
@@ -65,85 +87,181 @@ static std::shared_ptr<EmbeddedDatabase::DBEngine> g_dbe;
 // каждой из них с g_enable_columnar_output и без.
 // =================================================================================
 
-// TEST(DBEngine, SimpleArrowTable) {
-//   auto cursor = g_dbe->executeDML("select b, c from test");
-//   ASSERT_NE(cursor, nullptr);
-//   auto table = cursor->getArrowTable();
-//   ASSERT_NE(table, nullptr);
-//   ASSERT_EQ(table->num_columns(), 2);
-//   ASSERT_EQ(table->num_rows(), (int64_t)6);
-// }
+//  =====================================================================
+//  Tests function `DBEngine::importArrowTable()'
+//  =====================================================================
+TEST(DBEngine, DataLoading)  {
+  import_file(INPUT_CSV_FILE, "loading_test");
+  auto cursor = g_dbe->executeDML("select * from loading_test");
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable();
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(table->num_columns(), 4);
+  ASSERT_EQ(table->num_rows(), (int64_t)6);
+}
 
-// TEST(DBEngine, EmptyArrowTable) {
-//   auto cursor = g_dbe->executeDML("select b, c from test where b > 1000");
-//   ASSERT_NE(cursor, nullptr);
-//   auto table = cursor->getArrowTable();
-//   ASSERT_NE(table, nullptr);
-//   ASSERT_EQ(table->num_columns(), 2);
-//   ASSERT_EQ(table->num_rows(), (int64_t)0);
-// }
+                      // ========================
+                      //  ArrowRecordBatch Tests
+                      // ========================
 
-// TEST(DBEngine, SimpleArrowTableConversion) {
-//   //  By default row-wise format is used, to use columnar format 
-//   //  one has to set `g_enable_columnar_output=true`
-//   //  Thus, saving previous values of `g_enable_columnar_output` and `g_enable_lazy_fetch`.
-//   //  For execution setting them as:
-//   //    g_enable_columnar_output = true;
-//   //    g_enable_lazy_fetch = false;
-//   bool prev_enable_columnar_output = g_enable_columnar_output ;
-//   ScopeGuard reset = [prev_enable_columnar_output] { g_enable_columnar_output=prev_enable_columnar_output; };
-//   g_enable_columnar_output = true;
+//  =====================================================================
+//  getArrowRecordBatch() test for all columns selection
+//  =====================================================================
+TEST(DBEngine, ArrowRecordBatch_SimpleSelectAll) {
+  auto cursor = g_dbe->executeDML("select * from test");
+  ASSERT_NE(cursor, nullptr);
+  auto rbatch = cursor->getArrowRecordBatch();
+  ASSERT_NE(rbatch, nullptr);
+  ASSERT_EQ(rbatch->num_columns(), 4);
+  ASSERT_EQ(rbatch->num_rows(), (int64_t)6);
+}
 
-//   bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
-//   ScopeGuard reset2 = [prev_enable_lazy_fetch] { g_enable_lazy_fetch=prev_enable_lazy_fetch; };
-//   g_enable_lazy_fetch = false;
+//  =====================================================================
+//  getArrowRecordBatch() test for two columns (TEXT "t", INT "i") selection
+//  =====================================================================
+TEST(DBEngine, ArrowRecordBatch_TextIntSelect) {
+  auto cursor = g_dbe->executeDML("select t, i from test");
+  ASSERT_NE(cursor, nullptr);
+  auto rbatch = cursor->getArrowRecordBatch();
+  ASSERT_NE(rbatch, nullptr);
+  ASSERT_EQ(rbatch->num_columns(), 2);
+  ASSERT_EQ(rbatch->num_rows(), (int64_t)6);
+}
 
-//   auto cursor = g_dbe->executeDML("select * from test");
-//   ASSERT_NE(cursor, nullptr);
-//   auto table = cursor->getArrowTable();
-//   ASSERT_NE(table, nullptr);
-//   ASSERT_EQ(table->num_columns(), 3);
-//   ASSERT_EQ(table->num_rows(), (int64_t)6);
-// }
+                      // ===============================
+                      //   Non-Chunked ArrowTable Tests
+                      // ===============================
 
-// TEST(DBEngine, SimpleArrowTableSingleColumnConversion) {
-//   //  Saving previous value of g_enable_columnar_output
-//   //  For execution setting it as g_enable_columnar_output = true;
-//   bool prev_enable_columnar_output = g_enable_columnar_output ;
-//   ScopeGuard reset = [prev_enable_columnar_output] { g_enable_columnar_output=prev_enable_columnar_output; };
-//   g_enable_columnar_output = true;
+//  =====================================================================
+//  getArrowTable() test for two columns (TEXT "t", INT "i") selection
+//  =====================================================================
+TEST(DBEngine, ArrowTable_TextIntBigintSelect) {
+  auto cursor = g_dbe->executeDML("select t, i, bi from test");
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable();
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(table->num_columns(), 3);
+  ASSERT_EQ(table->num_rows(), (int64_t)6);
+}
 
-//   auto cursor = g_dbe->executeDML("select 2*b from test");
-//   ASSERT_NE(cursor, nullptr);
-//   auto table = cursor->getArrowTable();
-//   ASSERT_NE(table, nullptr);
-//   ASSERT_EQ(table->num_columns(), 1);
-//   ASSERT_EQ(table->num_rows(), (int64_t)6);
+TEST(DBEngine, ArrowTable_EmptySelection) {
+  auto cursor = g_dbe->executeDML("select i, d from test where d > 1000");
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable();
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(table->num_columns(), 2);
+  ASSERT_EQ(table->num_rows(), (int64_t)0);
+}
 
-//   auto column = table->column(0);
-//   ASSERT_NE(column, nullptr);
+                      // ===============================
+                      //  Tests for Chunked Arrow Table
+                      // ===============================
 
-//   size_t chunks_count = column->num_chunks();
-//   std::cout <<"Chunks count: " << chunks_count << std::endl;
-//   std::cout << column->ToString() << std::endl;
-// }
+//  =====================================================================
+//  Chunked Arrow Table Test:
+//    columnar_output = false
+//    lazy_fetch = false
+//  =====================================================================
+TEST(DBEngine, ArrowTableChunked_Conversion1) {
+  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
+  bool prev_enable_columnar_output = g_enable_columnar_output;
+  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
 
+  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
+    g_enable_columnar_output = prev_enable_columnar_output; 
+    g_enable_lazy_fetch = prev_enable_lazy_fetch;
+  };
 
-// #define VERBOSE  //  Enable if you wish to see the content of the chunks
-#ifdef VERBOSE
-#define INFO(cmd) cmd;
-#else
-#define INFO(cmd) do { } while(0)
-#endif
+  g_enable_columnar_output = false;
+  g_enable_lazy_fetch = false;
 
+  MainChunkedConversionTest(/*chunk_size=*/4);
+}
+
+//  =====================================================================
+//  Chunked Arrow Table Test:
+//    columnar_output = true
+//    lazy_fetch = false
+//  =====================================================================
+TEST(DBEngine, ArrowTableChunked_Conversion2) {
+  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
+  bool prev_enable_columnar_output = g_enable_columnar_output;
+  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
+
+  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
+    g_enable_columnar_output = prev_enable_columnar_output; 
+    g_enable_lazy_fetch = prev_enable_lazy_fetch;
+  };
+
+  g_enable_columnar_output = true;
+  g_enable_lazy_fetch = false;
+
+  MainChunkedConversionTest(/*chunk_size=*/4);
+}
+
+//  =====================================================================
+//  Chunked Arrow Table Test:
+//    columnar_output = false
+//    lazy_fetch = true
+//  =====================================================================
+TEST(DBEngine, ArrowTableChunked_Conversion3) {
+  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
+  bool prev_enable_columnar_output = g_enable_columnar_output;
+  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
+
+  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
+    g_enable_columnar_output = prev_enable_columnar_output; 
+    g_enable_lazy_fetch = prev_enable_lazy_fetch;
+  };
+
+  g_enable_columnar_output = false;
+  g_enable_lazy_fetch = true;
+
+  MainChunkedConversionTest(/*chunk_size=*/4);
+}
+
+//  =====================================================================
+//  Chunked Arrow Table Test:
+//    columnar_output = true
+//    lazy_fetch = true
+//  =====================================================================
+TEST(DBEngine, ArrowTableChunked_Conversion4) {
+  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
+  bool prev_enable_columnar_output = g_enable_columnar_output;
+  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
+
+  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
+    g_enable_columnar_output = prev_enable_columnar_output; 
+    g_enable_lazy_fetch = prev_enable_lazy_fetch;
+  };
+
+  g_enable_columnar_output = true;
+  g_enable_lazy_fetch = true;
+
+  MainChunkedConversionTest(/*chunk_size=*/4);
+}
+
+//  =====================================================================
+//  Chunked Arrow Table Test:
+//  Tests multiplication by 2 of the column with doubles (column "d")
+//  =====================================================================
+TEST(DBEngine, ArrowTableChunked_SingleColumnConversion) {
+  auto cursor = g_dbe->executeDML("select 2*d from test_chunked");
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable();
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(table->num_columns(), 1);
+  ASSERT_EQ(table->num_rows(), (int64_t)6);
+}
+
+//  =====================================================================
+//  Testing function for 6x4 table contained in $INPUT_CSV_FILE file.
+//  =====================================================================
 template <typename T> struct traits {};
 template <> struct traits <double> { using type = arrow::DoubleArray; };
 template <> struct traits <int32_t> { using type = arrow::Int32Array; };
 template <> struct traits <int64_t> { using type = arrow::Int64Array; };
 
-//  =====================================================================
-//  Testing function for 6x4 table contained in `example_4.csv' file.
-//  =====================================================================
 void MainChunkedConversionTest(size_t chunk_size) {
 
   //  expected values
@@ -177,10 +295,6 @@ void MainChunkedConversionTest(size_t chunk_size) {
     }
   };
 
-  std::string  create_query = "CREATE TEMPORARY TABLE test_chunked (t TEXT, i INT, bi BIGINT, d DOUBLE) "
-                              "WITH (storage_type='CSV:./example_4.csv', fragment_size="+std::to_string(chunk_size)+");";
-
-  g_dbe->executeDDL(create_query); 
   auto cursor = g_dbe->executeDML("select * from test_chunked");
 
   ASSERT_NE(cursor, nullptr);
@@ -207,113 +321,30 @@ void MainChunkedConversionTest(size_t chunk_size) {
   test_column(col_i,  table->column(1));
   test_column(col_bi, table->column(2));
   test_column(col_d,  table->column(3));
-
-  g_dbe->executeDDL("DROP TABLE test_chunked;");
 }
 
-//  =====================================================================
-//  columnar_output = false
-//  lazy_fetch = false
-//  =====================================================================
-TEST(DBEngine, ArrowTable_ChunkedConversion1) {
-  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
-  bool prev_enable_columnar_output = g_enable_columnar_output;
-  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
 
-  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
-    g_enable_columnar_output = prev_enable_columnar_output; 
-    g_enable_lazy_fetch = prev_enable_lazy_fetch;
-  };
-
-  g_enable_columnar_output = false;
-  g_enable_lazy_fetch = false;
-
-  MainChunkedConversionTest(/*chunk_size=*/4);
-}
-
-//  =====================================================================
-//  columnar_output = true
-//  lazy_fetch = false
-//  =====================================================================
-TEST(DBEngine, ArrowTable_ChunkedConversion2) {
-  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
-  bool prev_enable_columnar_output = g_enable_columnar_output;
-  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
-
-  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
-    g_enable_columnar_output = prev_enable_columnar_output; 
-    g_enable_lazy_fetch = prev_enable_lazy_fetch;
-  };
-
-  g_enable_columnar_output = true;
-  g_enable_lazy_fetch = false;
-
-  MainChunkedConversionTest(/*chunk_size=*/4);
-}
-
-//  =====================================================================
-//  columnar_output = false
-//  lazy_fetch = true
-//  =====================================================================
-TEST(DBEngine, ArrowTable_ChunkedConversion3) {
-  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
-  bool prev_enable_columnar_output = g_enable_columnar_output;
-  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
-
-  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
-    g_enable_columnar_output = prev_enable_columnar_output; 
-    g_enable_lazy_fetch = prev_enable_lazy_fetch;
-  };
-
-  g_enable_columnar_output = false;
-  g_enable_lazy_fetch = true;
-
-  MainChunkedConversionTest(/*chunk_size=*/4);
-}
-
-//  =====================================================================
-//  columnar_output = true
-//  lazy_fetch = true
-//  =====================================================================
-TEST(DBEngine, ArrowTable_ChunkedConversion4) {
-  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
-  bool prev_enable_columnar_output = g_enable_columnar_output;
-  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
-
-  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
-    g_enable_columnar_output = prev_enable_columnar_output; 
-    g_enable_lazy_fetch = prev_enable_lazy_fetch;
-  };
-
-  g_enable_columnar_output = true;
-  g_enable_lazy_fetch = true;
-
-  MainChunkedConversionTest(/*chunk_size=*/4);
-}
-
-//  Forward Declarations
-std::tuple <std::string, std::string>  parse_cli_args(int argc, char* argv[], std::string input_csv_file);
-void import_file(const std::string& file_name, const std::string& table_name);
-
-//  --- MAIN ---  //
+//  ============
+//  --- MAIN ---
+//  ============
 int main(int argc, char* argv[]) try {
   namespace fs = std::filesystem;
 
-  auto [options_str, input_file] = parse_cli_args(argc, argv, "./example_3.csv");
+  auto options_str = parse_cli_args(argc, argv);
   std::cout << "OPTIONS:    " << options_str <<std::endl;
-  std::cout << "INPUT FILE: " << input_file <<std::endl;
 
-  if (!fs::exists(fs::path{input_file})) {
-    throw std::runtime_error ("File not found: "+input_file+". Aborting\n");
+  if (!fs::exists(fs::path{INPUT_CSV_FILE})) {
+    throw std::runtime_error ("File not found: " INPUT_CSV_FILE ". Aborting\n");
   }
 
   testing::InitGoogleTest();
   //  If a single test is needed, uncomment (and modify, possibly) the following line:
-  //  testing::GTEST_FLAG(filter) = "DBEngine.ArrowTable_ChunkedConversion1"
+  // testing::GTEST_FLAG(filter) = "DBEngine.ArrowTableChunked_Conversion1";
 
   g_dbe = EmbeddedDatabase::DBEngine::create(options_str);
-  import_file(input_file, "test");
-
+  // 
+  create_table ("test",         /*chunk_size=*/0);
+  create_table ("test_chunked", /*chunk_size=*/4);
   int err = RUN_ALL_TESTS();
 
   g_dbe.reset();
@@ -328,14 +359,9 @@ int main(int argc, char* argv[]) try {
 }
 
 // =============================================================
-// Processes command line args, default name of input CSV file, 
-// and returns a pair <options, input_csv_file>
+// Processes command line args, return options string
 // =============================================================
-std::tuple <
-  std::string,
-  std::string
-  >
-parse_cli_args(int argc, char* argv[], std::string input_csv_file)
+std::string  parse_cli_args(int argc, char* argv[])
 {
   namespace po = boost::program_options;
 
@@ -349,7 +375,6 @@ parse_cli_args(int argc, char* argv[], std::string input_csv_file)
   desc.add_options()
     ("help,h",          "Print help messages ")
     ("catalog,c",        po::value<std::string>(&catalog_path)->default_value(catalog_path),     "Directory path to OmniSci catalogs")
-    ("input-csv-file,i", po::value<std::string>(&input_csv_file)->default_value(input_csv_file), "Input CSV file")
     ("calcite-port,p",    po::value<int>(&calcite_port)->default_value(calcite_port),            "Calcite port")
     ("columnar-output,o", po::value<bool>(&columnar_output)->default_value(columnar_output),     "Enable columnar_output")
     ;
@@ -378,7 +403,29 @@ parse_cli_args(int argc, char* argv[], std::string input_csv_file)
     std::exit(EXIT_FAILURE);
   }
 
-  return {opt_str, input_csv_file};
+  return opt_str;
+}
+
+// ===============================================================
+// Creates a table from INPUT_CSV_FILE file with provided 
+// parameters: 
+//  + table_name -- name of the table
+//  + chunk_size -- size of the chunk. If zero (default value) the
+//                  table is created without splitting into chunks
+// ===============================================================
+void create_table (std::string table_name, size_t chunk_size) {
+  if (!g_dbe) {
+    throw std::runtime_error("DBEngine is not initialized.  Aborting.\n");
+  }
+  std::string  frag_size_param = chunk_size > 0 
+                                 ? ", fragment_size="+std::to_string(chunk_size) 
+                                 : "";
+
+  std::string  create_query = "CREATE TEMPORARY TABLE "+table_name+" (t TEXT, i INT, bi BIGINT, d DOUBLE) "
+                              "WITH (storage_type='CSV:" INPUT_CSV_FILE "'" + frag_size_param+");";
+
+  INFO(std::cout<< "Running SQL query: `"<<create_query<<"'"<<std::endl);
+  g_dbe->executeDDL(create_query);   
 }
 
 // =============================================================
