@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-#include "../Shared/DateConverters.h"
+//  project headers
 #include "ArrowResultSet.h"
 #include "Execute.h"
+#include "Shared/ArrowUtil.h"
+#include "Shared/DateConverters.h"
+#include "Shared/threading.h"
+
+//  arrow headers
+#include "arrow/api.h"
+#include "arrow/io/memory.h"
+#include "arrow/ipc/api.h"
 #include "arrow/ipc/dictionary.h"
 #include "arrow/ipc/options.h"
 
-#ifndef _MSC_VER
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/types.h>
-#else
-// IPC shared memory not yet supported on windows
-using key_t = size_t;
-#define IPC_PRIVATE 0
-#endif
-
+// std headers
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
@@ -37,25 +36,39 @@ using key_t = size_t;
 #include <future>
 #include <string>
 
-#include "arrow/api.h"
-#include "arrow/io/memory.h"
-#include "arrow/ipc/api.h"
+//  TBB headers
+#include <tbb/parallel_for.h>
 
-#include "Shared/ArrowUtil.h"
-#include "Shared/threading.h"
+//  Windows-related headers
+#ifndef _MSC_VER
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/types.h>
+#else
+//  IPC shared memory not yet supported on windows
+using key_t = size_t;
+#define IPC_PRIVATE 0
+#endif
 
 #ifdef HAVE_CUDA
 #include <arrow/gpu/cuda_api.h>
 #include <cuda.h>
 #endif  // HAVE_CUDA
 
+//  Definitions
+#define USE_TBB_PARALLEL_FOR
+// #define VERBOSE  //  Enable if you wish to see the details of execution
+
 #define ARROW_RECORDBATCH_MAKE arrow::RecordBatch::Make
-
 #define ARROW_CONVERTER_DEBUG true
-
 #define ARROW_LOG(category) \
   VLOG(1) << "[Arrow]"      \
           << "[" << category "] "
+#ifdef VERBOSE
+#define ENABLE_IF_VERBOSE(cmd) cmd;
+#else
+#define ENABLE_IF_VERBOSE(cmd) do { } while(0)
+#endif // VERBOSE
 
 namespace {
 
@@ -275,7 +288,7 @@ void convert_column(ResultSetPtr result,
                     size_t entry_count,
                     std::shared_ptr<arrow::ChunkedArray>& out)
 {
-  // std::cout << " NEW VERSION OF convert_column(), col: " << std::setw(4) << col << ". CONVERSION BEGIN... ";
+  ENABLE_IF_VERBOSE(std::cout << " NEW VERSION OF convert_column(), col: " << std::setw(4) << col << ". CONVERSION BEGIN... ");
   CHECK(sizeof(C_TYPE) == result->getColType(col).get_size());
 
   using arrow_buffer_t = std::shared_ptr<arrow::Buffer>;
@@ -299,12 +312,105 @@ void convert_column(ResultSetPtr result,
   std::vector<std::shared_ptr<arrow::Array>>
     v_arrow_num_array_sp(values.size(), nullptr);
 
-  //  TODO: parallelize
+#ifdef USE_TBB_PARALLEL_FOR
+
+  ENABLE_IF_VERBOSE(std::mutex vbr_mtx);
+
+  tbb::parallel_for(tbb::blocked_range<size_t> (0, values.size()),  [&](tbb::blocked_range<size_t> values_br) {
+
+  ENABLE_IF_VERBOSE(
+    vbr_mtx.lock();
+      std::cout << "Values block range size " << (values_br.end()-values_br.begin()) << " from " << values_br.begin() << " to " << values_br.end() << std::endl;
+    vbr_mtx.unlock();
+  );
+    for (size_t idx = values_br.begin(); idx<values_br.end(); idx++) {
+
+      size_t chunk_rows_count = chunks[idx].second;
+
+      int64_t null_count = 0;
+      auto res = arrow::AllocateBuffer((chunk_rows_count + 7) / 8);
+      CHECK(res.ok());
+      is_valid = std::move(res).ValueOrDie();
+
+      auto is_valid_data = is_valid->mutable_data();
+
+      const null_type_t<C_TYPE>* vals =
+          reinterpret_cast<const null_type_t<C_TYPE>*>(values[idx]->data());
+      null_type_t<C_TYPE> null_val = null_type<C_TYPE>::value;
+
+      size_t unroll_count = chunk_rows_count & 0xFFFFFFFFFFFFFFF8ULL;
+
+    ENABLE_IF_VERBOSE(
+      vbr_mtx.lock();
+        std::cout 
+          << "Values block range from " << values_br.begin() << " to " << values_br.end() 
+          << "; unroll_count: " << unroll_count
+          << std::endl;
+      vbr_mtx.unlock();
+    );
+
+      tbb::parallel_for(tbb::blocked_range<size_t> (0, unroll_count),  [&](tbb::blocked_range<size_t> unroll_br) {
+        for (size_t i = unroll_br.begin(); i < unroll_br.end(); i += 8) {
+          uint8_t valid_byte = 0;
+          uint8_t valid;
+          valid = vals[i + 0] != null_val;
+          valid_byte |= valid << 0;
+          null_count += !valid;
+          valid = vals[i + 1] != null_val;
+          valid_byte |= valid << 1;
+          null_count += !valid;
+          valid = vals[i + 2] != null_val;
+          valid_byte |= valid << 2;
+          null_count += !valid;
+          valid = vals[i + 3] != null_val;
+          valid_byte |= valid << 3;
+          null_count += !valid;
+          valid = vals[i + 4] != null_val;
+          valid_byte |= valid << 4;
+          null_count += !valid;
+          valid = vals[i + 5] != null_val;
+          valid_byte |= valid << 5;
+          null_count += !valid;
+          valid = vals[i + 6] != null_val;
+          valid_byte |= valid << 6;
+          null_count += !valid;
+          valid = vals[i + 7] != null_val;
+          valid_byte |= valid << 7;
+          null_count += !valid;
+          is_valid_data[i >> 3] = valid_byte;
+        }
+      });
+
+      if (unroll_count != chunk_rows_count) {
+        uint8_t valid_byte = 0;
+        for (size_t i = unroll_count; i < chunk_rows_count; ++i) {
+          bool valid = vals[i] != null_val;
+          valid_byte |= valid << (i & 7);
+          null_count += !valid;
+        }
+        is_valid_data[unroll_count >> 3] = valid_byte;
+      }
+
+      if (!null_count) {
+        is_valid.reset();
+      }
+
+      // TODO: support date/time + scaling
+      // TODO: support booleans
+
+      using numarray_t = arrow::NumericArray<ARROW_TYPE>;
+      v_arrow_num_array_sp[idx] = null_count 
+        ? std::make_shared<numarray_t>(chunk_rows_count, values[idx], is_valid, null_count)
+        : std::make_shared<numarray_t>(chunk_rows_count, values[idx]);
+    } // loop over values_br
+  }); // tbb::parallel_for
+
+#else
+
   for (size_t idx = 0; idx<values.size(); idx++) {
 
     size_t chunk_rows_count = chunks[idx].second;
 
-    int64_t null_count = 0;
     auto res = arrow::AllocateBuffer((chunk_rows_count + 7) / 8);
     CHECK(res.ok());
     is_valid = std::move(res).ValueOrDie();
@@ -316,7 +422,8 @@ void convert_column(ResultSetPtr result,
     null_type_t<C_TYPE> null_val = null_type<C_TYPE>::value;
 
     size_t unroll_count = chunk_rows_count & 0xFFFFFFFFFFFFFFF8ULL;
-    //  TODO: parallelize
+    int64_t null_count = 0;
+
     for (size_t i = 0; i < unroll_count; i += 8) {
       uint8_t valid_byte = 0;
       uint8_t valid;
@@ -368,9 +475,10 @@ void convert_column(ResultSetPtr result,
       ? std::make_shared<numarray_t>(chunk_rows_count, values[idx], is_valid, null_count)
       : std::make_shared<numarray_t>(chunk_rows_count, values[idx]);
   } // loop over values vector
+#endif
 
   out = std::make_shared<arrow::ChunkedArray>(std::move(v_arrow_num_array_sp));
-  // std::cout << "CONVERSION COMPLETED."<< std::endl;
+  ENABLE_IF_VERBOSE(std::cout << "CONVERSION COMPLETED."<< std::endl);
 }
 
 
@@ -1066,11 +1174,11 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
   return ARROW_RECORDBATCH_MAKE(schema, row_count, result_columns);
 }
 
+
+
 std::shared_ptr<arrow::Table> ArrowResultSetConverter::getArrowTable(
     const std::shared_ptr<arrow::Schema>& schema) const {
-  // auto batch = getArrowBatch(schema);
-  // auto res = arrow::Table::FromRecordBatches(schema, {{batch}});
-  // return res.ValueOrDie();
+
   const auto col_count = results_->colCount();
   std::vector<std::shared_ptr<arrow::ChunkedArray>> result_columns(col_count);
 
@@ -1132,16 +1240,42 @@ std::shared_ptr<arrow::Table> ArrowResultSetConverter::getArrowTable(
 
   {
     auto timer = DEBUG_TIMER("columnar conversion");
-    // threading::parallel_for((size_t)0, col_count, [&](size_t col_idx) {
+
+#ifdef USE_TBB_PARALLEL_FOR
+
+    ENABLE_IF_VERBOSE(std::mutex mtx);
+
+    tbb::parallel_for(tbb::blocked_range<size_t> (0, col_count),  [&](tbb::blocked_range<size_t> br) {
+
+    ENABLE_IF_VERBOSE(
+      mtx.lock();
+        std::cout << "Range size " << (br.end()-br.begin()) << " from " << br.begin() << " to " << br.end() << std::endl;
+      mtx.unlock();
+    );
+
+      for (size_t col_idx = br.begin(); col_idx < br.end(); ++col_idx) {
+        if (columnar_conversion[col_idx]) {
+          convert_column(builders[col_idx].physical_type,
+                        results_,
+                        col_idx,
+                        entry_count,
+                        result_columns[col_idx]);
+        }
+      }
+    });
+    
+#else
     for (size_t col_idx = 0; col_idx < col_count; ++col_idx) {
       if (columnar_conversion[col_idx]) {
         convert_column(builders[col_idx].physical_type,
-                       results_,
-                       col_idx,
-                       entry_count,
-                       result_columns[col_idx]);
+                      results_,
+                      col_idx,
+                      entry_count,
+                      result_columns[col_idx]);
       }
     }
+#endif
+
   }
 
   {
