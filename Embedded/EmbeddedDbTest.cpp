@@ -28,7 +28,9 @@
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <string_view>
 #include <tuple>
+
 
 // arrow header
 #include <arrow/api.h>
@@ -45,14 +47,10 @@ extern bool g_enable_lazy_fetch;
 // DBEngine Instance
 static std::shared_ptr<EmbeddedDatabase::DBEngine> g_dbe;
 
-// Forward Declarations
-void create_table (std::string table_name, size_t chunk_size = 0);
-void import_file(const std::string& file_name, const std::string& table_name);
-void MainChunkedConversionTest(size_t chunk_size);
-std::string parse_cli_args(int argc, char* argv[]);
-
 // Definitions
 #define INPUT_CSV_FILE "./embedded_db_test.csv"
+
+// constexpr std::string_view INPUT_CSV_FILE = "./embedded_db_test.csv";
 
 //#define VERBOSE  //  Enable if you wish to see the content of the chunks
 #ifdef VERBOSE
@@ -62,10 +60,107 @@ std::string parse_cli_args(int argc, char* argv[]);
 #endif
 
 
+                              // ========
+                              //  HELPERS
+                              // ========
+namespace helpers {
 
-                              // ===============
-                              //  TESTS GO HERE
-                              // ===============
+  // Processes command line args, return options string
+  std::string  parse_cli_args(int argc, char* argv[]) {
+    namespace po = boost::program_options;
+
+    int   calcite_port = 5555;
+    bool  columnar_output = true;
+    std::string   catalog_path = "tmp";
+    std::string   opt_str;
+
+    po::options_description desc("Options");
+
+    desc.add_options()
+      ("help,h",          "Print help messages ")
+      ("catalog,c",        po::value<std::string>(&catalog_path)->default_value(catalog_path),     "Directory path to OmniSci catalogs")
+      ("calcite-port,p",    po::value<int>(&calcite_port)->default_value(calcite_port),            "Calcite port")
+      ("columnar-output,o", po::value<bool>(&columnar_output)->default_value(columnar_output),     "Enable columnar_output")
+      ;
+
+    po::variables_map  vm;
+
+    try {
+      po::store(po::command_line_parser(argc, argv)
+                  .options(desc)
+                  .run(), 
+                vm);
+
+      if (vm.count("help")) {
+        std::cout << desc;
+        std::exit(EXIT_SUCCESS);
+      }
+      po::notify(vm);
+
+      opt_str = catalog_path + " --calcite-port " + std::to_string(calcite_port);
+      if (columnar_output) {
+        opt_str += " --enable-columnar-output";
+      }
+    } catch (boost::program_options::error& e) {
+      std::cerr << "Usage Error: " << e.what() << std::endl;
+      std::cout << desc;
+      std::exit(EXIT_FAILURE);
+    }
+
+    return opt_str;
+  }
+
+  // Creates a table from INPUT_CSV_FILE file with provided 
+  // parameters: 
+  //  + table_name -- name of the table
+  //  + chunk_size -- size of the chunk. If zero (default value) the
+  //                  table is created without splitting into chunks
+  void create_table (std::string table_name, size_t chunk_size) {
+    if (!g_dbe) {
+      throw std::runtime_error("DBEngine is not initialized.  Aborting.\n");
+    }
+    std::string  frag_size_param = chunk_size > 0 
+                                  ? ", fragment_size="+std::to_string(chunk_size) 
+                                  : "";
+
+    std::string  create_query = "CREATE TEMPORARY TABLE "+table_name+" (t TEXT, i INT, bi BIGINT, d DOUBLE) "
+                                "WITH (storage_type='CSV:" INPUT_CSV_FILE "'"+frag_size_param+");";
+
+    INFO(std::cout<< "Running SQL query: `"<<create_query<<"'"<<std::endl);
+    g_dbe->executeDDL(create_query);   
+  }
+
+  // Loads CSV file, creates Arrow Table from it
+  void import_file(const std::string& file_name, const std::string& table_name) 
+  {
+    arrow::io::IOContext io_context = arrow::io::default_io_context();
+    auto arrow_parse_options = arrow::csv::ParseOptions::Defaults();
+    auto arrow_read_options = arrow::csv::ReadOptions::Defaults();
+    auto arrow_convert_options = arrow::csv::ConvertOptions::Defaults();
+    std::shared_ptr<arrow::io::ReadableFile> inp;
+    auto file_result = arrow::io::ReadableFile::Open(file_name);
+    ARROW_THROW_NOT_OK(file_result.status());
+    inp = file_result.ValueOrDie();
+    auto table_reader_result = arrow::csv::TableReader::Make(io_context,
+                                                            inp, 
+                                                            arrow_read_options, 
+                                                            arrow_parse_options, 
+                                                            arrow_convert_options);
+
+    ARROW_THROW_NOT_OK(table_reader_result.status());
+    auto table_reader = table_reader_result.ValueOrDie();
+    std::shared_ptr<arrow::Table> arrowTable;
+    auto arrow_table_result = table_reader->Read();
+    ARROW_THROW_NOT_OK(arrow_table_result.status());
+    arrowTable = arrow_table_result.ValueOrDie();
+    g_dbe->importArrowTable(table_name, arrowTable);
+  }
+} //  namespace helpers
+
+
+                      // =======
+                      //  TESTS
+                      // =======
 
 // =================================================================================
 // TODO:
@@ -87,11 +182,66 @@ std::string parse_cli_args(int argc, char* argv[]);
 // каждой из них с g_enable_columnar_output и без.
 // =================================================================================
 
+//  ========================================================================
+//  Testing helper function for 6x4 table contained in $INPUT_CSV_FILE file.
+//  ========================================================================
+void MainChunkedConversionTest(size_t chunk_size) {
+  //  expected values
+  std::vector <double>  col_d = {10.1, 20.2, 30.3, 40.4, 50.5, 60.6};
+  std::vector <int32_t> col_i = {0,0,0,1,1,1};
+  std::vector <int64_t> col_bi = {1,2,3,4,5,6};
+
+  auto compare_columns = [&]<typename TYPE> (const std::vector<TYPE> & expected, const std::shared_ptr<arrow::ChunkedArray> & actual) 
+  {
+    using arrow_col_type = arrow::NumericArray<typename arrow::CTypeTraits<TYPE>::ArrowType>;
+    const arrow::ArrayVector & chunks = actual->chunks();
+    
+    INFO(std::cout << "\n===\n");
+    for (int i = 0; i<actual->num_chunks(); i++) {
+      auto arrow_row_array = std::static_pointer_cast<arrow_col_type>(chunks[i]);
+
+      const TYPE * chunk_data = arrow_row_array->raw_values();
+      for (int64_t j = 0; j<arrow_row_array->length(); j++) {
+        INFO(std::cout << chunk_data[j]<<", test: " << expected[i*chunk_size+j] << '\n');
+        ASSERT_EQ(chunk_data[j], expected[i*chunk_size+j]);
+      }
+      INFO(std::cout << "==="<<std::endl);
+    }
+  };
+
+  auto cursor = g_dbe->executeDML("select * from test_chunked");
+
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable(); 
+
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(table->num_columns(), 4);
+  ASSERT_EQ(table->num_rows(), (int64_t)6);
+
+  auto column = table->column(1);
+  size_t expected_chunk_count = (g_enable_lazy_fetch || !g_enable_columnar_output) ? 1 : (table->num_rows()+chunk_size-1)/chunk_size;
+
+  size_t actual_chunks_count =  column->num_chunks();
+  ASSERT_EQ(actual_chunks_count, expected_chunk_count);
+  
+  INFO(std::cout <<"Chunks count: " << actual_chunks_count << std::endl);
+  INFO(std::cout << column->ToString() << std::endl);
+
+  ASSERT_NE(table->column(0), nullptr);
+  ASSERT_NE(table->column(1), nullptr);
+  ASSERT_NE(table->column(2), nullptr);
+  ASSERT_NE(table->column(3), nullptr);
+
+  compare_columns(col_i,  table->column(1));
+  compare_columns(col_bi, table->column(2));
+  compare_columns(col_d,  table->column(3));
+}
+
 //  =====================================================================
 //  Tests function `DBEngine::importArrowTable()'
 //  =====================================================================
 TEST(DBEngine, DataLoading)  {
-  import_file(INPUT_CSV_FILE, "loading_test");
+  helpers::import_file(INPUT_CSV_FILE, "loading_test");
   auto cursor = g_dbe->executeDML("select * from loading_test");
   ASSERT_NE(cursor, nullptr);
   auto table = cursor->getArrowTable();
@@ -254,97 +404,22 @@ TEST(DBEngine, ArrowTableChunked_SingleColumnConversion) {
   ASSERT_EQ(table->num_rows(), (int64_t)6);
 }
 
-//  =====================================================================
-//  Testing function for 6x4 table contained in $INPUT_CSV_FILE file.
-//  =====================================================================
-template <typename T> struct traits {};
-template <> struct traits <double> { using type = arrow::DoubleArray; };
-template <> struct traits <int32_t> { using type = arrow::Int32Array; };
-template <> struct traits <int64_t> { using type = arrow::Int64Array; };
 
-void MainChunkedConversionTest(size_t chunk_size) {
-
-  //  expected values
-  std::vector <double>  col_d = {10.1, 20.2, 30.3, 40.4, 50.5, 60.6};
-  std::vector <int32_t> col_i = {0,0,0,1,1,1};
-  std::vector <int64_t> col_bi = {1,2,3,4,5,6};
-
-  //  =====================================================================
-  //  Testing lambda function
-  //  ---
-  //  Basically, at std::static_pointer_cast<> we cast chunks[i] to a the 
-  //  type given to us by the traits<TYPE> so that we can use raw_values()
-  //  call.  Here TYPE is the underlying type of the std::vector containing
-  //  with testing values
-  //  =====================================================================
-  auto test_column = [&]<typename TYPE> (const std::vector<TYPE> & test_col, const std::shared_ptr<arrow::ChunkedArray> & column) 
-  {
-    using arrow_col_type = typename traits<TYPE>::type;
-    const arrow::ArrayVector & chunks = column->chunks();
-    
-    INFO(std::cout << "\n===\n");
-    for (int i = 0; i<column->num_chunks(); i++) {
-      auto arrow_row_array = std::static_pointer_cast<arrow_col_type>(chunks[i]);
-
-      const TYPE * chunk_data = arrow_row_array->raw_values();
-      for (int64_t j = 0; j<arrow_row_array->length(); j++) {
-        INFO(std::cout << chunk_data[j]<<", test: " << test_col[i*chunk_size+j] << '\n');
-        ASSERT_EQ(chunk_data[j], test_col[i*chunk_size+j]);
-      }
-      INFO(std::cout << "==="<<std::endl);
-    }
-  };
-
-  auto cursor = g_dbe->executeDML("select * from test_chunked");
-
-  ASSERT_NE(cursor, nullptr);
-  auto table = cursor->getArrowTable(); 
-
-  ASSERT_NE(table, nullptr);
-  ASSERT_EQ(table->num_columns(), 4);
-  ASSERT_EQ(table->num_rows(), (int64_t)6);
-
-  auto column = table->column(1);
-  size_t expected_chunk_count = (g_enable_lazy_fetch || !g_enable_columnar_output) ? 1 : (table->num_rows()+chunk_size-1)/chunk_size;
-
-  size_t actual_chunks_count =  column->num_chunks();
-  ASSERT_EQ(actual_chunks_count, expected_chunk_count);
-  
-  INFO(std::cout <<"Chunks count: " << actual_chunks_count << std::endl);
-  INFO(std::cout << column->ToString() << std::endl);
-
-  ASSERT_NE(table->column(0), nullptr);
-  ASSERT_NE(table->column(1), nullptr);
-  ASSERT_NE(table->column(2), nullptr);
-  ASSERT_NE(table->column(3), nullptr);
-
-  test_column(col_i,  table->column(1));
-  test_column(col_bi, table->column(2));
-  test_column(col_d,  table->column(3));
-}
-
-
-//  ============
-//  --- MAIN ---
-//  ============
 int main(int argc, char* argv[]) try {
   namespace fs = std::filesystem;
 
-  auto options_str = parse_cli_args(argc, argv);
-  std::cout << "OPTIONS:    " << options_str <<std::endl;
+  testing::InitGoogleTest(&argc, argv);
 
+  auto options_str = helpers::parse_cli_args(argc, argv);
+  
   if (!fs::exists(fs::path{INPUT_CSV_FILE})) {
     throw std::runtime_error ("File not found: " INPUT_CSV_FILE ". Aborting\n");
   }
 
-  testing::InitGoogleTest();
-  //  If a single test is needed, uncomment (and modify, possibly) the following line:
-  // testing::GTEST_FLAG(filter) = "DBEngine.ArrowTableChunked_Conversion1";
-
   g_dbe = EmbeddedDatabase::DBEngine::create(options_str);
-  // 
-  create_table ("test",         /*chunk_size=*/0);
-  create_table ("test_chunked", /*chunk_size=*/4);
+
+  helpers::create_table ("test",         /*chunk_size=*/0);
+  helpers::create_table ("test_chunked", /*chunk_size=*/4);
   int err = RUN_ALL_TESTS();
 
   g_dbe.reset();
@@ -354,104 +429,5 @@ int main(int argc, char* argv[]) try {
   std::cout <<  e.what();
   LOG(ERROR) << e.what();
   std::exit(EXIT_FAILURE); 
-} catch (...) {
-  std::cout << " Unknown exception caught\n";
-}
+} 
 
-// =============================================================
-// Processes command line args, return options string
-// =============================================================
-std::string  parse_cli_args(int argc, char* argv[])
-{
-  namespace po = boost::program_options;
-
-  int   calcite_port = 5555;
-  bool  columnar_output = true;
-  std::string   catalog_path = "tmp";
-  std::string   opt_str;
-
-  po::options_description desc("Options");
-
-  desc.add_options()
-    ("help,h",          "Print help messages ")
-    ("catalog,c",        po::value<std::string>(&catalog_path)->default_value(catalog_path),     "Directory path to OmniSci catalogs")
-    ("calcite-port,p",    po::value<int>(&calcite_port)->default_value(calcite_port),            "Calcite port")
-    ("columnar-output,o", po::value<bool>(&columnar_output)->default_value(columnar_output),     "Enable columnar_output")
-    ;
-
-  po::variables_map  vm;
-
-  try {
-    po::store(po::command_line_parser(argc, argv)
-                .options(desc)
-                .run(), 
-              vm);
-
-    if (vm.count("help")) {
-      std::cout << desc;
-      std::exit(EXIT_SUCCESS);
-    }
-    po::notify(vm);
-
-    opt_str = catalog_path + " --calcite-port " + std::to_string(calcite_port);
-    if (columnar_output) {
-      opt_str += " --enable-columnar-output";
-    }
-  } catch (boost::program_options::error& e) {
-    std::cerr << "Usage Error: " << e.what() << std::endl;
-    std::cout << desc;
-    std::exit(EXIT_FAILURE);
-  }
-
-  return opt_str;
-}
-
-// ===============================================================
-// Creates a table from INPUT_CSV_FILE file with provided 
-// parameters: 
-//  + table_name -- name of the table
-//  + chunk_size -- size of the chunk. If zero (default value) the
-//                  table is created without splitting into chunks
-// ===============================================================
-void create_table (std::string table_name, size_t chunk_size) {
-  if (!g_dbe) {
-    throw std::runtime_error("DBEngine is not initialized.  Aborting.\n");
-  }
-  std::string  frag_size_param = chunk_size > 0 
-                                 ? ", fragment_size="+std::to_string(chunk_size) 
-                                 : "";
-
-  std::string  create_query = "CREATE TEMPORARY TABLE "+table_name+" (t TEXT, i INT, bi BIGINT, d DOUBLE) "
-                              "WITH (storage_type='CSV:" INPUT_CSV_FILE "'" + frag_size_param+");";
-
-  INFO(std::cout<< "Running SQL query: `"<<create_query<<"'"<<std::endl);
-  g_dbe->executeDDL(create_query);   
-}
-
-// =============================================================
-// Loads CSV file, creates Arrow Table from it
-// =============================================================
-void import_file(const std::string& file_name, const std::string& table_name) 
-{
-  arrow::io::IOContext io_context = arrow::io::default_io_context();
-  auto arrow_parse_options = arrow::csv::ParseOptions::Defaults();
-  auto arrow_read_options = arrow::csv::ReadOptions::Defaults();
-  auto arrow_convert_options = arrow::csv::ConvertOptions::Defaults();
-  std::shared_ptr<arrow::io::ReadableFile> inp;
-  auto file_result = arrow::io::ReadableFile::Open(file_name);
-  ARROW_THROW_NOT_OK(file_result.status());
-  inp = file_result.ValueOrDie();
-  auto table_reader_result = arrow::csv::TableReader::Make(io_context,
-                                                           inp, 
-                                                           arrow_read_options, 
-                                                           arrow_parse_options, 
-                                                           arrow_convert_options);
-
-  ARROW_THROW_NOT_OK(table_reader_result.status());
-  auto table_reader = table_reader_result.ValueOrDie();
-  std::shared_ptr<arrow::Table> arrowTable;
-  auto arrow_table_result = table_reader->Read();
-  ARROW_THROW_NOT_OK(arrow_table_result.status());
-  arrowTable = arrow_table_result.ValueOrDie();
-  g_dbe->importArrowTable(table_name, arrowTable);
-}

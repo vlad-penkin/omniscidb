@@ -291,9 +291,11 @@ void convert_column(ResultSetPtr result,
   ENABLE_IF_VERBOSE(std::cout << " NEW VERSION OF convert_column(), col: " << std::setw(4) << col << ". CONVERSION BEGIN... ");
   CHECK(sizeof(C_TYPE) == result->getColType(col).get_size());
 
-  using arrow_buffer_t = std::shared_ptr<arrow::Buffer>;
-  std::vector<arrow_buffer_t> values;
-  arrow_buffer_t              is_valid;
+  std::vector<std::shared_ptr<arrow::Buffer>> 
+    values;
+
+  std::shared_ptr<arrow::Buffer>
+    is_valid;
 
   CHECK(result->isChunkedZeroCopyColumnarConversionPossible(col));
 
@@ -1316,7 +1318,6 @@ std::shared_ptr<arrow::Table> ArrowResultSetConverter::getArrowTable(
     }
   }
   
-// ORIGINAL: return arrow::Table::Make(schema, result_columns, entry_count);
   return arrow::Table::Make(schema, result_columns);
 }
 

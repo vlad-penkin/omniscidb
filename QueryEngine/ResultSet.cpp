@@ -1102,27 +1102,18 @@ std::vector<std::pair<const int8_t*, size_t>> ResultSet::getChunkedColumnarBuffe
   std::vector<std::pair<const int8_t*, size_t>> retval;
   retval.reserve(1+appended_storage_.size());
 
-  // std::cout 
-  //   << "\n## [ResultSet::getChunkedColumnarBuffer], column_idx: "<< column_idx
-  //   << ", appended_storage_.size(): " << appended_storage_.size()
-  //   << ", query_mem_desc_.getColOffInBytes(): " << query_mem_desc_.getColOffInBytes(column_idx)
-  //   << ", storage_->getColOffInBytes():       " << storage_->getColOffInBytes(column_idx)
-  //   << ", row count: " << storage_->binSearchRowCount()
-  //   << std::endl;
+  retval.emplace_back(std::make_pair(storage_->getUnderlyingBuffer() + storage_->getColOffInBytes(column_idx), storage_->binSearchRowCount()));
 
-  retval.push_back({storage_->getUnderlyingBuffer() + storage_->getColOffInBytes(column_idx), storage_->binSearchRowCount()});
-
- for (auto & chunk_uptr: appended_storage_) {
+  for (auto & chunk_uptr: appended_storage_) {
     const int8_t * ptr = chunk_uptr->getUnderlyingBuffer() + chunk_uptr->getColOffInBytes(column_idx);
     size_t         row_count = chunk_uptr->binSearchRowCount();
-    retval.push_back({ptr, row_count});
+    retval.emplace_back(std::make_pair(ptr, row_count));
   }
 
   return retval;
 }
 
-
-// returns a bitmap (and total number) of all single slot targets
+// Returns a bitmap (and total number) of all single slot targets
 std::tuple<std::vector<bool>, size_t> ResultSet::getSingleSlotTargetBitmap() const {
   std::vector<bool> target_bitmap(targets_.size(), true);
   size_t num_single_slot_targets = 0;
@@ -1165,7 +1156,7 @@ std::tuple<std::vector<bool>, size_t> ResultSet::getSupportedSingleSlotTargetBit
   return std::make_tuple(std::move(single_slot_targets), num_single_slot_targets);
 }
 
-// returns the starting slot index for all targets in the result set
+// Returns the starting slot index for all targets in the result set
 std::vector<size_t> ResultSet::getSlotIndicesForTargetIndices() const {
   std::vector<size_t> slot_indices(targets_.size(), 0);
   size_t slot_index = 0;

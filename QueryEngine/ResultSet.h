@@ -35,7 +35,7 @@
 #include <atomic>
 #include <functional>
 #include <list>
-#include <utility>  //  std::pair
+#include <utility>
 
 /*
  * Stores the underlying buffer and the meta-data for a result set. The buffer
@@ -417,10 +417,9 @@ class ResultSet {
   //  Buffer Accessors
   const int8_t* getColumnarBuffer(size_t column_idx) const;
 
-  //  returns vector of std::pair<chunk buffer ptr, chunk row count>
+  //  Returns vector of std::pair<chunk buffer ptr, chunk row count>
   std::vector<std::pair<const int8_t*, size_t>>
       getChunkedColumnarBuffer(size_t column_idx) const;
-
 
   QueryDescriptionType getQueryDescriptionType() const {
     return query_mem_desc_.getQueryDescriptionType();
@@ -801,7 +800,6 @@ class ResultSet {
   friend class ResultSetManager;
   friend class ResultSetRowIterator;
   friend class ColumnarResults;
-//  FOR DEBUGGING PUPROSES
 public:
   template <typename TYPE>
   void inspectStorage(size_t n);
@@ -810,9 +808,7 @@ public:
 template <typename TYPE>
 void ResultSet::inspectStorage(size_t n)
 {
-  // ResultSetStorage
-  TYPE * values_ptr = reinterpret_cast<TYPE*> (storage_->getUnderlyingBuffer());  //  int8_t* getUnderlyingBuffer() const;
-  // size_t entryCount = storage_->getEntryCount();                               //  size_t getEntryCount() const { return query_mem_desc_.getEntryCount(); }
+  TYPE * values_ptr = reinterpret_cast<TYPE*> (storage_->getUnderlyingBuffer());
   std::cout << "\n== ResultSet::inspectStorage ==\n";
   for (size_t i = 0; i<n; i++) {
     std::cout << "## buffer["<<i<<"]:\t"<<values_ptr[i] << "\n";
