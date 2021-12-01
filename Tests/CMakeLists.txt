@@ -15,7 +15,6 @@ add_executable(DashboardAndCustomExpressionTest DashboardAndCustomExpressionTest
 add_executable(DataRecyclerTest DataRecyclerTest.cpp)
 add_executable(DataMgrTest DataMgrTest.cpp)
 add_executable(DiskCacheQueryTest DiskCacheQueryTest.cpp)
-#add_executable(EmbeddedDbTest EmbeddedDbTest.cpp)
 add_executable(EncoderTest EncoderTest.cpp)
 add_executable(ExecuteTest ExecuteTest.cpp ClusterTester.cpp)
 add_executable(FileMgrTest FileMgrTest.cpp)

@@ -294,9 +294,6 @@ void convert_column(ResultSetPtr result,
   std::vector<std::shared_ptr<arrow::Buffer>> 
     values;
 
-  // std::shared_ptr<arrow::Buffer>
-  //   is_valid;
-
   CHECK(result->isChunkedZeroCopyColumnarConversionPossible(col));
 
   auto chunks = result->getChunkedColumnarBuffer(col);
@@ -312,7 +309,7 @@ void convert_column(ResultSetPtr result,
   CHECK_EQ(total_row_count, entry_count);
 
   std::vector<std::shared_ptr<arrow::Array>>
-    v_arrow_num_array_sp(values.size(), nullptr);
+    fragments(values.size(), nullptr);
 
 #ifdef USE_TBB_PARALLEL_FOR
 
@@ -333,9 +330,6 @@ void convert_column(ResultSetPtr result,
       int64_t null_count = 0;
       auto res = arrow::AllocateBuffer((chunk_rows_count + 7) / 8);
       CHECK(res.ok());
-
-      // std::shared_ptr<arrow::Buffer>
-      //   is_valid;
 
       std::shared_ptr<arrow::Buffer> is_valid = std::move(res).ValueOrDie();
 
@@ -405,10 +399,10 @@ void convert_column(ResultSetPtr result,
       // TODO: support date/time + scaling
       // TODO: support booleans
 
-      using numarray_t = arrow::NumericArray<ARROW_TYPE>;
-      v_arrow_num_array_sp[idx] = null_count 
-        ? std::make_shared<numarray_t>(chunk_rows_count, values[idx], is_valid, null_count)
-        : std::make_shared<numarray_t>(chunk_rows_count, values[idx]);
+      using NumArray = arrow::NumericArray<ARROW_TYPE>;
+      fragments[idx] = null_count 
+        ? std::make_shared<NumArray>(chunk_rows_count, values[idx], is_valid, null_count)
+        : std::make_shared<NumArray>(chunk_rows_count, values[idx]);
     } // loop over values_br
   }); // tbb::parallel_for
 
@@ -420,7 +414,8 @@ void convert_column(ResultSetPtr result,
 
     auto res = arrow::AllocateBuffer((chunk_rows_count + 7) / 8);
     CHECK(res.ok());
-    is_valid = std::move(res).ValueOrDie();
+
+    std::shared_ptr<arrow::Buffer> is_valid = std::move(res).ValueOrDie();
 
     auto is_valid_data = is_valid->mutable_data();
 
@@ -478,13 +473,13 @@ void convert_column(ResultSetPtr result,
     // TODO: support booleans
 
     using numarray_t = arrow::NumericArray<ARROW_TYPE>;
-    v_arrow_num_array_sp[idx] = null_count 
+    fragments[idx] = null_count 
       ? std::make_shared<numarray_t>(chunk_rows_count, values[idx], is_valid, null_count)
       : std::make_shared<numarray_t>(chunk_rows_count, values[idx]);
   } // loop over values vector
 #endif
 
-  out = std::make_shared<arrow::ChunkedArray>(std::move(v_arrow_num_array_sp));
+  out = std::make_shared<arrow::ChunkedArray>(std::move(fragments));
   ENABLE_IF_VERBOSE(std::cout << "CONVERSION COMPLETED."<< std::endl);
 }
 
@@ -993,6 +988,8 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
     return ARROW_RECORDBATCH_MAKE(schema, 0, result_columns);
   }
 
+  CHECK_LT(top_n_,0);
+
   const size_t entry_count = top_n_ < 0
                                  ? results_->entryCount()
                                  : std::min(size_t(top_n_), results_->entryCount());
@@ -1196,6 +1193,8 @@ std::shared_ptr<arrow::Table> ArrowResultSetConverter::getArrowTable(
     }
     return arrow::Table::Make(schema, result_columns, 0);
   }
+
+  
 
   const size_t entry_count = top_n_ < 0
                                  ? results_->entryCount()

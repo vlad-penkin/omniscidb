@@ -48,9 +48,7 @@ extern bool g_enable_lazy_fetch;
 static std::shared_ptr<EmbeddedDatabase::DBEngine> g_dbe;
 
 // Definitions
-#define INPUT_CSV_FILE "./embedded_db_test.csv" // TODO: decide if we can use import_file instead; filename should reflect its content.
-
-// constexpr std::string_view INPUT_CSV_FILE = "./embedded_db_test.csv";
+#define TABLE6x4_CSV_FILE "../../Tests/EmbeddedDataFiles/embedded_db_test_6x4table.csv"
 
 //#define VERBOSE  //  Enable if you wish to see the content of the chunks
 #ifdef VERBOSE
@@ -110,7 +108,7 @@ namespace helpers {
     return opt_str;
   }
 
-  // Creates a table from INPUT_CSV_FILE file with provided 
+  // Creates a table from TABLE6x4_CSV_FILE file with provided 
   // parameters: 
   //  + table_name -- name of the table
   //  + fragment_size -- size of the chunk. If zero (default value) the
@@ -124,7 +122,7 @@ namespace helpers {
                                   : "";
 
     std::string  create_query = "CREATE TEMPORARY TABLE "+table_name+" (t TEXT, i INT, bi BIGINT, d DOUBLE) "
-                                "WITH (storage_type='CSV:" INPUT_CSV_FILE "'"+frag_size_param+");";
+                                "WITH (storage_type='CSV:" TABLE6x4_CSV_FILE "'"+frag_size_param+");";
 
     INFO(std::cout<< "Running SQL query: `"<<create_query<<"'"<<std::endl);
     g_dbe->executeDDL(create_query);   
@@ -162,28 +160,14 @@ namespace helpers {
                       //  TESTS
                       // =======
 
-// =================================================================================
-// TODO:
-// главное проследить, чтобы достаточное количество путей проверялось.
-//
-// 1. должны быть столбцы с данными, которые мы можем конвертировать zero-copy 
-// и которые не можем
-// 2. должен быть случай с appended_storage и без
-// 3. columnar и row wise форматы
-// чтобы появились appended storage надо чтобы фрагмент был меньше количества строк, 
-// задается в CREATE TABLE ... WITH (fragment_size=N)
-//
-// при создании таблицы задается размер фрагмента (в строках), при простых select 
-// запросах каждый фрагмент породит свой storage. Если размер фрагмента больше 
-// размера таблицы, то будет один фрагмент и соответственно не будет appended_storage 
-// в результате
-// 
-// т.е. тебе надо будет создать как минимум две таблицы, каждый тест прогнать на 
-// каждой из них с g_enable_columnar_output и без.
-// =================================================================================
+//  ========================================================================
+//  TODO:  add some tests for join and group-by cases to improve coverage. 
+//  You also need to have some tests with NULLs.
+//  ========================================================================
 
 //  ========================================================================
-//  Testing helper functions for 6x4 table contained in $INPUT_CSV_FILE file.
+//  Testing helper functions for 6x4 table contained in $TABLE6x4_CSV_FILE 
+//  file.
 //  ========================================================================
 void MainChunkedConversionTest(size_t fragment_size) {
   //  expected values
@@ -256,7 +240,7 @@ void ChunkedConversion(bool enable_columnar_output, bool enable_lazy_fetch, size
 //  Tests function `DBEngine::importArrowTable()'
 //  =====================================================================
 TEST(DBEngine, DataLoading)  {
-  helpers::import_file(INPUT_CSV_FILE, "loading_test");
+  helpers::import_file(TABLE6x4_CSV_FILE, "loading_test");
   auto cursor = g_dbe->executeDML("select * from loading_test");
   ASSERT_NE(cursor, nullptr);
   auto table = cursor->getArrowTable();
@@ -316,7 +300,7 @@ TEST(DBEngine, ArrowTable_EmptySelection) {
                       // ===============================
 
 //  =====================================================================
-//  Chunked Conversion Tests
+//  Chunked Arrow Table Conversion Tests
 //  =====================================================================
 TEST(DBEngine, ArrowTableChunked_Conversion1) {
   ChunkedConversion(/*columnar_output=*/false, /*lazy_fetch=*/false, 4);
@@ -352,16 +336,16 @@ int main(int argc, char* argv[]) try {
 
   auto options_str = helpers::parse_cli_args(argc, argv);
   
-  if (!fs::exists(fs::path{INPUT_CSV_FILE})) {
-    throw std::runtime_error ("File not found: " INPUT_CSV_FILE ". Aborting\n");
+  if (!fs::exists(fs::path{TABLE6x4_CSV_FILE})) {
+    throw std::runtime_error ("File not found: " TABLE6x4_CSV_FILE ". Aborting\n");
   }
 
   g_dbe = EmbeddedDatabase::DBEngine::create(options_str);
 
   helpers::create_table ("test",         /*fragment_size=*/0);
   helpers::create_table ("test_chunked", /*fragment_size=*/4);
-  // helpers::import_file (INPUT_CSV_FILE, /*table_name=*/"test", /*fragment_size=*/0);
-  // helpers::import_file (INPUT_CSV_FILE, /*table_name=*/"test_chunked", /*fragment_size=*/4);
+  // helpers::import_file (TABLE6x4_CSV_FILE, /*table_name=*/"test", /*fragment_size=*/0);
+  // helpers::import_file (TABLE6x4_CSV_FILE, /*table_name=*/"test_chunked", /*fragment_size=*/4);
   int err = RUN_ALL_TESTS();
 
   g_dbe.reset();

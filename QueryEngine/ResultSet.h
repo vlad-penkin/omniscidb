@@ -800,22 +800,7 @@ class ResultSet {
   friend class ResultSetManager;
   friend class ResultSetRowIterator;
   friend class ColumnarResults;
-public:
-  template <typename TYPE>
-  void inspectStorage(size_t n);
 };
-
-template <typename TYPE>
-void ResultSet::inspectStorage(size_t n)
-{
-  TYPE * values_ptr = reinterpret_cast<TYPE*> (storage_->getUnderlyingBuffer());
-  std::cout << "\n== ResultSet::inspectStorage ==\n";
-  for (size_t i = 0; i<n; i++) {
-    std::cout << "## buffer["<<i<<"]:\t"<<values_ptr[i] << "\n";
-  }
-  std::cout << "=================================\n";
-}
-
 
 ResultSetRowIterator::value_type ResultSetRowIterator::operator*() const {
   if (!global_entry_idx_valid_) {

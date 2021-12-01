@@ -1102,12 +1102,12 @@ std::vector<std::pair<const int8_t*, size_t>> ResultSet::getChunkedColumnarBuffe
   std::vector<std::pair<const int8_t*, size_t>> retval;
   retval.reserve(1+appended_storage_.size());
 
-  retval.emplace_back(std::make_pair(storage_->getUnderlyingBuffer() + storage_->getColOffInBytes(column_idx), storage_->binSearchRowCount()));
+  retval.emplace_back(storage_->getUnderlyingBuffer() + storage_->getColOffInBytes(column_idx), storage_->binSearchRowCount());
 
   for (auto & chunk_uptr: appended_storage_) {
     const int8_t * ptr = chunk_uptr->getUnderlyingBuffer() + chunk_uptr->getColOffInBytes(column_idx);
     size_t         row_count = chunk_uptr->binSearchRowCount();
-    retval.emplace_back(std::make_pair(ptr, row_count));
+    retval.emplace_back(ptr, row_count);
   }
 
   return retval;
