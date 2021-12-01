@@ -48,7 +48,7 @@ extern bool g_enable_lazy_fetch;
 static std::shared_ptr<EmbeddedDatabase::DBEngine> g_dbe;
 
 // Definitions
-#define INPUT_CSV_FILE "./embedded_db_test.csv"
+#define INPUT_CSV_FILE "./embedded_db_test.csv" // TODO: decide if we can use import_file instead; filename should reflect its content.
 
 // constexpr std::string_view INPUT_CSV_FILE = "./embedded_db_test.csv";
 
@@ -113,14 +113,14 @@ namespace helpers {
   // Creates a table from INPUT_CSV_FILE file with provided 
   // parameters: 
   //  + table_name -- name of the table
-  //  + chunk_size -- size of the chunk. If zero (default value) the
+  //  + fragment_size -- size of the chunk. If zero (default value) the
   //                  table is created without splitting into chunks
-  void create_table (std::string table_name, size_t chunk_size) {
+  void create_table (std::string table_name, size_t fragment_size) {
     if (!g_dbe) {
       throw std::runtime_error("DBEngine is not initialized.  Aborting.\n");
     }
-    std::string  frag_size_param = chunk_size > 0 
-                                  ? ", fragment_size="+std::to_string(chunk_size) 
+    std::string  frag_size_param = fragment_size > 0 
+                                  ? ", fragment_size="+std::to_string(fragment_size) 
                                   : "";
 
     std::string  create_query = "CREATE TEMPORARY TABLE "+table_name+" (t TEXT, i INT, bi BIGINT, d DOUBLE) "
@@ -131,7 +131,7 @@ namespace helpers {
   }
 
   // Loads CSV file, creates Arrow Table from it
-  void import_file(const std::string& file_name, const std::string& table_name) 
+  void import_file(const std::string& file_name, const std::string& table_name, size_t fragment_size=0) 
   {
     arrow::io::IOContext io_context = arrow::io::default_io_context();
     auto arrow_parse_options = arrow::csv::ParseOptions::Defaults();
@@ -153,7 +153,7 @@ namespace helpers {
     auto arrow_table_result = table_reader->Read();
     ARROW_THROW_NOT_OK(arrow_table_result.status());
     arrowTable = arrow_table_result.ValueOrDie();
-    g_dbe->importArrowTable(table_name, arrowTable);
+    g_dbe->importArrowTable(table_name, arrowTable, fragment_size);
   }
 } //  namespace helpers
 
@@ -183,9 +183,9 @@ namespace helpers {
 // =================================================================================
 
 //  ========================================================================
-//  Testing helper function for 6x4 table contained in $INPUT_CSV_FILE file.
+//  Testing helper functions for 6x4 table contained in $INPUT_CSV_FILE file.
 //  ========================================================================
-void MainChunkedConversionTest(size_t chunk_size) {
+void MainChunkedConversionTest(size_t fragment_size) {
   //  expected values
   std::vector <double>  col_d = {10.1, 20.2, 30.3, 40.4, 50.5, 60.6};
   std::vector <int32_t> col_i = {0,0,0,1,1,1};
@@ -202,8 +202,8 @@ void MainChunkedConversionTest(size_t chunk_size) {
 
       const TYPE * chunk_data = arrow_row_array->raw_values();
       for (int64_t j = 0; j<arrow_row_array->length(); j++) {
-        INFO(std::cout << chunk_data[j]<<", test: " << expected[i*chunk_size+j] << '\n');
-        ASSERT_EQ(chunk_data[j], expected[i*chunk_size+j]);
+        INFO(std::cout << chunk_data[j]<<", test: " << expected[i*fragment_size+j] << '\n');
+        ASSERT_EQ(chunk_data[j], expected[i*fragment_size+j]);
       }
       INFO(std::cout << "==="<<std::endl);
     }
@@ -219,7 +219,7 @@ void MainChunkedConversionTest(size_t chunk_size) {
   ASSERT_EQ(table->num_rows(), (int64_t)6);
 
   auto column = table->column(1);
-  size_t expected_chunk_count = (g_enable_lazy_fetch || !g_enable_columnar_output) ? 1 : (table->num_rows()+chunk_size-1)/chunk_size;
+  size_t expected_chunk_count = (g_enable_lazy_fetch || !g_enable_columnar_output) ? 1 : (table->num_rows()+fragment_size-1)/fragment_size;
 
   size_t actual_chunks_count =  column->num_chunks();
   ASSERT_EQ(actual_chunks_count, expected_chunk_count);
@@ -236,6 +236,21 @@ void MainChunkedConversionTest(size_t chunk_size) {
   compare_columns(col_bi, table->column(2));
   compare_columns(col_d,  table->column(3));
 }
+
+void ChunkedConversion(bool enable_columnar_output, bool enable_lazy_fetch, size_t fragment_size) {
+  bool prev_enable_columnar_output = g_enable_columnar_output;
+  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
+
+  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
+    g_enable_columnar_output = prev_enable_columnar_output; 
+    g_enable_lazy_fetch = prev_enable_lazy_fetch;
+  };
+
+  g_enable_columnar_output = enable_columnar_output;
+  g_enable_lazy_fetch = enable_lazy_fetch;
+  MainChunkedConversionTest(/*fragment_size=*/fragment_size);
+}
+
 
 //  =====================================================================
 //  Tests function `DBEngine::importArrowTable()'
@@ -254,9 +269,7 @@ TEST(DBEngine, DataLoading)  {
                       //  ArrowRecordBatch Tests
                       // ========================
 
-//  =====================================================================
 //  getArrowRecordBatch() test for all columns selection
-//  =====================================================================
 TEST(DBEngine, ArrowRecordBatch_SimpleSelectAll) {
   auto cursor = g_dbe->executeDML("select * from test");
   ASSERT_NE(cursor, nullptr);
@@ -266,9 +279,7 @@ TEST(DBEngine, ArrowRecordBatch_SimpleSelectAll) {
   ASSERT_EQ(rbatch->num_rows(), (int64_t)6);
 }
 
-//  =====================================================================
 //  getArrowRecordBatch() test for two columns (TEXT "t", INT "i") selection
-//  =====================================================================
 TEST(DBEngine, ArrowRecordBatch_TextIntSelect) {
   auto cursor = g_dbe->executeDML("select t, i from test");
   ASSERT_NE(cursor, nullptr);
@@ -282,9 +293,6 @@ TEST(DBEngine, ArrowRecordBatch_TextIntSelect) {
                       //   Non-Chunked ArrowTable Tests
                       // ===============================
 
-//  =====================================================================
-//  getArrowTable() test for two columns (TEXT "t", INT "i") selection
-//  =====================================================================
 TEST(DBEngine, ArrowTable_TextIntBigintSelect) {
   auto cursor = g_dbe->executeDML("select t, i, bi from test");
   ASSERT_NE(cursor, nullptr);
@@ -308,93 +316,25 @@ TEST(DBEngine, ArrowTable_EmptySelection) {
                       // ===============================
 
 //  =====================================================================
-//  Chunked Arrow Table Test:
-//    columnar_output = false
-//    lazy_fetch = false
+//  Chunked Conversion Tests
 //  =====================================================================
 TEST(DBEngine, ArrowTableChunked_Conversion1) {
-  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
-  bool prev_enable_columnar_output = g_enable_columnar_output;
-  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
-
-  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
-    g_enable_columnar_output = prev_enable_columnar_output; 
-    g_enable_lazy_fetch = prev_enable_lazy_fetch;
-  };
-
-  g_enable_columnar_output = false;
-  g_enable_lazy_fetch = false;
-
-  MainChunkedConversionTest(/*chunk_size=*/4);
+  ChunkedConversion(/*columnar_output=*/false, /*lazy_fetch=*/false, 4);
 }
 
-//  =====================================================================
-//  Chunked Arrow Table Test:
-//    columnar_output = true
-//    lazy_fetch = false
-//  =====================================================================
 TEST(DBEngine, ArrowTableChunked_Conversion2) {
-  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
-  bool prev_enable_columnar_output = g_enable_columnar_output;
-  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
-
-  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
-    g_enable_columnar_output = prev_enable_columnar_output; 
-    g_enable_lazy_fetch = prev_enable_lazy_fetch;
-  };
-
-  g_enable_columnar_output = true;
-  g_enable_lazy_fetch = false;
-
-  MainChunkedConversionTest(/*chunk_size=*/4);
+  ChunkedConversion(/*columnar_output=*/true, /*lazy_fetch=*/false, 4);
 }
 
-//  =====================================================================
-//  Chunked Arrow Table Test:
-//    columnar_output = false
-//    lazy_fetch = true
-//  =====================================================================
 TEST(DBEngine, ArrowTableChunked_Conversion3) {
-  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
-  bool prev_enable_columnar_output = g_enable_columnar_output;
-  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
-
-  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
-    g_enable_columnar_output = prev_enable_columnar_output; 
-    g_enable_lazy_fetch = prev_enable_lazy_fetch;
-  };
-
-  g_enable_columnar_output = false;
-  g_enable_lazy_fetch = true;
-
-  MainChunkedConversionTest(/*chunk_size=*/4);
+  ChunkedConversion(/*columnar_output=*/false, /*lazy_fetch=*/true, 4);
 }
 
-//  =====================================================================
-//  Chunked Arrow Table Test:
-//    columnar_output = true
-//    lazy_fetch = true
-//  =====================================================================
 TEST(DBEngine, ArrowTableChunked_Conversion4) {
-  //  Saving previous value of g_enable_columnar_output, g_enable_lazy_fetch
-  bool prev_enable_columnar_output = g_enable_columnar_output;
-  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
-
-  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
-    g_enable_columnar_output = prev_enable_columnar_output; 
-    g_enable_lazy_fetch = prev_enable_lazy_fetch;
-  };
-
-  g_enable_columnar_output = true;
-  g_enable_lazy_fetch = true;
-
-  MainChunkedConversionTest(/*chunk_size=*/4);
+  ChunkedConversion(/*columnar_output=*/true, /*lazy_fetch=*/true, 4);
 }
 
-//  =====================================================================
-//  Chunked Arrow Table Test:
 //  Tests multiplication by 2 of the column with doubles (column "d")
-//  =====================================================================
 TEST(DBEngine, ArrowTableChunked_SingleColumnConversion) {
   auto cursor = g_dbe->executeDML("select 2*d from test_chunked");
   ASSERT_NE(cursor, nullptr);
@@ -418,8 +358,10 @@ int main(int argc, char* argv[]) try {
 
   g_dbe = EmbeddedDatabase::DBEngine::create(options_str);
 
-  helpers::create_table ("test",         /*chunk_size=*/0);
-  helpers::create_table ("test_chunked", /*chunk_size=*/4);
+  helpers::create_table ("test",         /*fragment_size=*/0);
+  helpers::create_table ("test_chunked", /*fragment_size=*/4);
+  // helpers::import_file (INPUT_CSV_FILE, /*table_name=*/"test", /*fragment_size=*/0);
+  // helpers::import_file (INPUT_CSV_FILE, /*table_name=*/"test_chunked", /*fragment_size=*/4);
   int err = RUN_ALL_TESTS();
 
   g_dbe.reset();

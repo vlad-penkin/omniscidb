@@ -294,8 +294,8 @@ void convert_column(ResultSetPtr result,
   std::vector<std::shared_ptr<arrow::Buffer>> 
     values;
 
-  std::shared_ptr<arrow::Buffer>
-    is_valid;
+  // std::shared_ptr<arrow::Buffer>
+  //   is_valid;
 
   CHECK(result->isChunkedZeroCopyColumnarConversionPossible(col));
 
@@ -318,6 +318,7 @@ void convert_column(ResultSetPtr result,
 
   ENABLE_IF_VERBOSE(std::mutex vbr_mtx);
 
+  //  TODO: change to threading::parallel_for
   tbb::parallel_for(tbb::blocked_range<size_t> (0, values.size()),  [&](tbb::blocked_range<size_t> values_br) {
 
   ENABLE_IF_VERBOSE(
@@ -332,7 +333,11 @@ void convert_column(ResultSetPtr result,
       int64_t null_count = 0;
       auto res = arrow::AllocateBuffer((chunk_rows_count + 7) / 8);
       CHECK(res.ok());
-      is_valid = std::move(res).ValueOrDie();
+
+      // std::shared_ptr<arrow::Buffer>
+      //   is_valid;
+
+      std::shared_ptr<arrow::Buffer> is_valid = std::move(res).ValueOrDie();
 
       auto is_valid_data = is_valid->mutable_data();
 
