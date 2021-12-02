@@ -47,7 +47,9 @@ extern bool g_enable_lazy_fetch;
 static std::shared_ptr<EmbeddedDatabase::DBEngine> g_dbe;
 
 // Definitions
-#define TABLE6x4_CSV_FILE "../../Tests/EmbeddedDataFiles/embedded_db_test_6x4table.csv"
+#define TABLE6x4_CSV_FILE      "../../Tests/EmbeddedDataFiles/embedded_db_test_6x4table.csv"
+#define NULLSTABLE6x4_CSV_FILE "../../Tests/EmbeddedDataFiles/embedded_db_test_nulls_table.csv"
+#define JOIN_TABLE_CSV_FILE    "../../Tests/EmbeddedDataFiles/embedded_db_test_join_table.csv"
 
 // #define INSPECT  //  Uncomment if you wish to inspect the content of chunks
 #ifdef INSPECT
@@ -111,7 +113,7 @@ namespace helpers {
   //  + table_name -- name of the table
   //  + fragment_size -- size of the chunk. If zero (default value) the
   //                  table is created without splitting into chunks
-  void create_table (std::string table_name, size_t fragment_size) {
+  void create_table (std::string csv_file, std::string table_name, size_t fragment_size) {
     if (!g_dbe) {
       throw std::runtime_error("DBEngine is not initialized.  Aborting.\n");
     }
@@ -120,7 +122,7 @@ namespace helpers {
                                   : "";
 
     std::string  create_query = "CREATE TEMPORARY TABLE "+table_name+" (t TEXT, i INT, bi BIGINT, d DOUBLE) "
-                                "WITH (storage_type='CSV:" TABLE6x4_CSV_FILE "'"+frag_size_param+");";
+                                "WITH (storage_type='CSV:"+csv_file+"'"+frag_size_param+");";
 
     INFO(std::cout<< "Running SQL query: `"<<create_query<<"'"<<std::endl);
     g_dbe->executeDDL(create_query);   
@@ -361,28 +363,13 @@ TEST(DBEngine, ArrowTableChunked_SingleColumnConversion) {
 }
 
 //  ========================================================================
-//  Tests for JOIN query
-//  ========================================================================
-// TEST(DBEngine, ArrowTableChunked_JOIN1) {
-//   auto cursor = g_dbe->executeDML("TODO");
-//   ASSERT_NE(cursor, nullptr);
-//   auto table = cursor->getArrowTable();
-//   ASSERT_NE(table, nullptr);
-//   // ASSERT_EQ(table->num_columns(), 1);
-//   // ASSERT_EQ(table->num_rows(), (int64_t)6);
-// }
-//  ========================================================================
 //  Tests for GROUP BY query
 //  ========================================================================
 TEST(DBEngine, ArrowTableChunked_GROUPBY1) {
-  auto cursor = g_dbe->executeDML("SELECT COUNT(d),COUNT(bi),COUNT(t),i FROM test_chunked GROUP BY i");
+  auto cursor = g_dbe->executeDML("SELECT COUNT(d),COUNT(bi),COUNT(t),i FROM test_chunked GROUP BY i;");
   ASSERT_NE(cursor, nullptr);
   auto table = cursor->getArrowTable();
   ASSERT_NE(table, nullptr);
-
-  // for (int i = 0; i<table->num_columns(); i++) {
-  //   std::cout << table->column(i)->ToString() << std::endl; 
-  // }
   ASSERT_EQ(table->num_columns(), 4);
   ASSERT_EQ(table->num_rows(), (int64_t)2);
 
@@ -394,16 +381,33 @@ TEST(DBEngine, ArrowTableChunked_GROUPBY1) {
 }
 
 //  ========================================================================
+//  Tests for JOIN query
+//  ========================================================================
+TEST(DBEngine, ArrowTableChunked_JOIN1) {
+  auto cursor = g_dbe->executeDML("SELECT * FROM test_chunked INNER JOIN join_table ON test_chunked.i=join_table.i;");
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable();
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(table->num_columns(), 7);
+  ASSERT_EQ(table->num_rows(), (int64_t)6);
+}
+
+
+//  ========================================================================
 //  Tests with NULLs
 //  ========================================================================
-// TEST(DBEngine, ArrowTableChunked_NULLS1) {
-//   auto cursor = g_dbe->executeDML("TODO");
-//   ASSERT_NE(cursor, nullptr);
-//   auto table = cursor->getArrowTable();
-//   ASSERT_NE(table, nullptr);
-//   // ASSERT_EQ(table->num_columns(), 1);
-//   // ASSERT_EQ(table->num_rows(), (int64_t)6);
-// }
+TEST(DBEngine, ArrowTableChunked_NULLS1) {
+  auto cursor = g_dbe->executeDML("select * from chunked_nulls;");
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable();
+  ASSERT_NE(table, nullptr);
+  for (int i = 0; i<table->num_columns(); i++) {
+    std::cout << table->column(i)->ToString() << std::endl; 
+  }
+
+  ASSERT_EQ(table->num_columns(), 4);
+  ASSERT_EQ(table->num_rows(), (int64_t)6);
+}
 
 
 int main(int argc, char* argv[]) try {
@@ -419,8 +423,13 @@ int main(int argc, char* argv[]) try {
 
   g_dbe = EmbeddedDatabase::DBEngine::create(options_str);
 
-  helpers::create_table ("test",         /*fragment_size=*/0);
-  helpers::create_table ("test_chunked", /*fragment_size=*/4);
+  helpers::create_table (TABLE6x4_CSV_FILE, "test",               /*fragment_size=*/0);
+  helpers::create_table (TABLE6x4_CSV_FILE, "test_chunked",       /*fragment_size=*/4);
+  helpers::create_table (NULLSTABLE6x4_CSV_FILE, "chunked_nulls", /*fragment_size=*/3);
+
+
+  helpers::import_file(JOIN_TABLE_CSV_FILE, "join_table",2);
+ 
   int err = RUN_ALL_TESTS();
 
   g_dbe.reset();
