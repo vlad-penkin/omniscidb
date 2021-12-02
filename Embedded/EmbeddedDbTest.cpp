@@ -24,13 +24,12 @@
 #include <boost/program_options.hpp>
 
 // std headers
+#include <array>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <iostream>
 #include <string_view>
-#include <tuple>
-
 
 // arrow header
 #include <arrow/api.h>
@@ -40,7 +39,7 @@
 // Google Test
 #include <gtest/gtest.h>
 
-// Global Variables controlling execution
+// Global variables controlling execution
 extern bool g_enable_columnar_output;
 extern bool g_enable_lazy_fetch;
 
@@ -50,13 +49,12 @@ static std::shared_ptr<EmbeddedDatabase::DBEngine> g_dbe;
 // Definitions
 #define TABLE6x4_CSV_FILE "../../Tests/EmbeddedDataFiles/embedded_db_test_6x4table.csv"
 
-//#define VERBOSE  //  Enable if you wish to see the content of the chunks
-#ifdef VERBOSE
+// #define INSPECT  //  Uncomment if you wish to inspect the content of chunks
+#ifdef INSPECT
 #define INFO(cmd) cmd;
 #else
 #define INFO(cmd) do { } while(0)
 #endif
-
 
                               // ========
                               //  HELPERS
@@ -151,6 +149,7 @@ namespace helpers {
     auto arrow_table_result = table_reader->Read();
     ARROW_THROW_NOT_OK(arrow_table_result.status());
     arrowTable = arrow_table_result.ValueOrDie();
+
     g_dbe->importArrowTable(table_name, arrowTable, fragment_size);
   }
 } //  namespace helpers
@@ -165,33 +164,38 @@ namespace helpers {
 //  You also need to have some tests with NULLs.
 //  ========================================================================
 
-//  ========================================================================
-//  Testing helper functions for 6x4 table contained in $TABLE6x4_CSV_FILE 
-//  file.
-//  ========================================================================
-void MainChunkedConversionTest(size_t fragment_size) {
-  //  expected values
-  std::vector <double>  col_d = {10.1, 20.2, 30.3, 40.4, 50.5, 60.6};
-  std::vector <int32_t> col_i = {0,0,0,1,1,1};
-  std::vector <int64_t> col_bi = {1,2,3,4,5,6};
+//  content of the table stored in $TABLE6x4_CSV_FILE file
+std::array <int32_t,6> col_i32 = {0,0,0,1,1,1};
+std::array <int64_t,6> col_i64 = {0,0,0,1,1,1};
+std::array <int64_t,6> col_bi = {1,2,3,4,5,6};
+std::array <double,6>  col_d = {10.1, 20.2, 30.3, 40.4, 50.5, 60.6};
 
-  auto compare_columns = [&]<typename TYPE> (const std::vector<TYPE> & expected, const std::shared_ptr<arrow::ChunkedArray> & actual) 
-  {
-    using arrow_col_type = arrow::NumericArray<typename arrow::CTypeTraits<TYPE>::ArrowType>;
-    const arrow::ArrayVector & chunks = actual->chunks();
-    
-    INFO(std::cout << "\n===\n");
-    for (int i = 0; i<actual->num_chunks(); i++) {
-      auto arrow_row_array = std::static_pointer_cast<arrow_col_type>(chunks[i]);
+template <typename TYPE>
+void CompareColumns(const std::array<TYPE,6> & expected, 
+                     const std::shared_ptr<arrow::ChunkedArray> & actual,
+                     const size_t fragment_size) 
+{
+  using arrow_col_type = arrow::NumericArray<typename arrow::CTypeTraits<TYPE>::ArrowType>;
+  const arrow::ArrayVector & chunks = actual->chunks();
+  
+  INFO(std::cout << "\n===\n");
+  for (int i = 0; i<actual->num_chunks(); i++) {
+    auto arrow_row_array = std::static_pointer_cast<arrow_col_type>(chunks[i]);
 
-      const TYPE * chunk_data = arrow_row_array->raw_values();
-      for (int64_t j = 0; j<arrow_row_array->length(); j++) {
-        INFO(std::cout << chunk_data[j]<<", test: " << expected[i*fragment_size+j] << '\n');
-        ASSERT_EQ(chunk_data[j], expected[i*fragment_size+j]);
-      }
-      INFO(std::cout << "==="<<std::endl);
+    const TYPE * chunk_data = arrow_row_array->raw_values();
+    for (int64_t j = 0; j<arrow_row_array->length(); j++) {
+      INFO(std::cout <<"expected["<<i*fragment_size+j<<"]: " << expected[i*fragment_size+j] 
+                      <<",\tactual["<<i*fragment_size+j<<"]: " << chunk_data[j] << '\n');
+      ASSERT_EQ(expected[i*fragment_size+j], chunk_data[j]);
     }
-  };
+    INFO(std::cout << "==="<<std::endl);
+  }
+};
+
+//  Testing helper functions for 6x4 table contained in $TABLE6x4_CSV_FILE file.
+//  NOTE: create_table() returns table with Arrow types <dictionary, int32, int64, float64>
+//  so we check that.
+void MainChunkedConversionTest(size_t fragment_size) {
 
   auto cursor = g_dbe->executeDML("select * from test_chunked");
 
@@ -216,11 +220,21 @@ void MainChunkedConversionTest(size_t fragment_size) {
   ASSERT_NE(table->column(2), nullptr);
   ASSERT_NE(table->column(3), nullptr);
 
-  compare_columns(col_i,  table->column(1));
-  compare_columns(col_bi, table->column(2));
-  compare_columns(col_d,  table->column(3));
+  auto schema = table->schema();
+  ASSERT_EQ(schema->num_fields(), 4);
+  ASSERT_EQ(schema->GetFieldByName("i")->type()->Equals(arrow::int32()), true);
+  ASSERT_EQ(schema->GetFieldByName("bi")->type()->Equals(arrow::int64()), true);
+  ASSERT_EQ(schema->GetFieldByName("d")->type()->Equals(arrow::float64()), true);
+
+  CompareColumns(col_i32, table->column(1), fragment_size);
+  CompareColumns(col_bi,  table->column(2), fragment_size);
+  CompareColumns(col_d,   table->column(3), fragment_size);
 }
 
+//  Performs tests for 6x4 table contained in $TABLE6x4_CSV_FILE for various values of:
+//   - enable_columnar_output (= true/false) 
+//   - enable_lazy_fetch (= true/false)
+//   - fragment_size (>=0)
 void ChunkedConversion(bool enable_columnar_output, bool enable_lazy_fetch, size_t fragment_size) {
   bool prev_enable_columnar_output = g_enable_columnar_output;
   bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
@@ -235,25 +249,42 @@ void ChunkedConversion(bool enable_columnar_output, bool enable_lazy_fetch, size
   MainChunkedConversionTest(/*fragment_size=*/fragment_size);
 }
 
+                      // ======================================
+                      //  General DBEngine functionality tests
+                      // ======================================
 
-//  =====================================================================
-//  Tests function `DBEngine::importArrowTable()'
-//  =====================================================================
+//  Tests `DBEngine::importArrowTable()'  functionality
+//  NOTE: import_file() returns table with Arrow types <dictionary, int64, int64, float64>
+//  so we check that.
 TEST(DBEngine, DataLoading)  {
-  helpers::import_file(TABLE6x4_CSV_FILE, "loading_test");
+
+  const size_t fragment_size = 4;
+
+  helpers::import_file(TABLE6x4_CSV_FILE, "loading_test", fragment_size);
   auto cursor = g_dbe->executeDML("select * from loading_test");
   ASSERT_NE(cursor, nullptr);
   auto table = cursor->getArrowTable();
   ASSERT_NE(table, nullptr);
   ASSERT_EQ(table->num_columns(), 4);
   ASSERT_EQ(table->num_rows(), (int64_t)6);
+
+  std::shared_ptr<arrow::Schema> schema = table->schema();
+
+  ASSERT_EQ(schema->num_fields(), 4);
+  ASSERT_EQ(schema->GetFieldByName("i")->type()->Equals(arrow::int64()), true);
+  ASSERT_EQ(schema->GetFieldByName("bi")->type()->Equals(arrow::int64()), true);
+  ASSERT_EQ(schema->GetFieldByName("d")->type()->Equals(arrow::float64()), true);
+
+  CompareColumns(col_i64, table->column(1), fragment_size);
+  CompareColumns(col_bi,  table->column(2), fragment_size);
+  CompareColumns(col_d,   table->column(3), fragment_size);
 }
 
                       // ========================
                       //  ArrowRecordBatch Tests
                       // ========================
 
-//  getArrowRecordBatch() test for all columns selection
+//  Tests getArrowRecordBatch() for all columns selection
 TEST(DBEngine, ArrowRecordBatch_SimpleSelectAll) {
   auto cursor = g_dbe->executeDML("select * from test");
   ASSERT_NE(cursor, nullptr);
@@ -263,7 +294,7 @@ TEST(DBEngine, ArrowRecordBatch_SimpleSelectAll) {
   ASSERT_EQ(rbatch->num_rows(), (int64_t)6);
 }
 
-//  getArrowRecordBatch() test for two columns (TEXT "t", INT "i") selection
+//  Tests getArrowRecordBatch() for two columns (TEXT "t", INT "i") selection
 TEST(DBEngine, ArrowRecordBatch_TextIntSelect) {
   auto cursor = g_dbe->executeDML("select t, i from test");
   ASSERT_NE(cursor, nullptr);
@@ -277,6 +308,7 @@ TEST(DBEngine, ArrowRecordBatch_TextIntSelect) {
                       //   Non-Chunked ArrowTable Tests
                       // ===============================
 
+//  Tests getArrowTable() for three columns (TEXT "t", INT "i", BIGINT "bi") selection
 TEST(DBEngine, ArrowTable_TextIntBigintSelect) {
   auto cursor = g_dbe->executeDML("select t, i, bi from test");
   ASSERT_NE(cursor, nullptr);
@@ -286,6 +318,8 @@ TEST(DBEngine, ArrowTable_TextIntBigintSelect) {
   ASSERT_EQ(table->num_rows(), (int64_t)6);
 }
 
+//  Tests getArrowTable() for conditional selection columns (INT "i", DOUBLE "d") 
+//  with the condition d > 1000.  Expected to obtain empty table.
 TEST(DBEngine, ArrowTable_EmptySelection) {
   auto cursor = g_dbe->executeDML("select i, d from test where d > 1000");
   ASSERT_NE(cursor, nullptr);
@@ -299,9 +333,7 @@ TEST(DBEngine, ArrowTable_EmptySelection) {
                       //  Tests for Chunked Arrow Table
                       // ===============================
 
-//  =====================================================================
 //  Chunked Arrow Table Conversion Tests
-//  =====================================================================
 TEST(DBEngine, ArrowTableChunked_Conversion1) {
   ChunkedConversion(/*columnar_output=*/false, /*lazy_fetch=*/false, 4);
 }
@@ -344,8 +376,6 @@ int main(int argc, char* argv[]) try {
 
   helpers::create_table ("test",         /*fragment_size=*/0);
   helpers::create_table ("test_chunked", /*fragment_size=*/4);
-  // helpers::import_file (TABLE6x4_CSV_FILE, /*table_name=*/"test", /*fragment_size=*/0);
-  // helpers::import_file (TABLE6x4_CSV_FILE, /*table_name=*/"test_chunked", /*fragment_size=*/4);
   int err = RUN_ALL_TESTS();
 
   g_dbe.reset();
