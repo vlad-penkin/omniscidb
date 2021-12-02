@@ -392,21 +392,27 @@ TEST(DBEngine, ArrowTableChunked_JOIN1) {
   ASSERT_EQ(table->num_rows(), (int64_t)6);
 }
 
-
 //  ========================================================================
 //  Tests with NULLs
 //  ========================================================================
+#include <limits>
 TEST(DBEngine, ArrowTableChunked_NULLS1) {
   auto cursor = g_dbe->executeDML("select * from chunked_nulls;");
   ASSERT_NE(cursor, nullptr);
   auto table = cursor->getArrowTable();
   ASSERT_NE(table, nullptr);
-  for (int i = 0; i<table->num_columns(); i++) {
-    std::cout << table->column(i)->ToString() << std::endl; 
-  }
+  // for (int i = 0; i<table->num_columns(); i++) {
+  //   std::cout << table->column(i)->ToString() << std::endl; 
+  // }
 
   ASSERT_EQ(table->num_columns(), 4);
   ASSERT_EQ(table->num_rows(), (int64_t)6);
+  auto i32_null = std::numeric_limits<int32_t>::min();
+  auto i64_null = std::numeric_limits<int64_t>::min();
+  auto f64_null = std::numeric_limits<double>::min();
+  CompareColumns(std::array<int32_t,6>{i32_null, 0, i32_null, i32_null, 1, 1}, table->column(1), 3);
+  CompareColumns(std::array<int64_t,6>{1,2,3,4,5,6}, table->column(2), 3);
+  CompareColumns(std::array<double,6>{10.1, f64_null, f64_null, 40.4, 50.5, f64_null}, table->column(3), 3);
 }
 
 
@@ -416,19 +422,23 @@ int main(int argc, char* argv[]) try {
   testing::InitGoogleTest(&argc, argv);
 
   auto options_str = helpers::parse_cli_args(argc, argv);
-  
-  if (!fs::exists(fs::path{TABLE6x4_CSV_FILE})) {
-    throw std::runtime_error ("File not found: " TABLE6x4_CSV_FILE ". Aborting\n");
-  }
+
+  auto check_file = [] (std::string fname) {
+    if (!fs::exists(fs::path{fname})) {
+      throw std::runtime_error ("File not found: " + fname + ". Aborting\n");
+    }
+  };
+
+  check_file(TABLE6x4_CSV_FILE);
+  check_file(NULLSTABLE6x4_CSV_FILE);
+  check_file(JOIN_TABLE_CSV_FILE);
 
   g_dbe = EmbeddedDatabase::DBEngine::create(options_str);
 
-  helpers::create_table (TABLE6x4_CSV_FILE, "test",               /*fragment_size=*/0);
-  helpers::create_table (TABLE6x4_CSV_FILE, "test_chunked",       /*fragment_size=*/4);
-  helpers::create_table (NULLSTABLE6x4_CSV_FILE, "chunked_nulls", /*fragment_size=*/3);
-
-
-  helpers::import_file(JOIN_TABLE_CSV_FILE, "join_table",2);
+  helpers::create_table(TABLE6x4_CSV_FILE, "test", /*fragment_size=*/0);
+  helpers::create_table(TABLE6x4_CSV_FILE, "test_chunked", /*fragment_size=*/4);
+  helpers::create_table(NULLSTABLE6x4_CSV_FILE, "chunked_nulls", /*fragment_size=*/3);
+  helpers::import_file(JOIN_TABLE_CSV_FILE, "join_table", /*fragment_size=*/2);
  
   int err = RUN_ALL_TESTS();
 
