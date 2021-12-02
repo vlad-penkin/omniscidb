@@ -170,8 +170,8 @@ std::array <int64_t,6> col_i64 = {0,0,0,1,1,1};
 std::array <int64_t,6> col_bi = {1,2,3,4,5,6};
 std::array <double,6>  col_d = {10.1, 20.2, 30.3, 40.4, 50.5, 60.6};
 
-template <typename TYPE>
-void CompareColumns(const std::array<TYPE,6> & expected, 
+template <typename TYPE, size_t len = 6>
+void CompareColumns(const std::array<TYPE,len> & expected, 
                      const std::shared_ptr<arrow::ChunkedArray> & actual,
                      const size_t fragment_size) 
 {
@@ -359,6 +359,51 @@ TEST(DBEngine, ArrowTableChunked_SingleColumnConversion) {
   ASSERT_EQ(table->num_columns(), 1);
   ASSERT_EQ(table->num_rows(), (int64_t)6);
 }
+
+//  ========================================================================
+//  Tests for JOIN query
+//  ========================================================================
+// TEST(DBEngine, ArrowTableChunked_JOIN1) {
+//   auto cursor = g_dbe->executeDML("TODO");
+//   ASSERT_NE(cursor, nullptr);
+//   auto table = cursor->getArrowTable();
+//   ASSERT_NE(table, nullptr);
+//   // ASSERT_EQ(table->num_columns(), 1);
+//   // ASSERT_EQ(table->num_rows(), (int64_t)6);
+// }
+//  ========================================================================
+//  Tests for GROUP BY query
+//  ========================================================================
+TEST(DBEngine, ArrowTableChunked_GROUPBY1) {
+  auto cursor = g_dbe->executeDML("SELECT COUNT(d),COUNT(bi),COUNT(t),i FROM test_chunked GROUP BY i");
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable();
+  ASSERT_NE(table, nullptr);
+
+  // for (int i = 0; i<table->num_columns(); i++) {
+  //   std::cout << table->column(i)->ToString() << std::endl; 
+  // }
+  ASSERT_EQ(table->num_columns(), 4);
+  ASSERT_EQ(table->num_rows(), (int64_t)2);
+
+  const size_t fragment_size = 4;
+  CompareColumns(std::array<int32_t,2>{3,3}, table->column(0), fragment_size);
+  CompareColumns(std::array<int32_t,2>{3,3}, table->column(1), fragment_size);
+  CompareColumns(std::array<int32_t,2>{3,3}, table->column(2), fragment_size);
+  CompareColumns(std::array<int32_t,2>{0,1}, table->column(3), fragment_size);
+}
+
+//  ========================================================================
+//  Tests with NULLs
+//  ========================================================================
+// TEST(DBEngine, ArrowTableChunked_NULLS1) {
+//   auto cursor = g_dbe->executeDML("TODO");
+//   ASSERT_NE(cursor, nullptr);
+//   auto table = cursor->getArrowTable();
+//   ASSERT_NE(table, nullptr);
+//   // ASSERT_EQ(table->num_columns(), 1);
+//   // ASSERT_EQ(table->num_rows(), (int64_t)6);
+// }
 
 
 int main(int argc, char* argv[]) try {
