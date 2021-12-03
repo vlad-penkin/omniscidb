@@ -57,8 +57,6 @@ static std::array <int64_t,6> table6x4_col_i64 = {0,0,0,1,1,1};
 static std::array <int64_t,6> table6x4_col_bi = {1,2,3,4,5,6};
 static std::array <double,6>  table6x4_col_d = {10.1, 20.2, 30.3, 40.4, 50.5, 60.6};
 
-
-
 // #define INSPECT  //  Uncomment if you wish to inspect the content of chunks
 #ifdef INSPECT
 #define INFO(cmd) cmd;
@@ -240,8 +238,9 @@ void test_chunked_conversion(bool enable_columnar_output, bool enable_lazy_fetch
 } //  anonumous namespace
 
 //  Tests `DBEngine::importArrowTable()'  functionality
-//  NOTE: For $TABLE6x4_CSV_FILE file, import_file() creates table with Arrow
-//  types <dictionary, int64, int64, float64> so we perform checks accordingly
+//  NOTE: For $TABLE6x4_CSV_FILE file, import_file() creates a table with Arrow
+//  types <dictionary, int64, int64, float64> rather than <dictionary, int32, int64, float64>
+//  (the latter is obtained via SQL query loading), so we perform checks accordingly
 TEST(DBEngine, ImportArrowTable)  {
 
   import_file(TABLE6x4_CSV_FILE, "loading_test", /*fragment_size=*/4);
@@ -439,7 +438,7 @@ TEST(DBEngine, ArrowTableChunked_NULLS2) {
   auto i64_null = std::numeric_limits<int64_t>::min();
   auto f64_null = std::numeric_limits<double>::min();
   compare_columns(std::array<int32_t,6>{i32_null, 0, i32_null, i32_null, 2*1, 2*1}, table->column(0));
-  compare_columns(std::array<int64_t,6>{i64_null,3*2,3*3,3*4,i64_null,3*6}, table->column(1));
+  compare_columns(std::array<int64_t,6>{i64_null, 3*2, 3*3, 3*4, i64_null, 3*6}, table->column(1));
   compare_columns(std::array<double,6>{4*10.1, f64_null, f64_null, 4*40.4, 4*50.5, f64_null}, table->column(2));
 }
 
