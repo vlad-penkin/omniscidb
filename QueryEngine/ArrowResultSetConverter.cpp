@@ -57,18 +57,11 @@ using key_t = size_t;
 
 //  Definitions
 #define USE_TBB_PARALLEL_FOR
-// #define VERBOSE  //  Enable if you wish to see the details of execution
-
 #define ARROW_RECORDBATCH_MAKE arrow::RecordBatch::Make
 #define ARROW_CONVERTER_DEBUG true
 #define ARROW_LOG(category) \
   VLOG(1) << "[Arrow]"      \
           << "[" << category "] "
-#ifdef VERBOSE
-#define ENABLE_IF_VERBOSE(cmd) cmd;
-#else
-#define ENABLE_IF_VERBOSE(cmd) do { } while(0)
-#endif // VERBOSE
 
 namespace {
 
@@ -278,9 +271,7 @@ void convert_column(ResultSetPtr result,
   }
 }
 
-// ==============================================================
 // convert_column() specialization for arrow::ChunkedArray output
-// ==============================================================
 template <typename C_TYPE,
           typename ARROW_TYPE = typename arrow::CTypeTraits<C_TYPE>::ArrowType>
 void convert_column(ResultSetPtr result,
@@ -288,7 +279,6 @@ void convert_column(ResultSetPtr result,
                     size_t entry_count,
                     std::shared_ptr<arrow::ChunkedArray>& out)
 {
-  ENABLE_IF_VERBOSE(std::cout << " NEW VERSION OF convert_column(), col: " << std::setw(4) << col << ". CONVERSION BEGIN... ");
   CHECK(sizeof(C_TYPE) == result->getColType(col).get_size());
 
   std::vector<std::shared_ptr<arrow::Buffer>> 
@@ -313,16 +303,9 @@ void convert_column(ResultSetPtr result,
 
 #ifdef USE_TBB_PARALLEL_FOR
 
-  ENABLE_IF_VERBOSE(std::mutex vbr_mtx);
-
   //  TODO: change to threading::parallel_for
   tbb::parallel_for(tbb::blocked_range<size_t> (0, values.size()),  [&](tbb::blocked_range<size_t> values_br) {
 
-  ENABLE_IF_VERBOSE(
-    vbr_mtx.lock();
-      std::cout << "Values block range size " << (values_br.end()-values_br.begin()) << " from " << values_br.begin() << " to " << values_br.end() << std::endl;
-    vbr_mtx.unlock();
-  );
     for (size_t idx = values_br.begin(); idx<values_br.end(); idx++) {
 
       size_t chunk_rows_count = chunks[idx].second;
@@ -340,15 +323,6 @@ void convert_column(ResultSetPtr result,
       null_type_t<C_TYPE> null_val = null_type<C_TYPE>::value;
 
       size_t unroll_count = chunk_rows_count & 0xFFFFFFFFFFFFFFF8ULL;
-
-    ENABLE_IF_VERBOSE(
-      vbr_mtx.lock();
-        std::cout 
-          << "Values block range from " << values_br.begin() << " to " << values_br.end() 
-          << "; unroll_count: " << unroll_count
-          << std::endl;
-      vbr_mtx.unlock();
-    );
 
       tbb::parallel_for(tbb::blocked_range<size_t> (0, unroll_count),  [&](tbb::blocked_range<size_t> unroll_br) {
         for (size_t i = unroll_br.begin(); i < unroll_br.end(); i += 8) {
@@ -480,7 +454,6 @@ void convert_column(ResultSetPtr result,
 #endif
 
   out = std::make_shared<arrow::ChunkedArray>(std::move(fragments));
-  ENABLE_IF_VERBOSE(std::cout << "CONVERSION COMPLETED."<< std::endl);
 }
 
 
@@ -1248,15 +1221,8 @@ std::shared_ptr<arrow::Table> ArrowResultSetConverter::getArrowTable(
 
 #ifdef USE_TBB_PARALLEL_FOR
 
-    ENABLE_IF_VERBOSE(std::mutex mtx);
 
     tbb::parallel_for(tbb::blocked_range<size_t> (0, col_count),  [&](tbb::blocked_range<size_t> br) {
-
-    ENABLE_IF_VERBOSE(
-      mtx.lock();
-        std::cout << "Range size " << (br.end()-br.begin()) << " from " << br.begin() << " to " << br.end() << std::endl;
-      mtx.unlock();
-    );
 
       for (size_t col_idx = br.begin(); col_idx < br.end(); ++col_idx) {
         if (columnar_conversion[col_idx]) {

@@ -17,6 +17,7 @@
 // project headers
 #include "DBEngine.h"
 #include "Shared/ArrowUtil.h"
+#include "Shared/InlineNullValues.h"
 #include "Shared/scope.h"
 
 // boost headers
@@ -434,9 +435,9 @@ TEST(DBEngine, ArrowTableChunked_NULLS2) {
   ASSERT_EQ(table->num_columns(), 3);
   ASSERT_EQ(table->num_rows(), (int64_t)6);
 
-  auto i32_null = std::numeric_limits<int32_t>::min();
-  auto i64_null = std::numeric_limits<int64_t>::min();
-  auto f64_null = std::numeric_limits<double>::min();
+  auto i32_null = inline_int_null_value<int32_t>();
+  auto i64_null = inline_int_null_value<int64_t>();
+  auto f64_null = inline_fp_null_value<double>();
   compare_columns(std::array<int32_t,6>{i32_null, 0, i32_null, i32_null, 2*1, 2*1}, table->column(0));
   compare_columns(std::array<int64_t,6>{i64_null, 3*2, 3*3, 3*4, i64_null, 3*6}, table->column(1));
   compare_columns(std::array<double,6>{4*10.1, f64_null, f64_null, 4*40.4, 4*50.5, f64_null}, table->column(2));
@@ -470,10 +471,13 @@ int main(int argc, char* argv[]) try {
   int err = RUN_ALL_TESTS();
 
   g_dbe.reset();
-  std::exit(err);
+  return err;
+} catch (const boost::system::system_error & e) {
+  std::cout <<  e.what();
+  LOG(ERROR) << e.what();
+  return EXIT_FAILURE; 
 } catch (const std::exception& e) {
   std::cout <<  e.what();
   LOG(ERROR) << e.what();
-  std::exit(EXIT_FAILURE); 
-} 
-
+  return EXIT_FAILURE; 
+}
