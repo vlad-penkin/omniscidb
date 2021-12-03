@@ -302,12 +302,12 @@ void convert_column(ResultSetPtr result,
     fragments(values.size(), nullptr);
 
 #ifdef USE_TBB_PARALLEL_FOR
-
   //  TODO: change to threading::parallel_for
   tbb::parallel_for(tbb::blocked_range<size_t> (0, values.size()),  [&](tbb::blocked_range<size_t> values_br) {
-
     for (size_t idx = values_br.begin(); idx<values_br.end(); idx++) {
-
+#else 
+    for (size_t idx = 0; idx<values.size(); idx++) {
+#endif
       size_t chunk_rows_count = chunks[idx].second;
 
       int64_t null_count = 0;
@@ -377,80 +377,9 @@ void convert_column(ResultSetPtr result,
       fragments[idx] = null_count 
         ? std::make_shared<NumArray>(chunk_rows_count, values[idx], is_valid, null_count)
         : std::make_shared<NumArray>(chunk_rows_count, values[idx]);
-    } // loop over values_br
+    } // loop over values/values_br
+#ifdef USE_TBB_PARALLEL_FOR
   }); // tbb::parallel_for
-
-#else
-
-  for (size_t idx = 0; idx<values.size(); idx++) {
-
-    size_t chunk_rows_count = chunks[idx].second;
-
-    auto res = arrow::AllocateBuffer((chunk_rows_count + 7) / 8);
-    CHECK(res.ok());
-
-    std::shared_ptr<arrow::Buffer> is_valid = std::move(res).ValueOrDie();
-
-    auto is_valid_data = is_valid->mutable_data();
-
-    const null_type_t<C_TYPE>* vals =
-        reinterpret_cast<const null_type_t<C_TYPE>*>(values[idx]->data());
-    null_type_t<C_TYPE> null_val = null_type<C_TYPE>::value;
-
-    size_t unroll_count = chunk_rows_count & 0xFFFFFFFFFFFFFFF8ULL;
-    int64_t null_count = 0;
-
-    for (size_t i = 0; i < unroll_count; i += 8) {
-      uint8_t valid_byte = 0;
-      uint8_t valid;
-      valid = vals[i + 0] != null_val;
-      valid_byte |= valid << 0;
-      null_count += !valid;
-      valid = vals[i + 1] != null_val;
-      valid_byte |= valid << 1;
-      null_count += !valid;
-      valid = vals[i + 2] != null_val;
-      valid_byte |= valid << 2;
-      null_count += !valid;
-      valid = vals[i + 3] != null_val;
-      valid_byte |= valid << 3;
-      null_count += !valid;
-      valid = vals[i + 4] != null_val;
-      valid_byte |= valid << 4;
-      null_count += !valid;
-      valid = vals[i + 5] != null_val;
-      valid_byte |= valid << 5;
-      null_count += !valid;
-      valid = vals[i + 6] != null_val;
-      valid_byte |= valid << 6;
-      null_count += !valid;
-      valid = vals[i + 7] != null_val;
-      valid_byte |= valid << 7;
-      null_count += !valid;
-      is_valid_data[i >> 3] = valid_byte;
-    }
-    if (unroll_count != chunk_rows_count) {
-      uint8_t valid_byte = 0;
-      for (size_t i = unroll_count; i < chunk_rows_count; ++i) {
-        bool valid = vals[i] != null_val;
-        valid_byte |= valid << (i & 7);
-        null_count += !valid;
-      }
-      is_valid_data[unroll_count >> 3] = valid_byte;
-    }
-
-    if (!null_count) {
-      is_valid.reset();
-    }
-
-    // TODO: support date/time + scaling
-    // TODO: support booleans
-
-    using numarray_t = arrow::NumericArray<ARROW_TYPE>;
-    fragments[idx] = null_count 
-      ? std::make_shared<numarray_t>(chunk_rows_count, values[idx], is_valid, null_count)
-      : std::make_shared<numarray_t>(chunk_rows_count, values[idx]);
-  } // loop over values vector
 #endif
 
   out = std::make_shared<arrow::ChunkedArray>(std::move(fragments));
