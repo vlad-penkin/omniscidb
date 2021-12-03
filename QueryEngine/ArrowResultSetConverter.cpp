@@ -39,7 +39,7 @@
 //  TBB headers
 #include <tbb/parallel_for.h>
 
-//  Windows-related headers
+//  OS-specific headers
 #ifndef _MSC_VER
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -988,8 +988,6 @@ std::shared_ptr<arrow::RecordBatch> ArrowResultSetConverter::getArrowBatch(
     return ARROW_RECORDBATCH_MAKE(schema, 0, result_columns);
   }
 
-  CHECK_LT(top_n_,0);
-
   const size_t entry_count = top_n_ < 0
                                  ? results_->entryCount()
                                  : std::min(size_t(top_n_), results_->entryCount());
@@ -1195,6 +1193,7 @@ std::shared_ptr<arrow::Table> ArrowResultSetConverter::getArrowTable(
   }
 
   
+  CHECK_LT(top_n_,0);  // Currently (20211203) there is no support for non-negative top_n_.
 
   const size_t entry_count = top_n_ < 0
                                  ? results_->entryCount()
