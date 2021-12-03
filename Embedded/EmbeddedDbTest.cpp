@@ -58,13 +58,6 @@ static std::array <int64_t,6> table6x4_col_i64 = {0,0,0,1,1,1};
 static std::array <int64_t,6> table6x4_col_bi = {1,2,3,4,5,6};
 static std::array <double,6>  table6x4_col_d = {10.1, 20.2, 30.3, 40.4, 50.5, 60.6};
 
-// #define INSPECT  //  Uncomment if you wish to inspect the content of chunks
-#ifdef INSPECT
-#define INFO(cmd) cmd;
-#else
-#define INFO(cmd) do { } while(0)
-#endif
-
 //  HELPERS
 namespace {
 
@@ -128,7 +121,6 @@ namespace {
     std::string  create_query = "CREATE TEMPORARY TABLE "+table_name+" (t TEXT, i INT, bi BIGINT, d DOUBLE) "
                                 "WITH (storage_type='CSV:"+csv_file+"'"+frag_size_param+");";
 
-    INFO(std::cout<< "Running SQL query: `"<<create_query<<"'"<<std::endl);
     g_dbe->executeDDL(create_query);   
   }
 
@@ -167,17 +159,14 @@ void compare_columns(const std::array<TYPE,len> & expected,
   using arrow_col_type = arrow::NumericArray<typename arrow::CTypeTraits<TYPE>::ArrowType>;
   const arrow::ArrayVector & chunks = actual->chunks();
   
-  INFO(std::cout << "\n===\n");
+
   for (int i = 0, k=0; i<actual->num_chunks(); i++) {
     auto arrow_row_array = std::static_pointer_cast<arrow_col_type>(chunks[i]);
 
     const TYPE * chunk_data = arrow_row_array->raw_values();
     for (int64_t j = 0; j<arrow_row_array->length(); j++, k++) {
-      INFO(std::cout <<"expected["<<k<<"]: "<< expected[k] 
-                     <<",\tactual["<<k<<"]: " << chunk_data[j] << '\n');
       ASSERT_EQ(expected[k], chunk_data[j]);
     }
-    INFO(std::cout << "==="<<std::endl);
   }
 };
 
@@ -200,9 +189,6 @@ void test_arrow_table_conversion_table6x4(size_t fragment_size) {
 
   size_t actual_chunks_count =  column->num_chunks();
   ASSERT_EQ(actual_chunks_count, expected_chunk_count);
-  
-  INFO(std::cout <<"Chunks count: " << actual_chunks_count << std::endl);
-  INFO(std::cout << column->ToString() << std::endl);
 
   ASSERT_NE(table->column(0), nullptr);
   ASSERT_NE(table->column(1), nullptr);
