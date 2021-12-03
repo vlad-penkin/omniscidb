@@ -1402,7 +1402,6 @@ TemporaryTable Executor::executeWorkUnit(size_t& max_groups_buffer_entry_guess,
                                          const RelAlgExecutionUnit& ra_exe_unit_in,
                                          const CompilationOptions& co,
                                          const ExecutionOptions& eo,
-                                         const Catalog_Namespace::Catalog& cat,
                                          RenderInfo* render_info,
                                          const bool has_cardinality_estimation,
                                          ColumnCacheMap& column_cache) {
@@ -1425,7 +1424,6 @@ TemporaryTable Executor::executeWorkUnit(size_t& max_groups_buffer_entry_guess,
                                       ra_exe_unit_in,
                                       co,
                                       eo,
-                                      cat,
                                       row_set_mem_owner_,
                                       render_info,
                                       has_cardinality_estimation,
@@ -1445,7 +1443,6 @@ TemporaryTable Executor::executeWorkUnit(size_t& max_groups_buffer_entry_guess,
                             replace_scan_limit(ra_exe_unit_in, e.new_scan_limit_),
                             co,
                             eo,
-                            cat,
                             row_set_mem_owner_,
                             render_info,
                             has_cardinality_estimation,
@@ -1467,7 +1464,6 @@ TemporaryTable Executor::executeWorkUnitImpl(
     const RelAlgExecutionUnit& ra_exe_unit_in,
     const CompilationOptions& co,
     const ExecutionOptions& eo,
-    const Catalog_Namespace::Catalog& cat,
     std::shared_ptr<RowSetMemoryOwner> row_set_mem_owner,
     RenderInfo* render_info,
     const bool has_cardinality_estimation,
@@ -1642,7 +1638,6 @@ void Executor::executeWorkUnitPerFragment(
     const InputTableInfo& table_info,
     const CompilationOptions& co,
     const ExecutionOptions& eo,
-    const Catalog_Namespace::Catalog& cat,
     PerFragmentCallBack& cb,
     const std::set<size_t>& fragment_indexes_param) {
   const auto [ra_exe_unit, deleted_cols_map] = addDeletedColumn(ra_exe_unit_in, co);
@@ -1724,8 +1719,7 @@ ResultSetPtr Executor::executeTableFunction(
     const TableFunctionExecutionUnit exe_unit,
     const std::vector<InputTableInfo>& table_infos,
     const CompilationOptions& co,
-    const ExecutionOptions& eo,
-    const Catalog_Namespace::Catalog& cat) {
+    const ExecutionOptions& eo) {
   INJECT_TIMER(Exec_executeTableFunction);
 
   if (eo.just_validate) {
