@@ -169,21 +169,20 @@ std::array <double,6>  col_d = {10.1, 20.2, 30.3, 40.4, 50.5, 60.6};
 
 template <typename TYPE, size_t len = 6>
 void CompareColumns(const std::array<TYPE,len> & expected, 
-                     const std::shared_ptr<arrow::ChunkedArray> & actual,
-                     const size_t fragment_size) 
+                    const std::shared_ptr<arrow::ChunkedArray> & actual) 
 {
   using arrow_col_type = arrow::NumericArray<typename arrow::CTypeTraits<TYPE>::ArrowType>;
   const arrow::ArrayVector & chunks = actual->chunks();
   
   INFO(std::cout << "\n===\n");
-  for (int i = 0; i<actual->num_chunks(); i++) {
+  for (int i = 0, k=0; i<actual->num_chunks(); i++) {
     auto arrow_row_array = std::static_pointer_cast<arrow_col_type>(chunks[i]);
 
     const TYPE * chunk_data = arrow_row_array->raw_values();
-    for (int64_t j = 0; j<arrow_row_array->length(); j++) {
-      INFO(std::cout <<"expected["<<i*fragment_size+j<<"]: " << expected[i*fragment_size+j] 
-                      <<",\tactual["<<i*fragment_size+j<<"]: " << chunk_data[j] << '\n');
-      ASSERT_EQ(expected[i*fragment_size+j], chunk_data[j]);
+    for (int64_t j = 0; j<arrow_row_array->length(); j++, k++) {
+      INFO(std::cout <<"expected["<<k<<"]: "<< expected[k] 
+                     <<",\tactual["<<k<<"]: " << chunk_data[j] << '\n');
+      ASSERT_EQ(expected[k], chunk_data[j]);
     }
     INFO(std::cout << "==="<<std::endl);
   }
@@ -223,9 +222,9 @@ void MainChunkedConversionTest(size_t fragment_size) {
   ASSERT_EQ(schema->GetFieldByName("bi")->type()->Equals(arrow::int64()), true);
   ASSERT_EQ(schema->GetFieldByName("d")->type()->Equals(arrow::float64()), true);
 
-  CompareColumns(col_i32, table->column(1), fragment_size);
-  CompareColumns(col_bi,  table->column(2), fragment_size);
-  CompareColumns(col_d,   table->column(3), fragment_size);
+  CompareColumns(col_i32, table->column(1));
+  CompareColumns(col_bi,  table->column(2));
+  CompareColumns(col_d,   table->column(3));
 }
 
 //  Performs tests for 6x4 table contained in $TABLE6x4_CSV_FILE for various values of:
@@ -272,9 +271,9 @@ TEST(DBEngine, DataLoading)  {
   ASSERT_EQ(schema->GetFieldByName("bi")->type()->Equals(arrow::int64()), true);
   ASSERT_EQ(schema->GetFieldByName("d")->type()->Equals(arrow::float64()), true);
 
-  CompareColumns(col_i64, table->column(1), fragment_size);
-  CompareColumns(col_bi,  table->column(2), fragment_size);
-  CompareColumns(col_d,   table->column(3), fragment_size);
+  CompareColumns(col_i64, table->column(1));
+  CompareColumns(col_bi,  table->column(2));
+  CompareColumns(col_d,   table->column(3));
 }
 
                       // ========================
@@ -368,11 +367,10 @@ TEST(DBEngine, ArrowTableChunked_GROUPBY1) {
   ASSERT_EQ(table->num_columns(), 4);
   ASSERT_EQ(table->num_rows(), (int64_t)2);
 
-  const size_t fragment_size = 4;
-  CompareColumns(std::array<int32_t,2>{3,3}, table->column(0), fragment_size);
-  CompareColumns(std::array<int32_t,2>{3,3}, table->column(1), fragment_size);
-  CompareColumns(std::array<int32_t,2>{3,3}, table->column(2), fragment_size);
-  CompareColumns(std::array<int32_t,2>{0,1}, table->column(3), fragment_size);
+  CompareColumns(std::array<int32_t,2>{3,3}, table->column(0));
+  CompareColumns(std::array<int32_t,2>{3,3}, table->column(1));
+  CompareColumns(std::array<int32_t,2>{3,3}, table->column(2));
+  CompareColumns(std::array<int32_t,2>{0,1}, table->column(3));
 }
 
 //  ========================================================================
@@ -386,9 +384,15 @@ TEST(DBEngine, ArrowTableChunked_JOIN1) {
   ASSERT_EQ(table->num_columns(), 7);
   ASSERT_EQ(table->num_rows(), (int64_t)6);
   std::cout << __PRETTY_FUNCTION__ << " -- TODO: Add column Testing\n";
-  // for (int i = 0; i<table->num_columns(); i++) {
-  //   std::cout << table->column(i)->ToString() << std::endl; 
-  // }
+  for (int i = 0; i<table->num_columns(); i++) {
+    std::cout << table->column(i)->ToString() << std::endl; 
+  }
+
+  CompareColumns(col_i32, table->column(1));
+  CompareColumns(col_bi,  table->column(2));
+  CompareColumns(col_d,   table->column(3));
+  CompareColumns(std::array<int64_t,6>{100, 100, 100, 200, 200, 200}, table->column(6));
+  // CompareColumns(std::array<bool,6>{false, false, false, true, true, true}, table->column(5));
 }
 
 //  ========================================================================
@@ -406,9 +410,9 @@ TEST(DBEngine, ArrowTableChunked_NULLS1) {
   auto i32_null = std::numeric_limits<int32_t>::min();
   auto i64_null = std::numeric_limits<int64_t>::min();
   auto f64_null = std::numeric_limits<double>::min();
-  CompareColumns(std::array<int32_t,6>{i32_null, 0, i32_null, i32_null, 1, 1}, table->column(1), 3);
-  CompareColumns(std::array<int64_t,6>{i64_null,2,3,4,i64_null,6}, table->column(2), 3);
-  CompareColumns(std::array<double,6>{10.1, f64_null, f64_null, 40.4, 50.5, f64_null}, table->column(3), 3);
+  CompareColumns(std::array<int32_t,6>{i32_null, 0, i32_null, i32_null, 1, 1}, table->column(1));
+  CompareColumns(std::array<int64_t,6>{i64_null,2,3,4,i64_null,6}, table->column(2));
+  CompareColumns(std::array<double,6>{10.1, f64_null, f64_null, 40.4, 50.5, f64_null}, table->column(3));
 }
 
 TEST(DBEngine, ArrowTableChunked_NULLS2) {
@@ -424,9 +428,9 @@ TEST(DBEngine, ArrowTableChunked_NULLS2) {
   auto i32_null = std::numeric_limits<int32_t>::min();
   auto i64_null = std::numeric_limits<int64_t>::min();
   auto f64_null = std::numeric_limits<double>::min();
-  CompareColumns(std::array<int32_t,6>{i32_null, 0, i32_null, i32_null, 2*1, 2*1}, table->column(0), 3);
-  CompareColumns(std::array<int64_t,6>{i64_null,3*2,3*3,3*4,i64_null,3*6}, table->column(1), 3);
-  CompareColumns(std::array<double,6>{4*10.1, f64_null, f64_null, 4*40.4, 4*50.5, f64_null}, table->column(2), 3);
+  CompareColumns(std::array<int32_t,6>{i32_null, 0, i32_null, i32_null, 2*1, 2*1}, table->column(0));
+  CompareColumns(std::array<int64_t,6>{i64_null,3*2,3*3,3*4,i64_null,3*6}, table->column(1));
+  CompareColumns(std::array<double,6>{4*10.1, f64_null, f64_null, 4*40.4, 4*50.5, f64_null}, table->column(2));
 }
 
 
