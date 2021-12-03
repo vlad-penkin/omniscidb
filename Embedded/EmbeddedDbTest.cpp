@@ -29,9 +29,9 @@
 #include <exception>
 #include <filesystem>
 #include <iostream>
-#include <string_view>
+#include <limits>
 
-// arrow header
+// arrow headers
 #include <arrow/api.h>
 #include <arrow/csv/reader.h>
 #include <arrow/io/file.h>
@@ -46,10 +46,10 @@ extern bool g_enable_lazy_fetch;
 // DBEngine Instance
 static std::shared_ptr<EmbeddedDatabase::DBEngine> g_dbe;
 
-// Definitions
-#define TABLE6x4_CSV_FILE      "../../Tests/EmbeddedDataFiles/embedded_db_test_6x4table.csv"
-#define NULLSTABLE6x4_CSV_FILE "../../Tests/EmbeddedDataFiles/embedded_db_test_nulls_table.csv"
-#define JOIN_TABLE_CSV_FILE    "../../Tests/EmbeddedDataFiles/embedded_db_test_join_table.csv"
+// Input files' names
+const char * TABLE6x4_CSV_FILE = "../../Tests/EmbeddedDataFiles/embedded_db_test_6x4table.csv";
+const char * JOIN_TABLE_CSV_FILE = "../../Tests/EmbeddedDataFiles/embedded_db_test_join_table.csv";
+const char * NULLSTABLE6x4_CSV_FILE = "../../Tests/EmbeddedDataFiles/embedded_db_test_nulls_table.csv";
 
 // #define INSPECT  //  Uncomment if you wish to inspect the content of chunks
 #ifdef INSPECT
@@ -160,11 +160,6 @@ namespace helpers {
                       // =======
                       //  TESTS
                       // =======
-
-//  ========================================================================
-//  TODO:  add some tests for join and group-by cases to improve coverage. 
-//  You also need to have some tests with NULLs.
-//  ========================================================================
 
 //  content of the table stored in $TABLE6x4_CSV_FILE file
 std::array <int32_t,6> col_i32 = {0,0,0,1,1,1};
@@ -390,29 +385,48 @@ TEST(DBEngine, ArrowTableChunked_JOIN1) {
   ASSERT_NE(table, nullptr);
   ASSERT_EQ(table->num_columns(), 7);
   ASSERT_EQ(table->num_rows(), (int64_t)6);
+  std::cout << __PRETTY_FUNCTION__ << " -- TODO: Add column Testing\n";
+  // for (int i = 0; i<table->num_columns(); i++) {
+  //   std::cout << table->column(i)->ToString() << std::endl; 
+  // }
 }
 
 //  ========================================================================
 //  Tests with NULLs
 //  ========================================================================
-#include <limits>
 TEST(DBEngine, ArrowTableChunked_NULLS1) {
   auto cursor = g_dbe->executeDML("select * from chunked_nulls;");
   ASSERT_NE(cursor, nullptr);
   auto table = cursor->getArrowTable();
   ASSERT_NE(table, nullptr);
-  // for (int i = 0; i<table->num_columns(); i++) {
-  //   std::cout << table->column(i)->ToString() << std::endl; 
-  // }
 
   ASSERT_EQ(table->num_columns(), 4);
   ASSERT_EQ(table->num_rows(), (int64_t)6);
+
   auto i32_null = std::numeric_limits<int32_t>::min();
   auto i64_null = std::numeric_limits<int64_t>::min();
   auto f64_null = std::numeric_limits<double>::min();
   CompareColumns(std::array<int32_t,6>{i32_null, 0, i32_null, i32_null, 1, 1}, table->column(1), 3);
-  CompareColumns(std::array<int64_t,6>{1,2,3,4,5,6}, table->column(2), 3);
+  CompareColumns(std::array<int64_t,6>{i64_null,2,3,4,i64_null,6}, table->column(2), 3);
   CompareColumns(std::array<double,6>{10.1, f64_null, f64_null, 40.4, 50.5, f64_null}, table->column(3), 3);
+}
+
+TEST(DBEngine, ArrowTableChunked_NULLS2) {
+  auto cursor = g_dbe->executeDML("select 2*i,3*bi,4*d from chunked_nulls;");
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable();
+  ASSERT_NE(table, nullptr);
+ 
+
+  ASSERT_EQ(table->num_columns(), 3);
+  ASSERT_EQ(table->num_rows(), (int64_t)6);
+
+  auto i32_null = std::numeric_limits<int32_t>::min();
+  auto i64_null = std::numeric_limits<int64_t>::min();
+  auto f64_null = std::numeric_limits<double>::min();
+  CompareColumns(std::array<int32_t,6>{i32_null, 0, i32_null, i32_null, 2*1, 2*1}, table->column(0), 3);
+  CompareColumns(std::array<int64_t,6>{i64_null,3*2,3*3,3*4,i64_null,3*6}, table->column(1), 3);
+  CompareColumns(std::array<double,6>{4*10.1, f64_null, f64_null, 4*40.4, 4*50.5, f64_null}, table->column(2), 3);
 }
 
 
