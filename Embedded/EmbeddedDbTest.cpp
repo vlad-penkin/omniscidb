@@ -276,6 +276,21 @@ TEST(DBEngine, DataLoading)  {
   CompareColumns(col_d,   table->column(3));
 }
 
+TEST(DBEngine, SelectBool) {
+  GTEST_SKIP(); //  `DBEngine::importArrowTable()' incorrectly imports bools so until 
+                //  that is fixed, this test will fail. Remove GTEST_SKIP(); after that
+                //  bug is fixed.
+  auto cursor = g_dbe->executeDML("SELECT * FROM join_table;");
+  ASSERT_NE(cursor, nullptr);
+  auto table = cursor->getArrowTable();
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(table->num_columns(), 3);
+  ASSERT_EQ(table->num_rows(), 2);
+  CompareColumns(std::array<int64_t,2>{0,1}, table->column(0));
+  CompareColumns(std::array<bool,2>{false,true}, table->column(1));
+  CompareColumns(std::array<int64_t,2>{100,200}, table->column(2));
+}
+
                       // ========================
                       //  ArrowRecordBatch Tests
                       // ========================
@@ -376,24 +391,52 @@ TEST(DBEngine, ArrowTableChunked_GROUPBY1) {
 //  ========================================================================
 //  Tests for JOIN query
 //  ========================================================================
-TEST(DBEngine, ArrowTableChunked_JOIN1) {
-  auto cursor = g_dbe->executeDML("SELECT * FROM test_chunked INNER JOIN join_table ON test_chunked.i=join_table.i;");
+
+//  performs a simple JOIN test for supplied values of 
+//  enable_columnar_output, enable_lazy_fetch
+void JoinTest(bool enable_columnar_output, bool enable_lazy_fetch) {
+  bool prev_enable_columnar_output = g_enable_columnar_output;
+  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
+
+  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] { 
+    g_enable_columnar_output = prev_enable_columnar_output; 
+    g_enable_lazy_fetch = prev_enable_lazy_fetch;
+  };
+
+  g_enable_columnar_output = enable_columnar_output;
+  g_enable_lazy_fetch = enable_lazy_fetch;
+
+  auto cursor = g_dbe->executeDML("SELECT * FROM test_chunked "
+                                  "INNER JOIN join_table "
+                                  "ON test_chunked.i=join_table.i;");
   ASSERT_NE(cursor, nullptr);
   auto table = cursor->getArrowTable();
   ASSERT_NE(table, nullptr);
   ASSERT_EQ(table->num_columns(), 7);
   ASSERT_EQ(table->num_rows(), (int64_t)6);
-  std::cout << __PRETTY_FUNCTION__ << " -- TODO: Add column Testing\n";
-  for (int i = 0; i<table->num_columns(); i++) {
-    std::cout << table->column(i)->ToString() << std::endl; 
-  }
 
   CompareColumns(col_i32, table->column(1));
   CompareColumns(col_bi,  table->column(2));
   CompareColumns(col_d,   table->column(3));
+  CompareColumns(col_i64, table->column(4));
+  // TODO: Enable ↓ after SelectBool test works OK: 
+  // CompareColumns(std::array<bool,6>{false, false, false, true, true, true}, table->column(5));  
   CompareColumns(std::array<int64_t,6>{100, 100, 100, 200, 200, 200}, table->column(6));
-  // CompareColumns(std::array<bool,6>{false, false, false, true, true, true}, table->column(5));
 }
+
+TEST(DBEngine, ArrowTableChunked_JOIN1) {
+  JoinTest(false, false);
+}
+TEST(DBEngine, ArrowTableChunked_JOIN2) {
+  JoinTest(false, true);
+}
+TEST(DBEngine, ArrowTableChunked_JOIN3) {
+  JoinTest(true, false);
+}
+TEST(DBEngine, ArrowTableChunked_JOIN4) {
+  JoinTest(true, true);
+}
+
 
 //  ========================================================================
 //  Tests with NULLs
@@ -411,7 +454,7 @@ TEST(DBEngine, ArrowTableChunked_NULLS1) {
   auto i64_null = std::numeric_limits<int64_t>::min();
   auto f64_null = std::numeric_limits<double>::min();
   CompareColumns(std::array<int32_t,6>{i32_null, 0, i32_null, i32_null, 1, 1}, table->column(1));
-  CompareColumns(std::array<int64_t,6>{i64_null,2,3,4,i64_null,6}, table->column(2));
+  CompareColumns(std::array<int64_t,6>{i64_null,2,3,4,i64_null, 6}, table->column(2));
   CompareColumns(std::array<double,6>{10.1, f64_null, f64_null, 40.4, 50.5, f64_null}, table->column(3));
 }
 
@@ -420,7 +463,6 @@ TEST(DBEngine, ArrowTableChunked_NULLS2) {
   ASSERT_NE(cursor, nullptr);
   auto table = cursor->getArrowTable();
   ASSERT_NE(table, nullptr);
- 
 
   ASSERT_EQ(table->num_columns(), 3);
   ASSERT_EQ(table->num_rows(), (int64_t)6);
