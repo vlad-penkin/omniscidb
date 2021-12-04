@@ -118,6 +118,11 @@ void CommandLineOptions::fillOptions() {
                               ->default_value(system_parameters.cpu_only)
                               ->implicit_value(true),
                           "Run on CPU only, even if GPUs are available.");
+  help_desc.add_options()("single-thread",
+                          po::value<bool>(&g_enable_single_thread_mode)
+                              ->default_value(g_enable_single_thread_mode)
+                              ->implicit_value(true),
+                          "Enable single thread execution.");
   help_desc.add_options()("cuda-block-size",
                           po::value<size_t>(&system_parameters.cuda_block_size)
                               ->default_value(system_parameters.cuda_block_size),

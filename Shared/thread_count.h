@@ -20,8 +20,11 @@
 #include <thread>
 
 extern unsigned g_cpu_threads_override;
+extern bool g_enable_single_thread_mode;
 
 inline int cpu_threads() {
+  if (g_enable_single_thread_mode)
+    return 1U;
   auto ov = g_cpu_threads_override;
   return (ov <= 0) ? std::max(2 * std::thread::hardware_concurrency(), 1U) : ov;
 }

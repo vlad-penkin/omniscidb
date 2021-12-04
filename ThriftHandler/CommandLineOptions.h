@@ -207,6 +207,7 @@ extern bool g_enable_parquet_import_fsi;
 extern bool g_enable_interop;
 extern bool g_enable_union;
 extern bool g_enable_cpu_sub_tasks;
+extern bool g_enable_single_thread_mode;
 extern size_t g_cpu_sub_task_size;
 extern bool g_enable_filter_function;
 extern size_t g_max_import_threads;

@@ -17,3 +17,4 @@
 #include "thread_count.h"
 
 unsigned g_cpu_threads_override{0};
+bool g_enable_single_thread_mode{false};
