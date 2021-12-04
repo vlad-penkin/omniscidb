@@ -771,6 +771,28 @@ std::string DebugTimer::stopAndGetJson() {
   return json_str;
 }
 
+namespace {
+using Duration = std::chrono::milliseconds;
+void log_step_duration(const Duration& d, const std::string& op) {
+  if (!op.empty()) {
+    LOG(INFO) << "STEP:" << op << " " << d.count() << "ms";
+  }
+}
+}  // namespace
+
+SimpleStepTimer::SimpleStepTimer(const std::string& op) {
+  op_ = op;
+  start_ = std::chrono::steady_clock::now();
+}
+SimpleStepTimer::~SimpleStepTimer() {
+  stop();
+}
+void SimpleStepTimer::stop() {
+  auto end = std::chrono::steady_clock::now();
+  auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(end - start_);
+  log_step_duration(millis, op_);
+}
+
 /// Call this when a new thread is spawned that will have timers that need to be
 /// associated with timers on the parent thread.
 void debug_timer_new_thread(ThreadId parent_thread_id) {
