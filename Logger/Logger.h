@@ -315,6 +315,25 @@ class DebugTimer {
   std::string stopAndGetJson();
 };
 
+class StepInfo {
+ public:
+  virtual std::string repr() const = 0;
+};
+
+class SimpleStepTimer {
+  std::chrono::time_point<std::chrono::steady_clock> start_;
+  std::string op_;
+
+ public:
+  SimpleStepTimer(const std::string& op);
+  SimpleStepTimer(const SimpleStepTimer&) = delete;
+  SimpleStepTimer(SimpleStepTimer&&) = default;
+  SimpleStepTimer& operator=(const SimpleStepTimer&) = delete;
+  SimpleStepTimer& operator=(SimpleStepTimer&&) = default;
+  ~SimpleStepTimer();
+  void stop();
+};
+
 using QueryId = uint64_t;
 QueryId query_id();
 
@@ -350,6 +369,8 @@ ThreadId thread_id();
 
 // Typical usage: auto timer = DEBUG_TIMER(__func__);
 #define DEBUG_TIMER(name) logger::DebugTimer(logger::INFO, __FILE__, __LINE__, name)
+
+#define STEP_TIMER(step_info) logger::SimpleStepTimer(step_info)
 
 // This MUST NOT be called more than once per thread, otherwise a failed CHECK() occurs.
 // Best practice is to call it from the point where the new thread is spawned.

@@ -57,6 +57,7 @@ size_t g_estimator_failure_max_groupby_size{256000000};
 extern bool g_enable_bump_allocator;
 extern size_t g_default_max_groups_buffer_entry_guess;
 extern bool g_enable_system_tables;
+extern bool g_enable_step_timer;  // todo (Petr)
 
 namespace {
 
@@ -65,6 +66,52 @@ bool node_is_aggregate(const RelAlgNode* ra) {
   const auto aggregate = dynamic_cast<const RelAggregate*>(ra);
   return ((compound && compound->isAggregate()) || aggregate);
 }
+
+std::string node_as_string(const RelAlgNode* ra) {
+  const auto compound = dynamic_cast<const RelCompound*>(ra);
+  if (compound) {
+    return "RelCompound";
+  }
+  const auto project = dynamic_cast<const RelProject*>(ra);
+  if (project) {
+    return "RelProject";
+  }
+  const auto aggregate = dynamic_cast<const RelAggregate*>(ra);
+  if (aggregate) {
+    return "RelAggregate";
+  }
+  const auto filter = dynamic_cast<const RelFilter*>(ra);
+  if (filter) {
+    return "RelFilter";
+  }
+  const auto sort = dynamic_cast<const RelSort*>(ra);
+  if (sort) {
+    return "RelSort";
+  }
+  const auto logical_values = dynamic_cast<const RelLogicalValues*>(ra);
+  if (logical_values) {
+    return "RelLogicalValues";
+  }
+  const auto modify = dynamic_cast<const RelModify*>(ra);
+  if (modify) {
+    return "RelModify";
+  }
+  const auto logical_union = dynamic_cast<const RelLogicalUnion*>(ra);
+  if (logical_union) {
+    return "RelLogicalUnion";
+  }
+  LOG(FATAL) << "Unhandled node type: " << ra->toString();
+  CHECK(false);
+  return {};
+}
+
+class RelAlgStepInfo : public logger::StepInfo {
+  const RelAlgNode* op_;
+
+ public:
+  RelAlgStepInfo(const RelAlgNode* op) : op_(op) {}
+  std::string repr() const override { return node_as_string(op_); }
+};
 
 std::unordered_set<PhysicalInput> get_physical_inputs(
     const Catalog_Namespace::Catalog& cat,
@@ -773,6 +820,9 @@ void RelAlgExecutor::executeRelAlgStep(const RaExecutionSequence& seq,
     handleNop(exec_desc);
     return;
   }
+
+  RelAlgStepInfo step_info(body);
+  auto step_timer = STEP_TIMER(step_info.repr());
 
   const ExecutionOptions eo_work_unit{
       eo.output_columnar_hint,
