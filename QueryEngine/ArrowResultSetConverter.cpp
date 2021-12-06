@@ -301,7 +301,7 @@ void convert_column(ResultSetPtr result,
   std::vector<std::shared_ptr<arrow::Array>>
     fragments(values.size(), nullptr);
   
-  threading::parallel_for(0, values.size(), [&](size_t idx) { 
+  threading::parallel_for(static_cast<size_t>(0), values.size(), [&](size_t idx) { 
       size_t chunk_rows_count = chunks[idx].second;
       int64_t null_count = 0;
       auto res = arrow::AllocateBuffer((chunk_rows_count + 7) / 8);
@@ -317,8 +317,6 @@ void convert_column(ResultSetPtr result,
 
       size_t unroll_count = chunk_rows_count & 0xFFFFFFFFFFFFFFF8ULL;
 
-      // tbb::parallel_for(tbb::blocked_range<size_t> (0, unroll_count),  [&](tbb::blocked_range<size_t> unroll_br) {
-      //   for (size_t i = unroll_br.begin(); i < unroll_br.end(); i += 8) {
       for (size_t i=0; i<unroll_count; i += 8) {
         uint8_t valid_byte = 0;
         uint8_t valid;
@@ -348,7 +346,6 @@ void convert_column(ResultSetPtr result,
         null_count += !valid;
         is_valid_data[i >> 3] = valid_byte;
       }
-      // });
 
       if (unroll_count != chunk_rows_count) {
         uint8_t valid_byte = 0;
