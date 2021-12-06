@@ -20,19 +20,26 @@
 #include "../Parser/parser.h"
 #include "../QueryEngine/ArrowResultSet.h"
 #include "../QueryEngine/Execute.h"
+#include "../QueryEngine/RelAlgExecutor.h"
 #include "../Shared/file_delete.h"
 
 #include <gtest/gtest.h>
 
 #include <ctime>
 #include <iostream>
+#include "../Parser/parser.h"
+#include "../QueryEngine/ArrowResultSet.h"
+#include "../QueryEngine/Execute.h"
+#include "../QueryEngine/Visitors/SQLOperatorDetector.h"
+#include "../Shared/file_delete.h"
+#include "TestHelpers.h"
 
 using namespace TestHelpers;
 using namespace TestHelpers::ArrowSQLRunner;
 
 bool skip_tests_on_gpu(const ExecutorDeviceType device_type) {
 #ifdef HAVE_CUDA
-  return device_type == ExecutorDeviceType::GPU && !(QR::get()->gpusPresent());
+  return device_type == ExecutorDeviceType::GPU && !gpusPresent();
 #else
   return device_type == ExecutorDeviceType::GPU;
 #endif
@@ -215,7 +222,7 @@ TEST(Select, SingleValue) {
 TEST(Select, Correlated) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   std::string sql =
       "SELECT id, val, (SELECT test_lookup.id FROM test_lookup WHERE "
       "test_lookup.val = test_facts.val) as lookup_id FROM test_facts";
@@ -243,7 +250,7 @@ TEST(Select, Correlated) {
 TEST(Select, CorrelatedWithDouble) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kDOUBLE, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kDOUBLE), factsCount, lookupCount);
   std::string sql =
       "SELECT id, val, (SELECT test_lookup.id FROM test_lookup WHERE "
       "test_lookup.val = test_facts.val) as lookup_id FROM test_facts";
@@ -272,7 +279,7 @@ TEST(Select, CorrelatedWithInnerDuplicatesFails) {
   int factsCount = 13;
   int lookupCount = 5;
 
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   insertCsvValues("test_lookup", "5,0\n6,1\n7,2\n8,3\n9,4");
 
   std::string sql =
@@ -285,7 +292,7 @@ TEST(Select, CorrelatedWithInnerDuplicatesAndMinId) {
   int factsCount = 13;
   int lookupCount = 5;
 
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   insertCsvValues("test_lookup", "5,0\n6,1\n7,2\n8,3\n9,4");
 
   std::string sql =
@@ -317,7 +324,7 @@ TEST(Select, DISABLED_CorrelatedWithInnerDuplicatesDescIdOrder) {
   int factsCount = 13;
   int lookupCount = 5;
 
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   insertCsvValues("test_lookup", "5,0\n6,1\n7,2\n8,3\n9,4");
 
   std::string sql =
@@ -349,7 +356,7 @@ TEST(Select, CorrelatedWithInnerDuplicatesAndMaxId) {
   int factsCount = 13;
   int lookupCount = 5;
 
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   insertCsvValues("test_lookup", "5,0\n6,1\n7,2\n8,3\n9,4");
 
   std::string sql =
@@ -381,7 +388,7 @@ TEST(Select, DISABLED_CorrelatedWithInnerDuplicatesAndAscIdOrder) {
   int factsCount = 13;
   int lookupCount = 5;
 
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   insertCsvValues("test_lookup", "5,0\n6,1\n7,2\n8,3\n9,4");
 
   std::string sql =
@@ -413,7 +420,7 @@ TEST(Select, DISABLED_CorrelatedWithInnerDuplicatesAndAscIdOrder) {
 TEST(Select, CorrelatedWithOuterSortAscending) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   std::string sql =
       "SELECT id, val, (SELECT test_lookup.id FROM test_lookup WHERE "
       "test_lookup.val = test_facts.val) as lookup_id FROM test_facts ORDER BY id ASC";
@@ -442,7 +449,7 @@ TEST(Select, CorrelatedWithOuterSortAscending) {
 TEST(Select, CorrelatedWithOuterSortDescending) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   std::string sql =
       "SELECT id, val, (SELECT test_lookup.id FROM test_lookup WHERE "
       "test_lookup.val = test_facts.val) as lookup_id FROM test_facts ORDER BY id DESC";
@@ -471,7 +478,7 @@ TEST(Select, CorrelatedWithOuterSortDescending) {
 TEST(Select, CorrelatedWithInnerSortDisallowed) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   std::string sql =
       "SELECT id, (SELECT test_lookup.id FROM test_lookup WHERE test_lookup.val = "
       "test_facts.val LIMIT 1) as lookup_id FROM test_facts;";
@@ -496,7 +503,7 @@ TEST(Select, CorrelatedWithInnerSortDisallowed) {
 TEST(Select, NonCorrelatedWithInnerSortAllowed) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   insertCsvValues("test_lookup", "5,0");
 
   std::string sql =
@@ -523,7 +530,7 @@ TEST(Select, NonCorrelatedWithInnerSortAllowed) {
 TEST(Select, CorrelatedWhere) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   std::string sql =
       "SELECT id, val, lookup_id FROM test_facts WHERE (SELECT test_lookup.id "
       "FROM test_lookup WHERE test_lookup.val = test_facts.val) < 100 ORDER BY id ASC";
@@ -546,7 +553,7 @@ TEST(Select, CorrelatedWhere) {
 TEST(Select, CorrelatedWhereNull) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
   std::string sql =
       "SELECT id, val, lookup_id FROM test_facts WHERE (SELECT test_lookup.id "
       "FROM test_lookup WHERE test_lookup.val = test_facts.val) IS NULL ORDER BY id ASC";
@@ -569,7 +576,7 @@ TEST(Select, CorrelatedWhereNull) {
 TEST(Select, Exists_NoJoinCorrelation) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
 
   std::string sql =
       "SELECT fact.id, fact.val FROM test_facts fact WHERE EXISTS "
@@ -603,7 +610,7 @@ TEST(Select, Exists_NoJoinCorrelation) {
 TEST(Select, JoinCorrelation) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
 
   // single join-correlation with filter predicates
   std::string sql =
@@ -693,7 +700,7 @@ TEST(Select, JoinCorrelation) {
 TEST(Select, JoinCorrelation_withMultipleExists) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
 
   // # EXISTS clause: 2
   std::string sql =
@@ -774,7 +781,7 @@ TEST(Select, JoinCorrelation_withMultipleExists) {
 TEST(Select, JoinCorrelation_InClause) {
   int factsCount = 13;
   int lookupCount = 5;
-  setupTest(kINT, factsCount, lookupCount);
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
 
   std::string sql =
       "SELECT fact.id, fact.val FROM test_facts fact WHERE fact.val IN (SELECT l.val "
@@ -825,90 +832,50 @@ TEST(Select, JoinCorrelation_InClause) {
   ASSERT_EQ(val, 4);
 }
 
-TEST(Select, DISABLED_Very_Large_In) {
-  // unsupported updates
-  const auto file_path =
-      boost::filesystem::path("../../Tests/Import/datafiles/very_large_in.csv");
-  if (boost::filesystem::exists(file_path)) {
-    boost::filesystem::remove(file_path);
-  }
-  std::ofstream file_out(file_path.string());
-  // 100K unique integer
-  for (int i = 1; i <= 100000; i++) {
-    if (file_out.is_open()) {
-      const auto val = ::toString(i);
-      file_out << val << ",\'" << val << "\'\n";
-    }
-  }
-  file_out.close();
-  auto drop_table = []() { QR::get()->runDDLStatement("DROP TABLE IF EXISTS T_100K;"); };
-  auto create_table = []() {
-    QR::get()->runDDLStatement(
-        "CREATE TABLE T_100K (x int not null, y text encoding dict);");
-  };
-  auto import_table = []() {
-    std::string import_stmt{
-        "COPY T_100K FROM "
-        "'../../Tests/Import/datafiles/very_large_in.csv' WITH "
-        "(header='false')"};
-    QR::get()->runDDLStatement(import_stmt);
+TEST(Select, InExpr_As_Child_Operand_Of_OR_Operator) {
+  int factsCount = 13;
+  int lookupCount = 5;
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
+
+  auto check_query = [](const std::string& query, bool expected) {
+    const auto query_ra = getSqlQueryRelAlg(query);
+    auto executor = Executor::getExecutor(
+        Executor::UNITARY_EXECUTOR_ID, getDataMgr(), getDataMgr()->getBufferProvider());
+    executor->setSchemaProvider(getStorage());
+    executor->setDatabaseId(TEST_DB_ID);
+    auto dag =
+        std::make_unique<RelAlgDagBuilder>(query_ra, TEST_DB_ID, getStorage(), nullptr);
+    auto ra_executor = RelAlgExecutor(executor.get(),
+                                      TEST_DB_ID,
+                                      getStorage(),
+                                      getDataMgr()->getDataProvider(),
+                                      std::move(dag));
+
+    auto root_node = ra_executor.getRootRelAlgNodeShPtr();
+    auto has_in_expr = SQLOperatorDetector::detect(root_node.get(), SQLOps::kIN);
+    EXPECT_EQ(has_in_expr, expected);
   };
 
-  drop_table();
-  create_table();
-  import_table();
+  auto q1 =
+      "WITH TT1 AS (SELECT val AS key0 FROM test_facts) SELECT val FROM test_facts WHERE "
+      "val IN (SELECT key0 FROM TT1);";
 
-  std::string q1 =
-      "SELECT COUNT(1) FROM T_100K WHERE rowid IN (SELECT MAX(F.rowid) FROM T_100K F "
-      "INNER JOIN (SELECT x FROM T_100K) F1 ON F.x = F1.x GROUP BY F.x);";
-  auto result = QR::get()->runSQL(q1, ExecutorDeviceType::CPU);
-  const auto crt_row = result->getNextRow(true, false);
-  auto res_val = getIntValue(crt_row[0]);
-  EXPECT_EQ(100000, res_val);
+  auto q2 =
+      "WITH TT1 AS (SELECT val AS key0 FROM test_facts) SELECT val FROM test_facts WHERE "
+      "(val IN (SELECT key0 FROM TT1) OR val IS NULL);";
 
-  std::string update_q1 =
-      "UPDATE T_100K SET x = 100001 WHERE rowid IN (SELECT MAX(F.rowid) FROM T_100K "
-      "F INNER JOIN (SELECT x FROM T_100K) F1 ON F.x = F1.x GROUP BY F.x);";
-  // since IN-clause is decorrelated and evaluated as our hash-join,
-  // so we should not get the exception regarding IN-clause
-  EXPECT_NO_THROW(QR::get()->runSQL(update_q1, ExecutorDeviceType::CPU));
-  std::string query2 = "SELECT COUNT(1) FROM T_100K WHERE x = 100001;";
-  auto result2 = QR::get()->runSQL(query2, ExecutorDeviceType::CPU);
-  const auto crt_row2 = result2->getNextRow(true, false);
-  auto res_val2 = getIntValue(crt_row2[0]);
-  EXPECT_EQ(100000, res_val2);
+  auto q3 =
+      "WITH TT1 AS (SELECT val AS key0 FROM test_facts) SELECT val FROM test_facts GROUP "
+      "BY val HAVING val IN (SELECT key0 FROM TT1);";
 
-  drop_table();
-  create_table();
-  import_table();
+  auto q4 =
+      "WITH TT1 AS (SELECT val AS key0 FROM test_facts) SELECT val FROM test_facts GROUP "
+      "BY val HAVING (val IN (SELECT key0 FROM TT1) OR val IS NULL);";
 
-  std::string update_q2 =
-      "UPDATE T_100K SET y = '100001' WHERE rowid IN (SELECT MAX(F.rowid) FROM T_100K "
-      "F INNER JOIN (SELECT x FROM T_100K) F1 ON F.x = F1.x GROUP BY F.x);";
-  EXPECT_NO_THROW(QR::get()->runSQL(update_q2, ExecutorDeviceType::CPU));
-  std::string query3 = "SELECT COUNT(1) FROM T_100K WHERE y = '100001';";
-  auto result3 = QR::get()->runSQL(query3, ExecutorDeviceType::CPU);
-  const auto crt_row3 = result3->getNextRow(true, false);
-  auto res_val3 = getIntValue(crt_row3[0]);
-  EXPECT_EQ(100000, res_val3);
-
-  drop_table();
-  create_table();
-  import_table();
-
-  std::string update_q3 =
-      "UPDATE T_100K SET x = 200000, y = '2000000' WHERE rowid IN (SELECT MAX(F.rowid) "
-      "FROM T_100K "
-      "F INNER JOIN (SELECT x FROM T_100K) F1 ON F.x = F1.x GROUP BY F.x);";
-  EXPECT_NO_THROW(QR::get()->runSQL(update_q3, ExecutorDeviceType::CPU));
-  std::string query4 = "SELECT COUNT(1) FROM T_100K WHERE y = '2000000';";
-  auto result4 = QR::get()->runSQL(query4, ExecutorDeviceType::CPU);
-  const auto crt_row4 = result4->getNextRow(true, false);
-  auto res_val4 = getIntValue(crt_row4[0]);
-  EXPECT_EQ(100000, res_val4);
-
-  QR::get()->runDDLStatement("DROP TABLE IF EXISTS INT_100K;");
-  boost::filesystem::remove(file_path);
+  check_query(q1, false);
+  check_query(q2, true);
+  check_query(q3, false);
+  check_query(q4, true);
 }
 
 int main(int argc, char* argv[]) {
