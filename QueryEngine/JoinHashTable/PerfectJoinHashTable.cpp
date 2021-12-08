@@ -26,8 +26,8 @@
 #include "QueryEngine/ColumnFetcher.h"
 #include "QueryEngine/Execute.h"
 #include "QueryEngine/ExpressionRewrite.h"
-#include "QueryEngine/JoinHashTable/Builders/PerfectHashTableBuilder.h"
 #include "QueryEngine/JoinHashTable/Runtime/HashJoinRuntime.h"
+#include "QueryEngine/JoinHashTable/Builders/PerfectHashTableBuilder.h"
 #include "QueryEngine/RuntimeFunctions.h"
 
 std::unique_ptr<HashTableCache<PerfectJoinHashTable::JoinHashTableCacheKey,
@@ -870,7 +870,7 @@ std::set<DecodedJoinHashBufferEntry> PerfectJoinHashTable::toSet(
   auto buffer = getJoinHashBuffer(device_type, device_id);
   auto buffer_size = getJoinHashBufferSize(device_type, device_id);
   auto hash_table = getHashTableForDevice(device_id);
-#ifdef HAVE_CUDA
+#if defined(HAVE_CUDA) || defined(HAVE_L0)
   std::unique_ptr<int8_t[]> buffer_copy;
   if (device_type == ExecutorDeviceType::CUDA) {
     buffer_copy = std::make_unique<int8_t[]>(buffer_size);

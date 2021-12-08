@@ -253,7 +253,7 @@ class HashJoin {
     }
     CHECK(hash_tables_for_device_[device_id]);
     auto hash_table = hash_tables_for_device_[device_id].get();
-#ifdef HAVE_CUDA
+#if defined(HAVE_CUDA) || defined(HAVE_L0)
     if (device_type == ExecutorDeviceType::CPU) {
       return hash_table->getCpuBuffer();
     } else {
