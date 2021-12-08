@@ -136,6 +136,12 @@ set(query_engine_source_files
     L0Kernel.h
     QueryTemplateGenerator.h)
 
+if (ENABLE_L0)
+  list(APPEND query_engine_source_files
+    JoinHashTable/Runtime/HashJoinRuntimeL0.cpp
+    )
+endif()
+
 if(NOT "${MAPD_EDITION_LOWER}" STREQUAL "os")
   list(APPEND query_engine_source_files
     ${CMAKE_CURRENT_SOURCE_DIR}/Rendering/ee/RenderAllocator.cpp

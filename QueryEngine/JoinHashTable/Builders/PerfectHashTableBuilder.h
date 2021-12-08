@@ -98,9 +98,9 @@ class PerfectJoinHashTableBuilder {
     CHECK(hash_table_);
     auto gpu_hash_table_buff = hash_table_->getGpuBuffer();
 
-    // init_hash_join_buff_on_device(reinterpret_cast<int32_t*>(gpu_hash_table_buff),
-    //                               hash_entry_info.getNormalizedHashEntryCount(),
-    //                               hash_join_invalid_val);
+    init_hash_join_buff_on_device(reinterpret_cast<int32_t*>(gpu_hash_table_buff),
+                                  hash_entry_info.getNormalizedHashEntryCount(),
+                                  hash_join_invalid_val);
     if (chunk_key.empty()) {
       return;
     }
