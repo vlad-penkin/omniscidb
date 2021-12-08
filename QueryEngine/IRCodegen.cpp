@@ -696,14 +696,18 @@ std::shared_ptr<HashJoin> Executor::buildCurrentLevelHashTable(
     check_valid_join_qual(qual_bin_oper);
     JoinHashTableOrError hash_table_or_error;
     if (!current_level_hash_table) {
-      hash_table_or_error = buildHashTableForQualifier(
-          qual_bin_oper,
-          query_infos,
-          is_gpu(co.device_type) ? MemoryLevel::GPU_LEVEL : MemoryLevel::CPU_LEVEL,
-          current_level_join_conditions.type,
-          HashType::OneToOne,
-          column_cache,
-          ra_exe_unit.query_hint);
+      if (co.device_type == ExecutorDeviceType::L0) {
+        hash_table_or_error = {nullptr, "L0 hash join disabled, attempting to fall back to loop join"};
+      } else {
+        hash_table_or_error = buildHashTableForQualifier(
+            qual_bin_oper,
+            query_infos,
+            is_gpu(co.device_type) ? MemoryLevel::GPU_LEVEL : MemoryLevel::CPU_LEVEL,
+            current_level_join_conditions.type,
+            HashType::OneToOne,
+            column_cache,
+            ra_exe_unit.query_hint);
+      }
       current_level_hash_table = hash_table_or_error.hash_table;
     }
     if (hash_table_or_error.hash_table) {
