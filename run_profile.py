@@ -43,7 +43,6 @@ def profile():
 def dry_profile():
     return 0,0
 
-
 timestamp = datetime.now().strftime("%Y%m%d_%H:%M:%S")
 
 df = pandas.DataFrame(columns=["fragments_count", "fragment_size","getArrowTable.mean","getArrowTable.stdev",
@@ -52,13 +51,15 @@ df = pandas.DataFrame(columns=["fragments_count", "fragment_size","getArrowTable
 
 N = int(30*1E6)
 base_cores_count = 28
-fragments_count = [base_cores_count*i for i in range(1,51)]
+fragments_count = [base_cores_count*i for i in range(1,101)]
 
 #frag_sizes = [1000, 2000, 3000, 4000, 8000, 16000, 32000, 64000, 128000, 256000, 512000]
 
 for fc in fragments_count:
     fs = int (N/fc)
     print("Profiling; fragment count: %d, fragment size: %d"%(fc,fs))
+    sys.stdout.flush()
+
     build_table(N, fs)
 
     elapsed1=[]
@@ -80,13 +81,14 @@ for fc in fragments_count:
     speedup_stdev=statistics.stdev(speedups)
     speedup_approx = el2/el1
 
-    print (std_el1/el1, std_el2/el2)
     df = df.append({"fragments_count": fc, "fragment_size": fs, 
                     "getArrowTable.mean":el1, "getArrowTable.stdev":std_el1, 
                     "getArrowRecordBatch.mean":el2, "getArrowRecordBatch.stdev":std_el2,
                     "speedup.mean":speedup_mean, "speedup.stdev": speedup_stdev,
                     "speedup.approx": speedup_approx
                     }, ignore_index=True)
+    print (std_el1/el1, std_el2/el2)
+    sys.stdout.flush()
 
 df=df.set_index("fragments_count")
 print(df)
