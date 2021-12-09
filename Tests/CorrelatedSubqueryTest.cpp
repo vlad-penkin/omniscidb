@@ -37,6 +37,8 @@
 using namespace TestHelpers;
 using namespace TestHelpers::ArrowSQLRunner;
 
+extern bool g_enable_watchdog;
+
 bool skip_tests_on_gpu(const ExecutorDeviceType device_type) {
 #ifdef HAVE_CUDA
   return device_type == ExecutorDeviceType::GPU && !gpusPresent();
@@ -876,6 +878,44 @@ TEST(Select, InExpr_As_Child_Operand_Of_OR_Operator) {
   check_query(q2, true);
   check_query(q3, false);
   check_query(q4, true);
+}
+
+TEST(Select, Disable_INExpr_Decorrelation_Under_Watchdog) {
+  int factsCount = 13;
+  int lookupCount = 5;
+  setupTest(SQLTypeInfo(kINT), factsCount, lookupCount);
+
+  auto check_query = [](const std::string& query, bool expected) {
+    const auto query_ra = getSqlQueryRelAlg(query);
+    auto executor = Executor::getExecutor(
+        Executor::UNITARY_EXECUTOR_ID, getDataMgr(), getDataMgr()->getBufferProvider());
+    executor->setSchemaProvider(getStorage());
+    executor->setDatabaseId(TEST_DB_ID);
+    auto dag =
+        std::make_unique<RelAlgDagBuilder>(query_ra, TEST_DB_ID, getStorage(), nullptr);
+    auto ra_executor = RelAlgExecutor(executor.get(),
+                                      TEST_DB_ID,
+                                      getStorage(),
+                                      getDataMgr()->getDataProvider(),
+                                      std::move(dag));
+
+    auto root_node = ra_executor.getRootRelAlgNodeShPtr();
+
+    auto has_in_expr = SQLOperatorDetector::detect(root_node.get(), SQLOps::kIN);
+    EXPECT_EQ(has_in_expr, expected);
+  };
+
+  auto query =
+      "WITH TT1 AS (SELECT val AS key0 FROM test_facts) SELECT val FROM test_facts WHERE "
+      "val IN (SELECT key0 FROM TT1);";
+
+  ScopeGuard reset = [orig = g_enable_watchdog] { g_enable_watchdog = orig; };
+  for (auto watchdog : {false, true}) {
+    g_enable_watchdog = watchdog;
+    // we do not decorrelate IN-expr if watchdog is enabled, so
+    // we expect to see the existence of IN-expr in the query plan
+    check_query(query, watchdog);
+  }
 }
 
 int main(int argc, char* argv[]) {
