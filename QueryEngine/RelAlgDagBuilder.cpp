@@ -35,6 +35,7 @@
 
 extern bool g_cluster;
 extern bool g_enable_union;
+std::string query_plan_output_file = {""};
 
 namespace {
 
@@ -2652,6 +2653,15 @@ RelAlgDagBuilder::RelAlgDagBuilder(const std::string& query_ra,
   rapidjson::Document query_ast;
   query_ast.Parse(query_ra.c_str());
   VLOG(2) << "Parsing query RA JSON: " << query_ra;
+
+  //print plan to file
+  if (! query_plan_output_file.empty()) {
+    std::ofstream plan_out;
+    plan_out.open (query_plan_output_file, std::ios_base::app);
+    plan_out << query_ra << std::endl;
+    plan_out.close();
+  }
+
   if (query_ast.HasParseError()) {
     query_ast.GetParseError();
     LOG(ERROR) << "Failed to parse RA tree from Calcite (offset "

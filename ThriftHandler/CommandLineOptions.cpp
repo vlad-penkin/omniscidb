@@ -426,6 +426,10 @@ void CommandLineOptions::fillOptions() {
       "allowed-export-paths",
       po::value<std::string>(&allowed_export_paths),
       "List of allowed root paths that can be used in export operations.");
+  help_desc.add_options()("query_plan_output_file",
+      po::value<std::string>(&query_plan_output_file)
+        ->default_value(query_plan_output_file),
+      "Provide filename to dump logical query plans in json format.");  
   help_desc.add(log_options_.get_options());
 }
 
