@@ -167,13 +167,8 @@ int main(int argc, char** argv) {
   std::vector<TargetInfo> targets{target};
   auto column_result_set_storage = std::make_unique<ResultSetStorage>(
       targets, qmd, arr_data_ptr, /*buff_is_provided=*/true);
-  // NOTE: the result set is somewhat broken over arrow and cannot compute row count, so
-  // we force it here in the constructor
-  auto rs = std::make_shared<ResultSet>(targets,
-                                        ExecutorDeviceType::CPU,
-                                        /*row_count=*/arr_chunk->length(),
-                                        qmd,
-                                        std::move(column_result_set_storage));
+  auto rs = std::make_shared<ResultSet>(
+      targets, ExecutorDeviceType::CPU, qmd, std::move(column_result_set_storage));
   auto temporary_table = TemporaryTable(rs);
   TemporaryTables temp_tables;
   temp_tables.insert({table_id, temporary_table});
@@ -188,13 +183,13 @@ int main(int argc, char** argv) {
       std::make_shared<const InputColDescriptor>(*arrow_input_desc, 0);
   const auto col_expr =
       makeExpr<Analyzer::ColumnVar>(sql_type, table_id, /*column_id=*/0, 0);
-  // auto max_expr = makeExpr<Analyzer::AggExpr>(sql_type, kMAX, col_expr, false,
-  // nullptr); auto min_expr = makeExpr<Analyzer::AggExpr>(sql_type, kMIN, col_expr,
-  // false, nullptr);
+  auto max_expr = makeExpr<Analyzer::AggExpr>(sql_type, kMAX, col_expr, false, nullptr);
+  auto min_expr = makeExpr<Analyzer::AggExpr>(sql_type, kMIN, col_expr, false, nullptr);
   auto count_expr =
       makeExpr<Analyzer::AggExpr>(sql_type, kCOUNT, col_expr, false, nullptr);
 
-  const auto ra_exe_unit = build_ra_exe_unit(input_col_desc, {count_expr.get()});
+  const auto ra_exe_unit = build_ra_exe_unit(
+      input_col_desc, {count_expr.get(), min_expr.get(), max_expr.get()});
   const auto table_infos = get_table_infos(ra_exe_unit, executor.get());
   CHECK_EQ(table_infos.size(), size_t(1));
 
@@ -206,10 +201,16 @@ int main(int argc, char** argv) {
         // just log the row count for now
         LOG(INFO) << "Row count for fragment " << results->rowCount();
         auto tv = results->getNextRow(false, false);
-        CHECK_EQ(tv.size(), size_t(1));
-        auto stv = boost::get<ScalarTargetValue>(tv[0]);
-        auto cnt = boost::get<int64_t>(stv);
-        LOG(INFO) << "Counted " << cnt << " rows.";
+        CHECK_EQ(tv.size(), size_t(3));
+        std::vector<int64_t> outputs(3);
+        for (size_t i = 0; i < 3; i++) {
+          auto stv = boost::get<ScalarTargetValue>(tv[i]);
+          auto cnt = boost::get<int64_t>(stv);
+          outputs[i] = cnt;
+        }
+
+        LOG(INFO) << "Counted " << outputs[0] << " rows. Min: " << outputs[1]
+                  << " , Max: " << outputs[2];
       };
 
   // only one fragment right now

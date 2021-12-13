@@ -160,9 +160,9 @@ class ResultSet {
   friend ResultSetBuilder;
   // Can use derivatives of the builder class to construct a ResultSet
 
+  // TODO: consider using ResultSetBuilder for Arrow chunks
   ResultSet(const std::vector<TargetInfo>& targets,
             const ExecutorDeviceType device_type,
-            const size_t row_count,
             const QueryMemoryDescriptor& qmd,
             std::unique_ptr<ResultSetStorage>&& storage)
       : targets_(targets)
@@ -178,7 +178,8 @@ class ResultSet {
       , separate_varlen_storage_valid_(false)
       , just_explain_(false)
       , for_validation_only_(false)
-      , cached_row_count_(row_count)
+      , cached_row_count_(-1)  // NOTE: we could force a cached row count since we know
+                               // the size of the input data for arrow result sets
       , geo_return_type_(GeoReturnType::WktString) {}
 
   ResultSet(const std::vector<TargetInfo>& targets,
