@@ -1711,6 +1711,7 @@ void Executor::executeWorkUnitPerFragment(
                                        this);
   }
   CHECK(query_mem_desc_owned);
+  VLOG(1) << "Query Memory Descriptor: \n" << query_mem_desc_owned->toString();
   CHECK_EQ(size_t(1), ra_exe_unit.input_descs.size());
   const auto table_id = ra_exe_unit.input_descs[0].getTableId();
   const auto& outer_fragments = table_info.info.fragments;

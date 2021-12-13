@@ -130,6 +130,11 @@ class Catalog final {
   Catalog();
 
   /**
+   * @brief Temporary constructor which takes a CPU only data mgr
+   */
+  Catalog(std::shared_ptr<Data_Namespace::DataMgr> dataMgr) : dataMgr_(dataMgr) {}
+
+  /**
    * @brief Destructor - deletes all
    * ColumnDescriptor and TableDescriptor structures
    * which were allocated on the heap and writes

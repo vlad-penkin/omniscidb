@@ -96,7 +96,8 @@ struct VarlenOutputInfo {
 };
 
 class ResultSetStorage {
- private:
+  //  private:
+ public:
   ResultSetStorage(const std::vector<TargetInfo>& targets,
                    const QueryMemoryDescriptor& query_mem_desc,
                    int8_t* buff,

@@ -23,12 +23,15 @@
 
 #include <memory>
 
-enum class InputSourceType { TABLE, RESULT };
+enum class InputSourceType { TABLE, RESULT, ARROW };
 
 class InputDescriptor {
  public:
   InputDescriptor(const int table_id, const int nest_level)
-      : table_id_(table_id), nest_level_(nest_level) {}
+      : table_id_(table_id), nest_level_(nest_level), is_arrow_(false) {}
+
+  InputDescriptor(const int table_id, const int nest_level, const bool arrow)
+      : table_id_(table_id), nest_level_(nest_level), is_arrow_(arrow) {}
 
   bool operator==(const InputDescriptor& that) const {
     return table_id_ == that.table_id_ && nest_level_ == that.nest_level_;
@@ -39,6 +42,9 @@ class InputDescriptor {
   int getNestLevel() const { return nest_level_; }
 
   InputSourceType getSourceType() const {
+    if (is_arrow_) {
+      return InputSourceType::ARROW;
+    }
     return table_id_ > 0 ? InputSourceType::TABLE : InputSourceType::RESULT;
   }
 
@@ -50,6 +56,7 @@ class InputDescriptor {
  private:
   int table_id_;
   int nest_level_;
+  bool is_arrow_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, InputDescriptor const& id) {
@@ -70,6 +77,9 @@ class InputColDescriptor {
  public:
   InputColDescriptor(const int col_id, const int table_id, const int nest_level)
       : col_id_(col_id), input_desc_(table_id, nest_level) {}
+
+  InputColDescriptor(const InputDescriptor input_desc, const int col_id)
+      : col_id_(col_id), input_desc_(input_desc) {}
 
   bool operator==(const InputColDescriptor& that) const {
     return col_id_ == that.col_id_ && input_desc_ == that.input_desc_;

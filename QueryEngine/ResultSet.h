@@ -162,6 +162,27 @@ class ResultSet {
 
   ResultSet(const std::vector<TargetInfo>& targets,
             const ExecutorDeviceType device_type,
+            const size_t row_count,
+            const QueryMemoryDescriptor& qmd,
+            std::unique_ptr<ResultSetStorage>&& storage)
+      : targets_(targets)
+      , device_type_(device_type)
+      , device_id_(-1)
+      , query_mem_desc_(qmd)
+      , storage_(std::move(storage))
+      , crt_row_buff_idx_(0)
+      , fetched_so_far_(0)
+      , drop_first_(0)
+      , keep_first_(0)
+      , data_mgr_(nullptr)
+      , separate_varlen_storage_valid_(false)
+      , just_explain_(false)
+      , for_validation_only_(false)
+      , cached_row_count_(row_count)
+      , geo_return_type_(GeoReturnType::WktString) {}
+
+  ResultSet(const std::vector<TargetInfo>& targets,
+            const ExecutorDeviceType device_type,
             const QueryMemoryDescriptor& query_mem_desc,
             const std::shared_ptr<RowSetMemoryOwner> row_set_mem_owner,
             const Catalog_Namespace::Catalog* catalog,
@@ -406,7 +427,6 @@ class ResultSet {
                             int8_t* output_buffer,
                             const size_t output_buffer_size) const;
 
-
   bool didOutputColumnar() const { return this->query_mem_desc_.didOutputColumnar(); }
 
   //  Columnar Conversion checker functions
@@ -418,8 +438,8 @@ class ResultSet {
   const int8_t* getColumnarBuffer(size_t column_idx) const;
 
   //  Returns vector of std::pair<chunk buffer ptr, chunk row count>
-  std::vector<std::pair<const int8_t*, size_t>>
-      getChunkedColumnarBuffer(size_t column_idx) const;
+  std::vector<std::pair<const int8_t*, size_t>> getChunkedColumnarBuffer(
+      size_t column_idx) const;
 
   QueryDescriptionType getQueryDescriptionType() const {
     return query_mem_desc_.getQueryDescriptionType();

@@ -38,6 +38,7 @@
 #include <rapidjson/document.h>
 
 #include "QueryEngine/AggregatedColRange.h"
+#include "QueryEngine/ArrowDataHandler.h"
 #include "QueryEngine/BufferCompaction.h"
 #include "QueryEngine/CartesianProduct.h"
 #include "QueryEngine/CgenState.h"
@@ -415,6 +416,14 @@ class Executor {
    */
   const TemporaryTables* getTemporaryTables() const;
 
+  void setTemporaryTables(const TemporaryTables* temp_tables) {
+    temporary_tables_ = temp_tables;
+  }
+
+  void setRowSetMemoryOwner(std::shared_ptr<RowSetMemoryOwner> row_set_mem_owner) {
+    row_set_mem_owner_ = row_set_mem_owner;
+  }
+
   /**
    * Returns a string dictionary proxy using the currently active row set memory owner.
    */
@@ -483,15 +492,15 @@ class Executor {
   size_t maxGpuSlabSize() const;
 
   TemporaryTable executeWorkUnit(size_t& max_groups_buffer_entry_guess,
-                               const bool is_agg,
-                               const std::vector<InputTableInfo>&,
-                               const RelAlgExecutionUnit&,
-                               const CompilationOptions&,
-                               const ExecutionOptions& options,
-                               const Catalog_Namespace::Catalog&,
-                               RenderInfo* render_info,
-                               const bool has_cardinality_estimation,
-                               ColumnCacheMap& column_cache);
+                                 const bool is_agg,
+                                 const std::vector<InputTableInfo>&,
+                                 const RelAlgExecutionUnit&,
+                                 const CompilationOptions&,
+                                 const ExecutionOptions& options,
+                                 const Catalog_Namespace::Catalog&,
+                                 RenderInfo* render_info,
+                                 const bool has_cardinality_estimation,
+                                 ColumnCacheMap& column_cache);
 
   TableUpdateMetadata executeUpdate(const RelAlgExecutionUnit& ra_exe_unit,
                                     const std::vector<InputTableInfo>& table_infos,
@@ -506,6 +515,22 @@ class Executor {
   void addTransientStringLiterals(
       const RelAlgExecutionUnit& ra_exe_unit,
       const std::shared_ptr<RowSetMemoryOwner>& row_set_mem_owner);
+
+  using PerFragmentCallBack =
+      std::function<void(ResultSetPtr, const Fragmenter_Namespace::FragmentInfo&)>;
+
+  /**
+   * @brief Compiles and dispatches a work unit per fragment processing results with the
+   * per fragment callback.
+   * Currently used for computing metrics over fragments (metadata).
+   */
+  void executeWorkUnitPerFragment(const RelAlgExecutionUnit& ra_exe_unit,
+                                  const InputTableInfo& table_info,
+                                  const CompilationOptions& co,
+                                  const ExecutionOptions& eo,
+                                  const Catalog_Namespace::Catalog& cat,
+                                  PerFragmentCallBack& cb,
+                                  const std::set<size_t>& fragment_indexes_param);
 
  private:
   void clearMetaInfoCache();
@@ -566,22 +591,6 @@ class Executor {
                                  const RelAlgExecutionUnit& ra_exe_unit,
                                  const FragmentsList& selected_fragments,
                                  const Data_Namespace::MemoryLevel memory_level) const;
-
-  using PerFragmentCallBack =
-      std::function<void(ResultSetPtr, const Fragmenter_Namespace::FragmentInfo&)>;
-
-  /**
-   * @brief Compiles and dispatches a work unit per fragment processing results with the
-   * per fragment callback.
-   * Currently used for computing metrics over fragments (metadata).
-   */
-  void executeWorkUnitPerFragment(const RelAlgExecutionUnit& ra_exe_unit,
-                                  const InputTableInfo& table_info,
-                                  const CompilationOptions& co,
-                                  const ExecutionOptions& eo,
-                                  const Catalog_Namespace::Catalog& cat,
-                                  PerFragmentCallBack& cb,
-                                  const std::set<size_t>& fragment_indexes_param);
 
   ResultSetPtr executeExplain(const QueryCompilationDescriptor&);
 
@@ -1039,6 +1048,8 @@ class Executor {
   JoinColumnsInfo getJoinColumnsInfo(const Analyzer::Expr* join_expr,
                                      JoinColumnSide target_side,
                                      bool extract_only_col_id);
+
+  ArrowDataHandler arrow_handler_;
 
  private:
   std::shared_ptr<CompilationContext> getCodeFromCache(const CodeCacheKey&,
