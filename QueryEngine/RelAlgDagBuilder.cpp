@@ -2653,9 +2653,8 @@ RelAlgDagBuilder::RelAlgDagBuilder(const std::string& query_ra,
   rapidjson::Document query_ast;
   query_ast.Parse(query_ra.c_str());
   VLOG(2) << "Parsing query RA JSON: " << query_ra;
-
-  //print plan to file
-  if (! query_plan_output_file.empty()) {
+  
+  if (!query_plan_output_file.empty()) {
     std::ofstream plan_out;
     plan_out.open (query_plan_output_file, std::ios_base::app);
     plan_out << query_ra << std::endl;
