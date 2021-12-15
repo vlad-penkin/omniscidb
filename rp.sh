@@ -1,2 +1,4 @@
 #MODIN_OMNISCI_FRAGMENT_SIZE=30000000 
-PYTHONPATH=/nfs/site/home/gnovichk/shm/modin MODIN_OMNISCI_LAUNCH_PARAMETERS="enable-debug-timer=1, data=omnitmp" MODIN_EXPERIMENTAL=true MODIN_STORAGE_FORMAT=omnisci MODIN_ENGINE=native python run_profile.py
+#PYTHONPATH=/nfs/site/home/gnovichk/shm/modin MODIN_OMNISCI_LAUNCH_PARAMETERS="enable-debug-timer=1, data=omnitmp" MODIN_EXPERIMENTAL=true MODIN_STORAGE_FORMAT=omnisci MODIN_ENGINE=native python run_profile.py
+#PYTHONPATH=/nfs/site/home/gnovichk/shm/modin MODIN_OMNISCI_LAUNCH_PARAMETERS="enable-debug-timer=0, data=/nfs/site/home/gnovichk/shm/omniscidb/omnitmp" MODIN_EXPERIMENTAL=true MODIN_STORAGE_FORMAT=omnisci MODIN_ENGINE=native python /nfs/site/home/gnovichk/shm/omniscidb/run_profile.py
+PYTHONPATH=/nfs/site/home/gnovichk/shm/modin MODIN_OMNISCI_LAUNCH_PARAMETERS="enable-debug-timer=0, data=/nfs/site/home/gnovichk/shm/omniscidb/omnitmp" MODIN_EXPERIMENTAL=true MODIN_STORAGE_FORMAT=omnisci MODIN_ENGINE=native /nfs/site/home/gnovichk/shm/omniscidb/run_profile.py
