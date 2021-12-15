@@ -35,7 +35,7 @@
 
 extern bool g_cluster;
 extern bool g_enable_union;
-std::string query_plan_output_file = {""};
+extern std::string g_query_plan_output_file;
 
 namespace {
 
@@ -2653,10 +2653,10 @@ RelAlgDagBuilder::RelAlgDagBuilder(const std::string& query_ra,
   rapidjson::Document query_ast;
   query_ast.Parse(query_ra.c_str());
   VLOG(2) << "Parsing query RA JSON: " << query_ra;
-  
-  if (!query_plan_output_file.empty()) {
+
+  if (!g_query_plan_output_file.empty()) {
     std::ofstream plan_out;
-    plan_out.open (query_plan_output_file, std::ios_base::app);
+    plan_out.open (g_query_plan_output_file, std::ios_base::app);
     plan_out << query_ra << std::endl;
     plan_out.close();
   }

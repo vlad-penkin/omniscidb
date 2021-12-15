@@ -205,4 +205,4 @@ extern float g_vacuum_min_selectivity;
 extern bool g_read_only;
 extern bool g_enable_automatic_ir_metadata;
 extern size_t g_enable_parallel_linearization;
-extern std::string query_plan_output_file; 
+extern std::string g_query_plan_output_file; 

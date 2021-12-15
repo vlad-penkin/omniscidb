@@ -141,6 +141,8 @@ size_t g_approx_quantile_centroids{300};
 
 bool g_enable_automatic_ir_metadata{true};
 
+std::string g_query_plan_output_file = {""};
+
 extern bool g_cache_string_hash;
 
 int const Executor::max_gpu_count;
