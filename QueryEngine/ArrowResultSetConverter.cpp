@@ -270,6 +270,9 @@ void convert_column(ResultSetPtr result,
   }
 }
 
+#include<chrono>
+#include<tuple>
+
 // convert_column() specialization for arrow::ChunkedArray output
 template <typename C_TYPE,
           typename ARROW_TYPE = typename arrow::CTypeTraits<C_TYPE>::ArrowType>
@@ -295,12 +298,18 @@ void convert_column(ResultSetPtr result,
   CHECK_EQ(total_row_count, entry_count);
 
   std::vector<std::shared_ptr<arrow::Array>> fragments(values.size(), nullptr);
+  std::vector<std::tuple<size_t, size_t, size_t>>  v_jikosokutei(values.size());
 
   threading::parallel_for(static_cast<size_t>(0), values.size(), [&](size_t idx) {
     size_t chunk_rows_count = chunks[idx].second;
     int64_t null_count = 0;
+
+    auto start = std::chrono::high_resolution_clock::now(); 
+
     auto res = arrow::AllocateBuffer((chunk_rows_count + 7) / 8);
     CHECK(res.ok());
+
+    size_t dur1 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now()-start).count(); 
 
     std::shared_ptr<arrow::Buffer> is_valid = std::move(res).ValueOrDie();
 
@@ -312,9 +321,12 @@ void convert_column(ResultSetPtr result,
 
     size_t unroll_count = chunk_rows_count & 0xFFFFFFFFFFFFFFF8ULL;
 
+    start = std::chrono::high_resolution_clock::now(); 
+
     threading::parallel_for(
         threading::blocked_range<size_t>(static_cast<size_t>(0), unroll_count / 8),
         [&](auto r) {
+          //std::cout << "fragment:\t" << idx+1 << ", bitmap loopl; tid:\t" << std::this_thread::get_id() << std::endl;
           for (auto i = r.begin() * 8; i < r.end() * 8; i += 8) {
             uint8_t valid_byte = 0;
             uint8_t valid;
@@ -359,16 +371,26 @@ void convert_column(ResultSetPtr result,
     if (!null_count) {
       is_valid.reset();
     }
+    size_t dur2 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now()-start).count(); 
 
     // TODO: support date/time + scaling
     // TODO: support booleans
 
+    start = std::chrono::high_resolution_clock::now(); 
     using NumArray = arrow::NumericArray<ARROW_TYPE>;
     fragments[idx] = null_count
                          ? std::make_shared<NumArray>(
                                chunk_rows_count, values[idx], is_valid, null_count)
                          : std::make_shared<NumArray>(chunk_rows_count, values[idx]);
+
+    size_t dur3 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now()-start).count(); 
+    v_jikosokutei[idx] = std::make_tuple(dur1, dur2, dur3);
   });  // threading::parallel_for
+
+  for (size_t i = 0; i<v_jikosokutei.size();i++) {
+    auto [dur1, dur2, dur3] = v_jikosokutei[i];
+    std::cout << "-- fragment\t" <<i+1<<", alloc. part: "<<dur1<<",\tbitmap loop: "<<dur2<<",\tmake_shared: "<<dur3<<std::endl;
+  }
 
   out = std::make_shared<arrow::ChunkedArray>(std::move(fragments));
 }
@@ -1096,6 +1118,13 @@ std::shared_ptr<arrow::Table> ArrowResultSetConverter::getArrowTable(
       results_->getQueryMemDesc().getQueryDescriptionType() ==
           QueryDescriptionType::Projection;
 
+  // std::cout 
+  //   << "## columnar_conversion_possible: " << columnar_conversion_possible << "\n"
+  //   << "## results_->isDirectColumnarConversionPossible(): " << results_->isDirectColumnarConversionPossible() << "\n"
+  //   << "## results_->getQueryMemDesc().getQueryDescriptionType() == QueryDescriptionType::Projection: " 
+  //   << (results_->getQueryMemDesc().getQueryDescriptionType() == QueryDescriptionType::Projection) << "\n"
+  //   << std::endl;
+
   std::vector<bool> columnar_conversion(col_count, false);
   const auto& lazy_fetch_info = results_->getLazyFetchInfo();
   if (columnar_conversion_possible) {
@@ -1105,6 +1134,8 @@ std::shared_ptr<arrow::Table> ArrowResultSetConverter::getArrowTable(
       // Lazily fetched column are not supportd by columnar converter.
       bool is_lazy =
           lazy_fetch_info.empty() ? false : lazy_fetch_info[col_idx].is_lazily_fetched;
+
+      // std::cout << "## col_idx: " << col_idx << ", is_lazy: " << is_lazy << std::endl;
 
       use_columnar_conversion = use_columnar_conversion && !is_lazy;
 
@@ -1150,6 +1181,7 @@ std::shared_ptr<arrow::Table> ArrowResultSetConverter::getArrowTable(
                                             [](bool val) { return val == false; });
 
   if (use_rowwise_conversion) {
+    // std::cout << "### ACHTUNG! UNEXPECTEDLY USING ROW-WISE CONVERSIONS!!!"<<std::endl;
     auto timer = DEBUG_TIMER("row-wise conversion");
     std::vector<std::shared_ptr<ValueArray>> column_values(col_count, nullptr);
     std::vector<std::shared_ptr<std::vector<bool>>> null_bitmaps(col_count, nullptr);

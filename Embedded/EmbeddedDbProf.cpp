@@ -159,22 +159,43 @@ void buildTable(size_t N = 30'000'000, size_t fragments_count = 1, std::string t
   std::cout << "## buildTable() -- all checks passed"<<std::endl;
 }
 
+static void escape(void *p) {
+  asm volatile("" : : "g"(p) : "memory");
+}
+
+static void clobber() {
+  asm volatile("" : : : "memory");
+}
+
 void runProfiling(size_t iterations=1, std::string table_name = "table1") {
   if (!g_dbe) {
     throw std::runtime_error("DBEngine is not initialized.  Aborting.\n");
   }
 
-  auto cursor = g_dbe->executeDML("select * from " + table_name + ";");
-  ASSERT_NE(cursor, nullptr);
   std::cout << "## runProfiling() -- Running profiling for " << iterations << " iterations."<<std::endl;
   for (size_t i = 0; i<iterations; i++) {
-    cursor->getArrowTable();
+    auto cursor = g_dbe->executeDML("select * from " + table_name + ";");
+    ASSERT_NE(cursor, nullptr);
+    auto table = cursor->getArrowTable();
+    escape (table.get());
+    clobber();
   }
   std::cout << "## runProfiling() -- Profiling finished." << std::endl;
 }
 
 int main(int argc, char* argv[]) try {
   namespace fs = std::filesystem;
+
+  bool prev_enable_columnar_output = g_enable_columnar_output;
+  bool prev_enable_lazy_fetch = g_enable_lazy_fetch;
+
+  ScopeGuard reset = [prev_enable_columnar_output, prev_enable_lazy_fetch] {
+    g_enable_columnar_output = prev_enable_columnar_output;
+    g_enable_lazy_fetch = prev_enable_lazy_fetch;
+  };
+
+  g_enable_columnar_output = true;
+  g_enable_lazy_fetch = false;
 
   auto [options_str, column_size, fragments_count, interations_count]
      = helpers::parse_cli_args(argc, argv);

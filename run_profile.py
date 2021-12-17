@@ -112,7 +112,7 @@ def simple_invocation(N: int = int(30*1E6), fragments_count: int = 1):
     drop_table() 
 
 if __name__ == '__main__':
-    # run_major_profiling()
+    #run_major_profiling()
     simple_invocation()
 
 # amplxe-cl -collect hotspots -call-stack-mode=all -d 60 -search-dir=/nfs/site/home/gnovichk/shm/omniscidb/build/bin -source-search-dir=/localdisk/ilyaenko/omnisci -target-pid=`cat /nfs/site/home/gnovichk/shm/omniscidb/build/bin/data/omnisci_server_pid.lck` -user-data-dir=/nfs/site/home/gnovichk/shm/omniscidb/omnisci-profiles
