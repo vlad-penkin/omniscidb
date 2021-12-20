@@ -153,6 +153,47 @@ int const Executor::max_gpu_count;
 
 const int32_t Executor::ERR_SINGLE_VALUE_FOUND_MULTIPLE_VALUES;
 
+namespace {
+std::string node_as_string(const RelAlgNode* ra) {
+  const auto compound = dynamic_cast<const RelCompound*>(ra);
+  if (compound) {
+    return "RelCompound";
+  }
+  const auto project = dynamic_cast<const RelProject*>(ra);
+  if (project) {
+    return "RelProject";
+  }
+  const auto aggregate = dynamic_cast<const RelAggregate*>(ra);
+  if (aggregate) {
+    return "RelAggregate";
+  }
+  const auto filter = dynamic_cast<const RelFilter*>(ra);
+  if (filter) {
+    return "RelFilter";
+  }
+  const auto sort = dynamic_cast<const RelSort*>(ra);
+  if (sort) {
+    return "RelSort";
+  }
+  const auto logical_values = dynamic_cast<const RelLogicalValues*>(ra);
+  if (logical_values) {
+    return "RelLogicalValues";
+  }
+  const auto modify = dynamic_cast<const RelModify*>(ra);
+  if (modify) {
+    return "RelModify";
+  }
+  const auto logical_union = dynamic_cast<const RelLogicalUnion*>(ra);
+  if (logical_union) {
+    return "RelLogicalUnion";
+  }
+  LOG(FATAL) << "Unhandled node type: " << ra->toString();
+  CHECK(false);
+  return {};
+}
+
+};  // namespace
+
 Executor::Executor(const ExecutorId executor_id,
                    Data_Namespace::DataMgr* data_mgr,
                    const size_t block_size_x,
@@ -2572,6 +2613,8 @@ FetchResult Executor::fetchChunks(
     const bool allow_runtime_interrupt) {
   auto timer = DEBUG_TIMER(__func__);
   INJECT_TIMER(fetchChunks);
+  auto step_timer = STEP_TIMER("DataFetching");
+
   const auto& col_global_ids = ra_exe_unit.input_col_descs;
   std::vector<std::vector<size_t>> selected_fragments_crossjoin;
   std::vector<size_t> local_col_to_frag_pos;
