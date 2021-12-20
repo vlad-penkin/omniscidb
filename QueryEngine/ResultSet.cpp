@@ -600,6 +600,7 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
                      size_t top_n,
                      const Executor* executor) {
   auto timer = DEBUG_TIMER(__func__);
+  auto step_timer = STEP_TIMER("ResultSetSort");
 
   if (!storage_) {
     return;
