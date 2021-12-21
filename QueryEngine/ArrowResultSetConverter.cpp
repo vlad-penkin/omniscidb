@@ -272,6 +272,7 @@ void convert_column(ResultSetPtr result,
 
 #include<chrono>
 #include<tuple>
+#include<unordered_set>
 
 // convert_column() specialization for arrow::ChunkedArray output
 template <typename C_TYPE,
@@ -297,12 +298,22 @@ void convert_column(ResultSetPtr result,
 
   CHECK_EQ(total_row_count, entry_count);
 
+  auto dur_total_start = std::chrono::high_resolution_clock::now(); 
+
   std::vector<std::shared_ptr<arrow::Array>> fragments(values.size(), nullptr);
-  std::vector<std::tuple<size_t, size_t, size_t>>  v_jikosokutei(values.size());
+
+  std::vector<std::tuple<size_t, size_t, size_t>>  
+    v_jikosokutei(values.size());
+
+  std::vector<size_t> 
+    v_unique_tids(values.size());
+
+  std::mutex mtx;
+  std::unordered_set<size_t> total_unique_ids;
 
   threading::parallel_for(static_cast<size_t>(0), values.size(), [&](size_t idx) {
     size_t chunk_rows_count = chunks[idx].second;
-    int64_t null_count = 0;
+
 
     auto start = std::chrono::high_resolution_clock::now(); 
 
@@ -321,57 +332,84 @@ void convert_column(ResultSetPtr result,
 
     size_t unroll_count = chunk_rows_count & 0xFFFFFFFFFFFFFFF8ULL;
 
+  
+    std::unordered_set<size_t> thread_ids;
+
+    // 2. Var1: -> static_cast<size_t>(0), values.size() [start, stop, step]
+    //    Var2: -> blocked_range with splitter
+    // 3. Use AVX512f (base) & AVX512bw[] (1. zavodish vector s null; cf. __512i vec_val; read vector of values from memory; cast vals to 512<i/w/dw> 
+    //  intrinsic: load from memory v peremennuyu __m512<i/..>, mozhesh ukazatel' na pamyat' privesti na __m512, zatem instrinsicom sravnit' eti
+    //  constantu __m512i, i to, chto v pamyati p
+    //    popcnt -- returns kol-vo edinits/nulej)
+          //{ std::lock_guard lock(mtx);  thread_ids.insert(std::hash<std::thread::id>{}(std::this_thread::get_id())); }
+          // for (auto i = r.begin() * 8; i < r.end() * 8; i += 8) {
+        // char buffer[8*128];
+ 
+
+    std::atomic<int64_t> null_count = 0;
+
     start = std::chrono::high_resolution_clock::now(); 
 
+    constexpr size_t block_size = 64*1024;
     threading::parallel_for(
-        threading::blocked_range<size_t>(static_cast<size_t>(0), unroll_count / 8),
-        [&](auto r) {
-          //std::cout << "fragment:\t" << idx+1 << ", bitmap loopl; tid:\t" << std::this_thread::get_id() << std::endl;
-          for (auto i = r.begin() * 8; i < r.end() * 8; i += 8) {
-            uint8_t valid_byte = 0;
-            uint8_t valid;
-            valid = vals[i + 0] != null_val;
-            valid_byte |= valid << 0;
-            null_count += !valid;
-            valid = vals[i + 1] != null_val;
-            valid_byte |= valid << 1;
-            null_count += !valid;
-            valid = vals[i + 2] != null_val;
-            valid_byte |= valid << 2;
-            null_count += !valid;
-            valid = vals[i + 3] != null_val;
-            valid_byte |= valid << 3;
-            null_count += !valid;
-            valid = vals[i + 4] != null_val;
-            valid_byte |= valid << 4;
-            null_count += !valid;
-            valid = vals[i + 5] != null_val;
-            valid_byte |= valid << 5;
-            null_count += !valid;
-            valid = vals[i + 6] != null_val;
-            valid_byte |= valid << 6;
-            null_count += !valid;
-            valid = vals[i + 7] != null_val;
-            valid_byte |= valid << 7;
-            null_count += !valid;
-            is_valid_data[i >> 3] = valid_byte;
-          }
-        });
+      static_cast<size_t>(0), unroll_count, block_size, [&](size_t idx) {
 
+        int64_t l_null_count = 0;
+        for (auto i = idx; i < std::min(idx+block_size, unroll_count); i += 8) {
+          uint8_t valid_byte = 0;
+          uint8_t valid;
+          valid = vals[i + 0] != null_val;
+          valid_byte |= valid << 0;
+          l_null_count += !valid;
+          valid = vals[i + 1] != null_val;
+          valid_byte |= valid << 1;
+          l_null_count += !valid;
+          valid = vals[i + 2] != null_val;
+          valid_byte |= valid << 2;
+          l_null_count += !valid;
+          valid = vals[i + 3] != null_val;
+          valid_byte |= valid << 3;
+          l_null_count += !valid;
+          valid = vals[i + 4] != null_val;
+          valid_byte |= valid << 4;
+          l_null_count += !valid;
+          valid = vals[i + 5] != null_val;
+          valid_byte |= valid << 5;
+          l_null_count += !valid;
+          valid = vals[i + 6] != null_val;
+          valid_byte |= valid << 6;
+          l_null_count += !valid;
+          valid = vals[i + 7] != null_val;
+          valid_byte |= valid << 7;
+          l_null_count += !valid;
+          is_valid_data[i >> 3] = valid_byte;
+        }
+
+        null_count += l_null_count;
+      });
+
+    size_t dur2 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now()-start).count(); 
+
+    // v_unique_tids[idx] = thread_ids.size();
+    // { std::lock_guard lock(mtx);  total_unique_ids.insert(std::begin(thread_ids), std::end(thread_ids)); }
+
+    //for (auto tid: thread_ids) {  std::cout << "tid: "<< tid << std::endl;  }
     if (unroll_count != chunk_rows_count) {
       uint8_t valid_byte = 0;
+      int64_t l_null_count = 0;
       for (size_t i = unroll_count; i < chunk_rows_count; ++i) {
         bool valid = vals[i] != null_val;
         valid_byte |= valid << (i & 7);
-        null_count += !valid;
+        l_null_count += !valid;
       }
       is_valid_data[unroll_count >> 3] = valid_byte;
+
+      null_count += l_null_count;
     }
 
     if (!null_count) {
       is_valid.reset();
     }
-    size_t dur2 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now()-start).count(); 
 
     // TODO: support date/time + scaling
     // TODO: support booleans
@@ -387,11 +425,15 @@ void convert_column(ResultSetPtr result,
     v_jikosokutei[idx] = std::make_tuple(dur1, dur2, dur3);
   });  // threading::parallel_for
 
+  size_t dur_total = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now()-dur_total_start).count(); 
+
+  size_t total_unique_tids = 0;
   for (size_t i = 0; i<v_jikosokutei.size();i++) {
     auto [dur1, dur2, dur3] = v_jikosokutei[i];
-    std::cout << "-- fragment\t" <<i+1<<", alloc. part: "<<dur1<<",\tbitmap loop: "<<dur2<<",\tmake_shared: "<<dur3<<std::endl;
+    std::cout << " -- fragment:\t" <<i+1<< ", unique TIDs:\t" <<v_unique_tids[i]<<", alloc. part: "<<dur1<<",\tbitmap loop: "<<dur2<<",\tmake_shared: "<<dur3<<std::endl;
+    total_unique_tids+=v_unique_tids[i];
   }
-
+  std::cout << " -- fragments count: " <<values.size()<<",\ttotal unique threads spawned: "<<total_unique_ids.size()<<"("<<total_unique_tids<<")"<<std::endl;
   out = std::make_shared<arrow::ChunkedArray>(std::move(fragments));
 }
 
