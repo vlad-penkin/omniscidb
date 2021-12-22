@@ -10,10 +10,13 @@ gen_bitmap_8:
         # rcx: size 
         .cfi_startproc
 
+        xorq        %r9, %r9
+
         # setting all bits of zmm0 to 1
         mov         $0xFFFFFFFF,  %eax
         vpbroadcastd %eax, %zmm0
 
+.Lloop_start:
         # loading 512 bytes stored at pointer contained in rdx (3rd arg) into zmm10
         vmovapd     0(%rdx), %zmm10
 
@@ -24,10 +27,21 @@ gen_bitmap_8:
         # saving 64-bit bitmap to *dst
         movq        %rax, 0(%rdi)
 
-        # counting nulls
-        popcntl	    %eax, %eax
-        movq    %rax, (%rsi)
+        # counting nulls, storing nulls count to %rax
+        not         %rax
+        popcnt	    %rax, %rax
+        addq        %rax, %r9
 
+        addq        $8,  %rdi
+        addq        $64, %rdx
+
+        subq        $64, %rcx
+        cmp         $0, %rcx
+
+        jg          .Lloop_start
+
+        # storing nulls count
+        movq        %r9, (%rsi)
 #        .cfi_def_cfa_offset 8
         retq
         .cfi_endproc

@@ -253,23 +253,51 @@ __attribute__((target("avx512f"))) void spread_vec_sample(uint8_t* dst,
 
 
 extern "C" size_t gen_bitmap_8(uint8_t *bitmap, size_t *null_count, uint8_t *data, size_t size);
-__v64qi v0_8 = {-1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, -1};
+//__v64qi 
 
+int8_t  v0_8[64] =  {-1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, -1};
+
+int8_t v1_8[128] = {-1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, -1,
+                    -1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, -1
+                   };
+
+
+void test_byte_64() {
+    size_t null_count;
+    std::vector<uint8_t> bm_data(64/8);
+    gen_bitmap_8(bm_data.data(), &null_count, reinterpret_cast<uint8_t*>(&v0_8), 64);
+    std::cout << "Nulls count: " << null_count << std::endl;
+    printBitmap(bm_data, true);
+}
+void test_byte_128() {
+    size_t null_count;
+    std::vector<uint8_t> bm_data(2*64/8);
+    gen_bitmap_8(bm_data.data(), &null_count, reinterpret_cast<uint8_t*>(&v1_8), 2*64);
+    std::cout << "Nulls count: " << null_count << std::endl;
+    printBitmap(bm_data, true);
+}
 
 int main()
 {
+    test_byte_64();
+    test_byte_128();
+
     size_t null_count;
-    std::vector<uint8_t> bm_data(512/8/8);
-    gen_bitmap_8(bm_data.data(), &null_count, reinterpret_cast<uint8_t*>(&v0_8), 0);
-    std::cout << "Null count: " << null_count << std::endl;
-    printBitmap(bm_data, true);
+    std::vector<uint8_t> bm_data(128/8);
+
 
     auto start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i<100000; i++) {
-        gen_bitmap_8(bm_data.data(), &null_count, reinterpret_cast<uint8_t*>(&v0_8), 0);
+        gen_bitmap_8(bm_data.data(), &null_count, reinterpret_cast<uint8_t*>(&v1_8), 128);
     }
     size_t dur = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now()-start).count(); 
     std::cout << "[AVX512] Elapsed, ns: " << dur/100000.0 << std::endl;
