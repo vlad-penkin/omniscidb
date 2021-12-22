@@ -1,24 +1,32 @@
 #include<atomic>
 #include<bitset>
+#include<cassert>
 #include<cstdint>
+#include<cstring>
 #include<chrono>
 #include<limits>
 #include<iostream>
 #include<vector>
+#include<x86intrin.h>
 
 //  TBB
 #include<tbb/parallel_for.h>
 
 // CC: 
-//  g++ -std=c++17 bitmap.cpp -I /localdisk2/gnovichk/miniconda3/envs/omnisci-dev/include -L /localdisk2/gnovichk/miniconda3/envs/omnisci-dev/lib -ltbb -o bitmap 
+//  g++ -O3 -std=c++17 bitmap.cpp -I /localdisk2/gnovichk/miniconda3/envs/omnisci-dev/include -L /localdisk2/gnovichk/miniconda3/envs/omnisci-dev/lib -ltbb -o bitmap 
 size_t computeBitmapSize(size_t data_size) {
     return (data_size + 7) / 8;    
 }
 
-void printBitmap(const std::vector<uint8_t>& bitmap_data)
+
+void printBitmap(const std::vector<uint8_t>& bitmap_data, bool reverse = true)
 {
     for (auto & c: bitmap_data) {
-        std::cout << std::bitset<8> (c) << " ";
+        std::string s = std::bitset<8>(c).to_string();
+        if (reverse) {
+            std::reverse (std::begin(s), std::end(s));
+        }
+        std::cout << s << " ";
     }
     std::cout << std::endl;
 }
@@ -152,7 +160,7 @@ void createBitmap(std::vector<uint8_t>& bitmap_data, int64_t& null_count_out, co
 void test1() {
     std::vector<uint8_t> data = {0xFF, 0x0F, 0xF0, 0x00, 0x70, 0x07, 0x10, 0x01, 0x03};
     std::cout << "Bitmap size: " << computeBitmapSize (data.size()) << std::endl;
-    printBitmap(data);
+    printBitmap(data, false);
 }
 
 void profile(size_t size) {
@@ -166,7 +174,7 @@ void profile(size_t size) {
     auto start = std::chrono::high_resolution_clock::now();
     createBitmap(bitmap_data, null_count, values);
     size_t dur = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now()-start).count(); 
-    std::cout << "Elapsed, usec: " << dur << std::endl;
+    std::cout << "[DEFAULT] Elapsed, usec: " << dur << std::endl;
 }
 
 void profile_tbb(size_t size) {
@@ -205,8 +213,71 @@ size_t diffBitmap(std::vector<uint8_t>& bm1, std::vector<uint8_t>& bm2)
     return diff_count;
 }
 
+// It's assumed sample has 64 extra bytes to handle alignment.
+__attribute__((target("avx512f"))) void spread_vec_sample(uint8_t* dst,
+                                                          const size_t dst_size,
+                                                          const uint8_t* sample_ptr,
+                                                          const size_t sample_size) {
+  assert((reinterpret_cast<uint64_t>(dst) & 0x3F) ==
+         (reinterpret_cast<uint64_t>(sample_ptr) & 0x3F));
+  // Align buffers.
+  int64_t align_bytes = ((64ULL - reinterpret_cast<uint64_t>(dst)) & 0x3F);
+  memcpy(dst, sample_ptr, align_bytes);
+
+  uint8_t* align_dst = dst + align_bytes;
+  const uint8_t* align_sample = sample_ptr + align_bytes;
+  size_t rem = dst_size - align_bytes;
+  size_t rem_scalar = rem % sample_size;
+  size_t rem_vector = rem - rem_scalar;
+
+  // Aligned vector part.
+  auto vecs = sample_size / 64;
+  auto vec_end = align_dst + rem_vector;
+  while (align_dst < vec_end) {
+    for (size_t i = 0; i < vecs; ++i) {
+      __m512i vec_val =
+          _mm512_load_si512(reinterpret_cast<const __m512i*>(align_sample) + i);
+      _mm512_stream_si512(reinterpret_cast<__m512i*>(align_dst) + i, vec_val);
+    }
+    align_dst += sample_size;
+  }
+
+  // Scalar tail.
+  memcpy(align_dst, align_sample, rem_scalar);
+}
+
+#include <immintrin.h>
+#include <nmmintrin.h>
+#include <xmmintrin.h>
+
+
+
+extern "C" size_t generate_bitmap(uint8_t *bitmap, size_t *null_count, uint8_t *data, size_t size);
+__v64qi v0_8 = {-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
 
 int main()
+{
+    size_t null_count;
+    std::vector<uint8_t> bm_data(512/8/8);
+    generate_bitmap(bm_data.data(), &null_count, reinterpret_cast<uint8_t*>(&v0_8), 0);
+    std::cout << "Null count: " << null_count << std::endl;
+    printBitmap(bm_data, true);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i<100000; i++) {
+        generate_bitmap(bm_data.data(), &null_count, reinterpret_cast<uint8_t*>(&v0_8), 0);
+    }
+    size_t dur = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now()-start).count(); 
+    std::cout << "[AVX512] Elapsed, ns: " << dur/100000.0 << std::endl;
+
+}
+
+
+int test2()
 {
     size_t size = 16;
     std::vector<int32_t> values(size, 0);
@@ -217,7 +288,7 @@ int main()
     int64_t null_count = 0;
     createBitmap(bitmap_data, null_count, values);
     std::cout << "Nulls count: " << null_count << std::endl;
-    printBitmap(bitmap_data);
+    printBitmap(bitmap_data, true);
 
     std::cout << "Running diffBitmap on the same data\n";
     diffBitmap(bitmap_data, bitmap_data);
@@ -229,10 +300,11 @@ int main()
 
 
     for (int i = 0; i<10; i++) {
-        profile (30'000'000);
+        profile(30'000'000);
     }
 
     for (int i = 0; i<10; i++) {
-        profile_tbb (30'000'000);
+        profile_tbb(30'000'000);
     }    
+    return 0;
 }
