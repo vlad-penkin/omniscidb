@@ -449,40 +449,45 @@ void major_test()
     test<double>(64);
 }
 
-void major_profile()
+void major_profile(size_t size = 30'000'000)
 {
     std::cout << "\nAVX512 implementation profiling (single thread)\n";
 
-    profile_avx512<int8_t>(30'000'000);
-    profile_avx512<uint8_t>(30'000'000);
+    profile_avx512<int8_t>(size);
+    profile_avx512<uint8_t>(size);
 
-    profile_avx512<int32_t>(30'000'000);
-    profile_avx512<uint32_t>(30'000'000);
+    profile_avx512<int32_t>(size);
+    profile_avx512<uint32_t>(size);
 
-    profile_avx512<int64_t>(30'000'000);
-    profile_avx512<uint64_t>(30'000'000);
+    profile_avx512<int64_t>(size);
+    profile_avx512<uint64_t>(size);
 
-    profile_avx512<float>(30'000'000);
-    profile_avx512<double>(30'000'000);
+    profile_avx512<float>(size);
+    profile_avx512<double>(size);
 
     std::cout << "\nThe usual C++ implementation profiling (single thread)\n";
     //  default (cpu) implementation profiling
-    profile_default<int8_t>(30'000'000);
-    profile_default<uint8_t>(30'000'000);
+    profile_default<int8_t>(size);
+    profile_default<uint8_t>(size);
 
-    profile_default<int32_t>(30'000'000);
-    profile_default<uint32_t>(30'000'000);
+    profile_default<int32_t>(size);
+    profile_default<uint32_t>(size);
 
-    profile_default<int64_t>(30'000'000);
-    profile_default<uint64_t>(30'000'000);
+    profile_default<int64_t>(size);
+    profile_default<uint64_t>(size);
 
-    profile_default<float>(30'000'000);
-    profile_default<double>(30'000'000);
+    profile_default<float>(size);
+    profile_default<double>(size);
 }
 
 int main() try {
     major_test();
     major_profile();
+    major_profile(3'000'000);
+    major_profile(300'032);
+    major_profile(3008);
+    major_profile(64);
+
     return 0;
 }
 catch (std::runtime_error & e) {
@@ -513,14 +518,6 @@ int test2()
     test_bitmap_data [0] = 0;
     diffBitmap(bitmap_data, test_bitmap_data);
 
-
-    // for (int i = 0; i<10; i++) {
-    //     profile(30'000'000);
-    // }
-
-    // for (int i = 0; i<10; i++) {
-    //     profile_tbb(30'000'000);
-    // }    
     return 0;
 }
 
