@@ -1,9 +1,9 @@
 .text
-        .globl gen_bitmap_8
+        .globl gen_bitmap_avx512_8
         .p2align 4, 0x90
-        .type gen_bitmap_8, @function
+        .type gen_bitmap_avx512_8, @function
 
-gen_bitmap_8: 
+gen_bitmap_avx512_8: 
         # rdi: *dst
         # rsi: *null_count
         # rdx: *src
@@ -50,11 +50,11 @@ gen_bitmap_8:
 
 
 .text
-        .globl gen_bitmap_32
+        .globl gen_bitmap_avx512_32
         .p2align 4, 0x90
-        .type gen_bitmap_32, @function
+        .type gen_bitmap_avx512_32, @function
 
-gen_bitmap_32: 
+gen_bitmap_avx512_32: 
         # rdi: *dst
         # rsi: *null_count
         # rdx: *src
@@ -105,11 +105,11 @@ gen_bitmap_32:
 #
 #
 .text
-        .globl gen_bitmap_64
+        .globl gen_bitmap_avx512_64
         .p2align 4, 0x90
-        .type gen_bitmap_64, @function
+        .type gen_bitmap_avx512_64, @function
 
-gen_bitmap_64: 
+gen_bitmap_avx512_64: 
         # rdi: *dst
         # rsi: *null_count
         # rdx: *src
