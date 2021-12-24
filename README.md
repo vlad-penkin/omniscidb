@@ -98,6 +98,14 @@ By default, tests are not included in the build. To include tests use:
 
 `RUN_TESTS=1 bash scripts/conda/build-install-all.sh`
 
+For now we have:
+
+    The following tests FAILED:
+          3 - ImportExportTest (Failed)
+         47 - CommandLineTest (Failed)
+         69 - UdfTest (Failed)
+
+
 For debug build use (default is Release):
 
 `CMAKE_BUILD_TYPE=Debug bash scripts/conda/build-install-all.sh`
