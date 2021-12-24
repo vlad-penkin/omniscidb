@@ -14,6 +14,21 @@
 //  tbb
 #include<tbb/parallel_for.h>
 
+// #include <x86intrin.h>
+// #include <immintrin.h>
+// #include <nmmintrin.h>
+// #include <xmmintrin.h>
+
+//  =====================================================================
+//  TODO:
+//    1. Finish createBitmapAVX512 to hangle odd (not divisible by 64 as
+//    length of raw data) arrays
+//    2. Implement createBitmapParallelForAVX512()
+//    3. Optimize performance createBitmapParallelForAVX512() for the size 
+//    of the block range in the parallel for
+//    4. If all goes well, convert to intrinsics
+//    5. Implement Bitmap creation for AVX2 (tentative)
+//  =====================================================================
 
 //  External dependences (implemented in .S file)
 extern "C" size_t gen_bitmap_avx512_8(uint8_t *bitmap, size_t *null_count, uint8_t *data, size_t size, uint64_t null_val);
@@ -30,9 +45,17 @@ namespace avxbmp {
                             const std::vector<TYPE>& vals);
 
     template <typename TYPE>
-    void createBitmapParallelFor(std::vector<uint8_t>& bitmap_data, 
-                                int64_t& null_count_out, 
-                                const std::vector<TYPE>& vals);
+    void createBitmapParallelFor(
+                            std::vector<uint8_t>& bitmap_data, 
+                            int64_t& null_count_out, 
+                            const std::vector<TYPE>& vals);
+
+
+    template <typename TYPE>
+    void createBitmapParallelForAVX512(
+                            std::vector<uint8_t>& bitmap_data, 
+                            int64_t& null_count_out, 
+                            const std::vector<TYPE>& vals);
 
 
     template <typename TYPE>
@@ -169,6 +192,16 @@ void avxbmp::createBitmapParallelFor(
     }
 
     null_count_out = null_count.load();
+}
+
+
+template <typename TYPE>
+void avxbmp::createBitmapParallelForAVX512(
+                        std::vector<uint8_t>& bitmap_data, 
+                        int64_t& null_count_out, 
+                        const std::vector<TYPE>& vals)
+{
+    throw std::runtime_error ("TODO: IMPLEMENT avxbmp::createBitmapParallelForAVX512()!");
 }
 
 
