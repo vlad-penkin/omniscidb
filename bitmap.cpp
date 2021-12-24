@@ -310,18 +310,18 @@ size_t gen_bitmap(uint8_t *bitmap, size_t *null_count, TYPE *data, size_t size)
 template<typename TYPE>
 void test(size_t size) {
 
-    size_t items_per_iteration = 64/sizeof(TYPE);
+    size_t avx512_batches_count = 64/sizeof(TYPE);
 
-    if (size % items_per_iteration != 0) {
+    if (size % avx512_batches_count != 0) {
         throw std::runtime_error ("Provided size ("+std::to_string(size)
-                    +") is not a multiple of "+std::to_string(items_per_iteration)+".  Aborting.");
+                    +") is not a multiple of "+std::to_string(avx512_batches_count)+".  Aborting.");
     }
 
     size_t actual_null_count;
     int64_t test_null_count;
     TYPE null_value = null_builder<TYPE>();
 
-    std::vector<TYPE, boost::alignment::aligned_allocator<TYPE, 64>> 
+    std::vector<TYPE/*, boost::alignment::aligned_allocator<TYPE, 64>*/> 
         nulldata (size, 0);
 
     size_t bitmap_size = computeBitmapSize(nulldata.size());
@@ -353,14 +353,14 @@ void test(size_t size) {
 
 template<typename TYPE>
 void profile_avx512(size_t size, size_t num_iter = 200) {
-    size_t items_per_iteration = 64/sizeof(TYPE);
+    size_t avx512_batches_count = 64/sizeof(TYPE);
 
-    if (size % items_per_iteration != 0) {
+    if (size % avx512_batches_count != 0) {
         throw std::runtime_error ("Provided size ("+std::to_string(size)
-                    +") is not a multiple of "+std::to_string(items_per_iteration)+".  Aborting.");
+                    +") is not a multiple of "+std::to_string(avx512_batches_count)+".  Aborting.");
     }
 
-    std::vector<TYPE, boost::alignment::aligned_allocator<TYPE, 64>> 
+    std::vector<TYPE, boost::alignment::aligned_allocator<TYPE, 8>> 
         nulldata(size,0);
 
     //  populating nulldata
@@ -374,26 +374,32 @@ void profile_avx512(size_t size, size_t num_iter = 200) {
     size_t null_count = 0;
 
 
+
+    int  iter_count = num_iter/sizeof(TYPE);
     auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i<num_iter/sizeof(TYPE); i++) {
+    for (int i = 0; i<iter_count; i++) {
         gen_bitmap(bitmap_data.data(), &null_count, nulldata.data(), nulldata.size());
     }
     size_t dur = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now()-start).count(); 
+    double dur_per_iter = dur/iter_count;
+    double throughput_gibs = size*sizeof(TYPE)*1.0e9/dur_per_iter/(1024*1024*1024);
 
     std::cout 
         << "[AVX512];\tSource size: " << std::setw(12) <<std::right << size 
         << ", type: " << std::setw(8) << get_type_name<TYPE>()
         << " (" << std::setw(0) << sizeof(TYPE) <<" byte)"
-        << ", elapsed time, usec: " << std::setw(7) << std::setprecision(6) << std::left << dur/1000.0/num_iter << std::endl;
+        << ", elapsed time, usec: " << std::setw(7) << std::setprecision(6) << std::left << dur_per_iter/1000.0
+        << ", throughput, GiB/sec: "<< std::setw(8) << std::setprecision(3) << std::left << throughput_gibs
+        << std::endl;
 }
 
 template<typename TYPE>
 void profile_default(size_t size, size_t num_iter = 200) {
-    size_t items_per_iteration = 64/sizeof(TYPE);
+    size_t avx512_batches_count = 64/sizeof(TYPE);
 
-    if (size % items_per_iteration != 0) {
+    if (size % avx512_batches_count != 0) {
         throw std::runtime_error ("Provided size ("+std::to_string(size)
-                    +") is not a multiple of "+std::to_string(items_per_iteration)+".  Aborting.");
+                    +") is not a multiple of "+std::to_string(avx512_batches_count)+".  Aborting.");
     }
 
     std::vector<TYPE/*, boost::alignment::aligned_allocator<TYPE, 64>*/>
@@ -408,17 +414,22 @@ void profile_default(size_t size, size_t num_iter = 200) {
     int64_t null_count = 0;
 
 
+    int  iter_count = num_iter/sizeof(TYPE);
     auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i<num_iter/sizeof(TYPE); i++) {
+    for (int i = 0; i<iter_count; i++) {
         createBitmap(bitmap_data, null_count, nulldata);
     }
     size_t dur = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now()-start).count(); 
 
+    double dur_per_iter = dur/iter_count;
+    double throughput_gibs = size*sizeof(TYPE)*1.0e9/dur_per_iter/(1024*1024*1024);
     std::cout 
         << "[DEFAULT];\tSource size: " << std::setw(12) <<std::right << size 
         << ", type: " << std::setw(8) << get_type_name<TYPE>()
         << " (" << std::setw(0) << sizeof(TYPE) <<" byte)"
-        << ", elapsed time, usec: " << std::setw(7) << std::setprecision(6) << std::left << dur/1000.0/num_iter << std::endl;
+        << ", elapsed time, usec: " << std::setw(7) << std::setprecision(6) << std::left << dur_per_iter/1000.0
+        << ", throughput, GiB/sec: "<< std::setw(8) << std::setprecision(3) << std::left << throughput_gibs
+        << std::endl;
 }
 
 // void profile(size_t size) {
@@ -439,8 +450,8 @@ void profile_default(size_t size, size_t num_iter = 200) {
 
 void major_test()
 {
-    test<int8_t>(64);
     test<uint8_t>(64);
+    test<int8_t>(64);
     test<int32_t>(64);
     test<uint32_t>(64);
     test<int64_t>(64);
@@ -453,8 +464,8 @@ void major_profile(size_t size = 30'000'000)
 {
     std::cout << "\nAVX512 implementation profiling (single thread)\n";
 
-    profile_avx512<int8_t>(size);
     profile_avx512<uint8_t>(size);
+    profile_avx512<int8_t>(size);
 
     profile_avx512<int32_t>(size);
     profile_avx512<uint32_t>(size);
@@ -485,7 +496,8 @@ int main() try {
     major_profile();
     major_profile(3'000'000);
     major_profile(300'032);
-    major_profile(3008);
+    major_profile(30'016);
+    major_profile(3'008);
     major_profile(64);
 
     return 0;

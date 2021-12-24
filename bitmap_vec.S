@@ -19,7 +19,8 @@ gen_bitmap_8:
 
 .Lloop_start_gbm8:
         # loading 512 bytes stored at pointer contained in rdx (3rd arg) into zmm10
-        vmovapd     0(%rdx), %zmm10
+#        vmovapd     0(%rdx), %zmm10
+        vmovupd     0(%rdx), %zmm10
 
         # comparing 0xFF bytes (nulls) stored in %zmm0 and %zmm10; sets not  bit in %k1
         vpcmpneqb   %zmm0, %zmm10, %k1     
@@ -69,7 +70,8 @@ gen_bitmap_32:
 
 .Lloop_start_gbm32:
         # loading 512 bytes stored at pointer contained in rdx (3rd arg) into zmm10
-        vmovapd     0(%rdx), %zmm10
+#        vmovapd     0(%rdx), %zmm10
+        vmovupd     0(%rdx), %zmm10
 
         # comparing repeated nulls stored in %zmm0 and %zmm10; sets not  bit in %k1
         vpcmpneqd   %zmm0, %zmm10, %k1     
@@ -122,7 +124,8 @@ gen_bitmap_64:
 
 .Lloop_start_gbm64:
         # loading 512 bytes stored at pointer contained in rdx (3rd arg) into zmm10
-        vmovapd     0(%rdx), %zmm10
+#        vmovapd     0(%rdx), %zmm10
+        vmovupd     0(%rdx), %zmm10
 
         # comparing repeated nulls stored in %zmm0 and %zmm10; not equal bit are in %k1
         vpcmpneqq   %zmm0, %zmm10, %k1     
