@@ -39,10 +39,8 @@
 #include "tbb/parallel_sort.h"
 #endif
 
-#ifndef HAVE_CUDA
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
-#endif
 
 #include <algorithm>
 #include <atomic>
@@ -511,13 +509,11 @@ QueryMemoryDescriptor ResultSet::fixupQueryMemoryDescriptor(
   return query_mem_desc_copy;
 }
 
-#ifndef HAVE_CUDA
 void sort_onecol_cpu(int64_t* val_buff,
                      int32_t* key_buff,
                      const uint64_t entry_count,
                      const bool desc,
                      const uint32_t chosen_bytes);
-#endif
 
 void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
                      size_t top_n,
@@ -564,8 +560,7 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
       throw WatchdogException("Sorting the result would be too slow");
     }
 
-#ifndef HAVE_CUDA
-    if (true && top_n == 0 && !query_mem_desc_.hasKeylessHash() &&
+    if (top_n == 0 && !query_mem_desc_.hasKeylessHash() &&
         size_t(1) == order_entries.size() && isDirectColumnarConversionPossible() &&
         query_mem_desc_.didOutputColumnar() &&
         query_mem_desc_.getQueryDescriptionType() == QueryDescriptionType::Projection) {
@@ -585,7 +580,6 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
       delete sortkey_val_buff;
       return;
     }
-#endif
 
     permutation_.resize(query_mem_desc_.getEntryCount());
     // PermutationView is used to share common API with parallelTop().
@@ -1217,7 +1211,6 @@ bool result_set::use_parallel_algorithms(const ResultSet& rows) {
   return result_set::can_use_parallel_algorithms(rows) && rows.entryCount() >= 20000;
 }
 
-#ifndef HAVE_CUDA
 template <typename T>
 void sort_on_cpu(T* val_buff,
                  int32_t* idx_buff,
@@ -1254,4 +1247,3 @@ void sort_onecol_cpu(int64_t* val_buff,
       break;
   }
 }
-#endif
