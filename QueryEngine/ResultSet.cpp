@@ -513,26 +513,47 @@ void sort_on_cpu(T* val_buff,
                  PermutationView pv,
                  const uint64_t entry_count,
                  const Analyzer::OrderEntry& order_entry) {
+  int begin = 0;
   auto end = pv.size() - 1;
 
-  for (int i = 0; end >= i;) {
-    auto val = val_buff[pv[i]];
-    if (val == inline_int_null_value<T>()) {
-      if (val_buff[pv[end]] != inline_int_null_value<T>()) {
-        std::swap(val_buff[pv[i]], val_buff[pv[end]]);
-        std::swap(pv[i], pv[end]);
-        ++i;
+  if (order_entry.nulls_first) {
+    for (; end >= begin;) {
+      auto val = val_buff[pv[end]];
+      if (val == inline_int_null_value<T>()) {
+        if (val_buff[pv[begin]] != inline_int_null_value<T>()) {
+          std::swap(val_buff[pv[begin]], val_buff[pv[end]]);
+          std::swap(pv[begin], pv[end]);
+          --end;
+        }
+        ++begin;
+      } else {
+        --end;
       }
-      --end;
-    } else {
-      ++i;
     }
+    end = pv.size() - 1;
+  } else {
+    for (; end >= begin;) {
+      auto val = val_buff[pv[begin]];
+      if (val == inline_int_null_value<T>()) {
+        if (val_buff[pv[end]] != inline_int_null_value<T>()) {
+          std::swap(val_buff[pv[begin]], val_buff[pv[end]]);
+          std::swap(pv[begin], pv[end]);
+          ++begin;
+        }
+        --end;
+      } else {
+        ++begin;
+      }
+    }
+    begin = 0;
   }
 
   if (order_entry.is_desc) {
-    thrust::sort_by_key(val_buff, val_buff + end + 1, pv.begin(), thrust::greater<T>());
+    thrust::sort_by_key(
+        val_buff + begin, val_buff + end + 1, pv.begin() + begin, thrust::greater<T>());
   } else {
-    thrust::sort_by_key(val_buff, val_buff + end + 1, pv.begin(), thrust::less<T>());
+    thrust::sort_by_key(
+        val_buff + begin, val_buff + end + 1, pv.begin() + begin, thrust::less<T>());
   }
 }
 
