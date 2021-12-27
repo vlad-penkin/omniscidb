@@ -18,8 +18,10 @@ gen_bitmap_avx512_8:
         vpbroadcastq  %r8, %zmm0
 
 .Lloop_start_gbm8:
+        cmp         $0, %rcx
+        jle         .Lend_gbm8
         # loading 512 bytes stored at pointer contained in rdx (3rd arg) into zmm10
-#        vmovapd     0(%rdx), %zmm10
+        # vmovapd     0(%rdx), %zmm10 # use for 64-byte alligned data
         vmovupd     0(%rdx), %zmm10
 
         # comparing 0xFF bytes (nulls) stored in %zmm0 and %zmm10; sets not  bit in %k1
@@ -37,11 +39,11 @@ gen_bitmap_avx512_8:
         addq        $8,  %rdi
         addq        $64, %rdx
 
+        # 64 bytes processed, decrementing count of remaining bytes by 64
         subq        $64, %rcx
-        cmp         $0, %rcx
+        jmp         .Lloop_start_gbm8
 
-        jg          .Lloop_start_gbm8
-
+.Lend_gbm8: 
         # storing nulls count
         movq        %r9, (%rsi)
 #        .cfi_def_cfa_offset 8
@@ -69,6 +71,9 @@ gen_bitmap_avx512_32:
         vpbroadcastq  %r8, %zmm0
 
 .Lloop_start_gbm32:
+        cmp         $0, %rcx
+        jle         .Lend_gbm32
+
         # loading 512 bytes stored at pointer contained in rdx (3rd arg) into zmm10
 #        vmovapd     0(%rdx), %zmm10
         vmovupd     0(%rdx), %zmm10
@@ -91,9 +96,8 @@ gen_bitmap_avx512_32:
 
         # 16 dwords processed, decrementing count of remaining dwords by 16
         subq        $16, %rcx
-        cmp         $0, %rcx
-
-        jg          .Lloop_start_gbm32
+        jmp          .Lloop_start_gbm32
+.Lend_gbm32: 
 
         # storing nulls count
         movq        %r9, (%rsi)
@@ -123,6 +127,9 @@ gen_bitmap_avx512_64:
         vpbroadcastq  %r8, %zmm0
 
 .Lloop_start_gbm64:
+        cmp         $0, %rcx
+        jle         .Lend_gbm64
+
         # loading 512 bytes stored at pointer contained in rdx (3rd arg) into zmm10
 #        vmovapd     0(%rdx), %zmm10
         vmovupd     0(%rdx), %zmm10
@@ -145,10 +152,9 @@ gen_bitmap_avx512_64:
 
         # 8 qwords processed, decrementing count of remaining qwords by 8
         subq        $8, %rcx
-        cmp         $0, %rcx
+        jmp         .Lloop_start_gbm64
 
-        jg          .Lloop_start_gbm64
-
+.Lend_gbm64: 
         # storing nulls count
         movq        %r9, (%rsi)
 #        .cfi_def_cfa_offset 8

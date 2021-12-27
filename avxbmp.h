@@ -6,9 +6,11 @@
 
 //  std headers
 #include<atomic>
+// #include<bitset>
 #include<cstdint>
-#include<type_traits>
+// #include<iostream>
 #include<stdexcept>
+#include<type_traits>
 #include<vector>
 
 //  tbb
@@ -22,7 +24,7 @@
 //  =====================================================================
 //  TODO:
 //    1. Finish createBitmapAVX512 to hangle odd (not divisible by 64 as
-//    length of raw data) arrays
+//    length of raw data) arrays -- DONE, 2021.12.27
 //    2. Implement createBitmapParallelForAVX512()
 //    3. Optimize performance createBitmapParallelForAVX512() for the size 
 //    of the block range in the parallel for
@@ -65,7 +67,7 @@ namespace avxbmp {
 
     void printBitmap(const std::vector<uint8_t>& bitmap_data, bool reverse = true);
     size_t computeBitmapSize(size_t data_size);
-    size_t diffBitmap(std::vector<uint8_t>& bm1, std::vector<uint8_t>& bm2);
+    size_t diffBitmap(std::vector<uint8_t>& bm1, std::vector<uint8_t>& bm2, bool verbose=false);
 };
                                     //  =================================
                                     //  Inlined functions implementations
@@ -104,6 +106,18 @@ size_t avxbmp::gen_bitmap_avx512(uint8_t *bitmap, size_t *null_count, TYPE *data
 }
 
 
+namespace {
+    template <typename TYPE> 
+    std::pair<size_t, size_t> compute_adjusted_sizes (const std::vector<TYPE> & v) {
+        __uint128_t size_bytes = v.size()*sizeof (TYPE);
+        __uint128_t rem_size_bytes = size_bytes & 0b00111111;
+        __uint128_t rounded_size_bytes = size_bytes - rem_size_bytes;
+        return {rounded_size_bytes/sizeof(TYPE), rem_size_bytes/sizeof(TYPE)};
+    }
+}
+
+
+
 template <typename TYPE>
 void avxbmp::createBitmapAVX512(
                           std::vector<uint8_t>& bitmap_data, 
@@ -112,13 +126,27 @@ void avxbmp::createBitmapAVX512(
 {
     size_t null_count = 0;
     size_t size = vals.size();
-    if (size_t raw_size = vals.size()*sizeof(TYPE); raw_size % 64 != 0) {
-        throw std::runtime_error ("The size of the raw data (" + std::to_string(raw_size)
-                + ") is not divisible by 64.  Change the number of entries in the input data"
-                  " to satisfy this condition. Aborting");
-    }
+    auto [avx512_processing_count, cpu_processing_count] = compute_adjusted_sizes (vals);
 
-    gen_bitmap_avx512<TYPE>(bitmap_data.data(), &null_count, const_cast<TYPE*>(vals.data()), size);
+    gen_bitmap_avx512<TYPE>(bitmap_data.data(), &null_count, const_cast<TYPE*>(vals.data()), avx512_processing_count);
+
+    if (cpu_processing_count>0) {
+      TYPE null_val = avxbmp::helpers::null_builder<TYPE>();
+      uint8_t valid_byte = 0;
+      size_t  remaining_bits = 0;
+      int64_t local_null_count = 0;
+      for (size_t i = 0; i < cpu_processing_count; ++i) {
+        size_t valid = vals[avx512_processing_count+i] != null_val;
+        remaining_bits |= valid << i;
+        null_count += !valid;
+      }
+
+      int  left_bytes_encoded_count = (cpu_processing_count+7)/8;
+      for (size_t i=0; i<left_bytes_encoded_count; i++) {
+        uint8_t encoded_byte = 0xFF &(remaining_bits >> (8*i));
+        bitmap_data[avx512_processing_count/8  + i] = encoded_byte;
+      }
+    }
 
     null_count_out = null_count;
 }
