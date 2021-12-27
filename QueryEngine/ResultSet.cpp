@@ -514,11 +514,15 @@ void sort_on_cpu(T* val_buff,
                  const uint64_t entry_count,
                  const Analyzer::OrderEntry& order_entry) {
   auto end = pv.size() - 1;
+
   for (int i = 0; end >= i;) {
     auto val = val_buff[pv[i]];
-    if (!order_entry.nulls_first && val == inline_int_null_value<T>()) {
-      std::swap(val_buff[pv[i]], val_buff[pv[end]]);
-      std::swap(pv[i], pv[end]);
+    if (val == inline_int_null_value<T>()) {
+      if (val_buff[pv[end]] != inline_int_null_value<T>()) {
+        std::swap(val_buff[pv[i]], val_buff[pv[end]]);
+        std::swap(pv[i], pv[end]);
+        ++i;
+      }
       --end;
     } else {
       ++i;
@@ -532,7 +536,7 @@ void sort_on_cpu(T* val_buff,
   }
 }
 
-void sort_onecol_cpu(int64_t* val_buff,
+void sort_onecol_cpu(int8_t* val_buff,
                      PermutationView pv,
                      const uint64_t entry_count,
                      const uint32_t chosen_bytes,
@@ -548,7 +552,7 @@ void sort_onecol_cpu(int64_t* val_buff,
       sort_on_cpu(reinterpret_cast<int32_t*>(val_buff), pv, entry_count, order_entry);
       break;
     case 8:
-      sort_on_cpu(val_buff, pv, entry_count, order_entry);
+      sort_on_cpu(reinterpret_cast<int64_t*>(val_buff), pv, entry_count, order_entry);
       break;
     default:
       CHECK(false);
@@ -601,11 +605,6 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
       throw WatchdogException("Sorting the result would be too slow");
     }
 
-    permutation_.resize(query_mem_desc_.getEntryCount());
-    // PermutationView is used to share common API with parallelTop().
-    PermutationView pv(permutation_.data(), 0, permutation_.size());
-    pv = initPermutationBuffer(pv, 0, permutation_.size());
-
     if (top_n == 0 && !query_mem_desc_.hasKeylessHash() &&
         size_t(1) == order_entries.size() && isDirectColumnarConversionPossible() &&
         query_mem_desc_.didOutputColumnar() &&
@@ -614,10 +613,14 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
       const auto target_idx = order_entry.tle_no - 1;
       const auto chosen_bytes = query_mem_desc_.getPaddedSlotWidthBytes(target_idx);
       const size_t buf_size = query_mem_desc_.getEntryCount() * chosen_bytes;
-      std::vector<int64_t> sortkey_val_buff(buf_size);
-      copyColumnIntoBuffer(
-          target_idx, reinterpret_cast<int8_t*>(sortkey_val_buff.data()), buf_size);
+      std::vector<int8_t> sortkey_val_buff(buf_size);
 
+      copyColumnIntoBuffer(target_idx, sortkey_val_buff.data(), buf_size);
+
+      permutation_.resize(query_mem_desc_.getEntryCount());
+      // PermutationView is used to share common API with parallelTop().
+      PermutationView pv(permutation_.data(), 0, permutation_.size());
+      pv = initPermutationBuffer(pv, 0, permutation_.size());
       sort_onecol_cpu(sortkey_val_buff.data(),
                       pv,
                       query_mem_desc_.getEntryCount(),
@@ -625,6 +628,12 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
                       order_entry);
       return;
     }
+
+    permutation_.resize(query_mem_desc_.getEntryCount());
+    // PermutationView is used to share common API with parallelTop().
+    PermutationView pv(permutation_.data(), 0, permutation_.size());
+    pv = initPermutationBuffer(pv, 0, permutation_.size());
+
     if (top_n == 0) {
       top_n = pv.size();  // top_n == 0 implies a full sort
     }
