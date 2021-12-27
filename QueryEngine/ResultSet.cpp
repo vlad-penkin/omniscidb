@@ -39,6 +39,8 @@
 #include "tbb/parallel_sort.h"
 #endif
 
+#include <thrust/sort.h>
+
 #include <algorithm>
 #include <atomic>
 #include <bitset>
@@ -506,6 +508,12 @@ QueryMemoryDescriptor ResultSet::fixupQueryMemoryDescriptor(
   return query_mem_desc_copy;
 }
 
+void sort_onecol_cpu(int64_t* val_buff,
+                     int32_t* key_buff,
+                     const uint64_t entry_count,
+                     const bool desc,
+                     const uint32_t chosen_bytes);
+
 void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
                      size_t top_n,
                      const Executor* executor) {
@@ -550,10 +558,31 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
     if (g_enable_watchdog && Executor::baseline_threshold < entryCount()) {
       throw WatchdogException("Sorting the result would be too slow");
     }
+
     permutation_.resize(query_mem_desc_.getEntryCount());
     // PermutationView is used to share common API with parallelTop().
     PermutationView pv(permutation_.data(), 0, permutation_.size());
     pv = initPermutationBuffer(pv, 0, permutation_.size());
+
+    if (top_n == 0 && !query_mem_desc_.hasKeylessHash() &&
+        size_t(1) == order_entries.size() && isDirectColumnarConversionPossible() &&
+        query_mem_desc_.didOutputColumnar() &&
+        query_mem_desc_.getQueryDescriptionType() == QueryDescriptionType::Projection) {
+      const auto& order_entry = order_entries.front();
+      const auto target_idx = order_entry.tle_no - 1;
+      const auto chosen_bytes = query_mem_desc_.getPaddedSlotWidthBytes(target_idx);
+      const size_t buf_size = query_mem_desc_.getEntryCount() * chosen_bytes;
+      std::vector<int64_t> sortkey_val_buff(buf_size);
+      copyColumnIntoBuffer(
+          target_idx, reinterpret_cast<int8_t*>(sortkey_val_buff.data()), buf_size);
+
+      sort_onecol_cpu(sortkey_val_buff.data(),
+                      pv,
+                      query_mem_desc_.getEntryCount(),
+                      order_entry.is_desc,
+                      chosen_bytes);
+      return;
+    }
     if (top_n == 0) {
       top_n = pv.size();  // top_n == 0 implies a full sort
     }
@@ -1178,4 +1207,52 @@ bool result_set::can_use_parallel_algorithms(const ResultSet& rows) {
 
 bool result_set::use_parallel_algorithms(const ResultSet& rows) {
   return result_set::can_use_parallel_algorithms(rows) && rows.entryCount() >= 20000;
+}
+
+template <typename T>
+void sort_on_cpu(T* val_buff,
+                 PermutationView pv,
+                 const uint64_t entry_count,
+                 const bool desc) {
+  auto end = pv.size() - 1;
+  for (int i = 0; i <= end;) {
+    auto val = val_buf[pv[i]];
+    if (val == inline_int_null_val<T>()) {
+      std::swap(val_buf[pv[i]], val_buf[pv[end]]);
+      std::swap(pv[i], pv[end]);
+      --end;
+    } else {
+      ++i;
+    }
+  }
+
+  if (desc) {
+    thrust::sort_by_key(val_buff, val_buff + end + 1, pv.begin(), thrust::greater<T>());
+  } else {
+    thrust::sort_by_key(val_buff, val_buff + end + 1, pv.begin(), thrust::less<T>());
+  }
+}
+
+void sort_onecol_cpu(int64_t* val_buff,
+                     PermutationView pv,
+                     const uint64_t entry_count,
+                     const bool desc,
+                     const uint32_t chosen_bytes) {
+  switch (chosen_bytes) {
+    case 1:
+      sort_on_cpu(reinterpret_cast<int8_t*>(val_buff), pv, entry_count, desc);
+      break;
+    case 2:
+      sort_on_cpu(reinterpret_cast<int16_t*>(val_buff), pv, entry_count, desc);
+      break;
+    case 4:
+      sort_on_cpu(reinterpret_cast<int32_t*>(val_buff), pv, entry_count, desc);
+      break;
+    case 8:
+      sort_on_cpu(val_buff, pv, entry_count, desc);
+      break;
+    default:
+      CHECK(false);
+      break;
+  }
 }
