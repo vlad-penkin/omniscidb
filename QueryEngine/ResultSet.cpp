@@ -1215,7 +1215,7 @@ void sort_on_cpu(T* val_buff,
                  const uint64_t entry_count,
                  const bool desc) {
   auto end = pv.size() - 1;
-  for (int i = 0; i <= end;) {
+  for (int i = 0; end >= i;) {
     auto val = val_buf[pv[i]];
     if (val == inline_int_null_val<T>()) {
       std::swap(val_buf[pv[i]], val_buf[pv[end]]);
