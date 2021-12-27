@@ -508,11 +508,53 @@ QueryMemoryDescriptor ResultSet::fixupQueryMemoryDescriptor(
   return query_mem_desc_copy;
 }
 
+template <typename T>
+void sort_on_cpu(T* val_buff,
+                 PermutationView pv,
+                 const uint64_t entry_count,
+                 const Analyzer::OrderEntry& order_entry) {
+  auto end = pv.size() - 1;
+  for (int i = 0; end >= i;) {
+    auto val = val_buff[pv[i]];
+    if (!order_entry.nulls_first && val == inline_int_null_value<T>()) {
+      std::swap(val_buff[pv[i]], val_buff[pv[end]]);
+      std::swap(pv[i], pv[end]);
+      --end;
+    } else {
+      ++i;
+    }
+  }
+
+  if (order_entry.is_desc) {
+    thrust::sort_by_key(val_buff, val_buff + end + 1, pv.begin(), thrust::greater<T>());
+  } else {
+    thrust::sort_by_key(val_buff, val_buff + end + 1, pv.begin(), thrust::less<T>());
+  }
+}
+
 void sort_onecol_cpu(int64_t* val_buff,
-                     int32_t* key_buff,
+                     PermutationView pv,
                      const uint64_t entry_count,
-                     const bool desc,
-                     const uint32_t chosen_bytes);
+                     const uint32_t chosen_bytes,
+                     const Analyzer::OrderEntry& order_entry) {
+  switch (chosen_bytes) {
+    case 1:
+      sort_on_cpu(reinterpret_cast<int8_t*>(val_buff), pv, entry_count, order_entry);
+      break;
+    case 2:
+      sort_on_cpu(reinterpret_cast<int16_t*>(val_buff), pv, entry_count, order_entry);
+      break;
+    case 4:
+      sort_on_cpu(reinterpret_cast<int32_t*>(val_buff), pv, entry_count, order_entry);
+      break;
+    case 8:
+      sort_on_cpu(val_buff, pv, entry_count, order_entry);
+      break;
+    default:
+      CHECK(false);
+      break;
+  }
+}
 
 void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
                      size_t top_n,
@@ -579,8 +621,8 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
       sort_onecol_cpu(sortkey_val_buff.data(),
                       pv,
                       query_mem_desc_.getEntryCount(),
-                      order_entry.is_desc,
-                      chosen_bytes);
+                      chosen_bytes,
+                      order_entry);
       return;
     }
     if (top_n == 0) {
@@ -662,9 +704,9 @@ void ResultSet::parallelTop(const std::list<Analyzer::OrderEntry>& order_entries
   top_sort_threads.wait();
 
   // In case you are considering implementing a parallel reduction, note that the
-  // ResultSetComparator constructor is O(N) in order to materialize some of the aggregate
-  // columns as necessary to perform a comparison. This cost is why reduction is chosen to
-  // be serial instead; only one more Comparator is needed below.
+  // ResultSetComparator constructor is O(N) in order to materialize some of the
+  // aggregate columns as necessary to perform a comparison. This cost is why reduction
+  // is chosen to be serial instead; only one more Comparator is needed below.
 
   // Left-copy disjoint top-sorted subranges into one contiguous range.
   // ++++....+++.....+++++...  ->  ++++++++++++............
@@ -1168,7 +1210,8 @@ std::tuple<std::vector<bool>, size_t> ResultSet::getSingleSlotTargetBitmap() con
  *
  * The final goal is to remove the need for such selection, but at the moment for any
  * target that doesn't qualify for direct columnarization, we use the traditional
- * result set's iteration to handle it (e.g., count distinct, approximate count distinct)
+ * result set's iteration to handle it (e.g., count distinct, approximate count
+ * distinct)
  */
 std::tuple<std::vector<bool>, size_t> ResultSet::getSupportedSingleSlotTargetBitmap()
     const {
@@ -1207,52 +1250,4 @@ bool result_set::can_use_parallel_algorithms(const ResultSet& rows) {
 
 bool result_set::use_parallel_algorithms(const ResultSet& rows) {
   return result_set::can_use_parallel_algorithms(rows) && rows.entryCount() >= 20000;
-}
-
-template <typename T>
-void sort_on_cpu(T* val_buff,
-                 PermutationView pv,
-                 const uint64_t entry_count,
-                 const bool desc) {
-  auto end = pv.size() - 1;
-  for (int i = 0; end >= i;) {
-    auto val = val_buf[pv[i]];
-    if (val == inline_int_null_val<T>()) {
-      std::swap(val_buf[pv[i]], val_buf[pv[end]]);
-      std::swap(pv[i], pv[end]);
-      --end;
-    } else {
-      ++i;
-    }
-  }
-
-  if (desc) {
-    thrust::sort_by_key(val_buff, val_buff + end + 1, pv.begin(), thrust::greater<T>());
-  } else {
-    thrust::sort_by_key(val_buff, val_buff + end + 1, pv.begin(), thrust::less<T>());
-  }
-}
-
-void sort_onecol_cpu(int64_t* val_buff,
-                     PermutationView pv,
-                     const uint64_t entry_count,
-                     const bool desc,
-                     const uint32_t chosen_bytes) {
-  switch (chosen_bytes) {
-    case 1:
-      sort_on_cpu(reinterpret_cast<int8_t*>(val_buff), pv, entry_count, desc);
-      break;
-    case 2:
-      sort_on_cpu(reinterpret_cast<int16_t*>(val_buff), pv, entry_count, desc);
-      break;
-    case 4:
-      sort_on_cpu(reinterpret_cast<int32_t*>(val_buff), pv, entry_count, desc);
-      break;
-    case 8:
-      sort_on_cpu(val_buff, pv, entry_count, desc);
-      break;
-    default:
-      CHECK(false);
-      break;
-  }
 }
