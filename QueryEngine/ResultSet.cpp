@@ -39,7 +39,6 @@
 #include "tbb/parallel_sort.h"
 #endif
 
-#include <thrust/sequence.h>
 #include <thrust/sort.h>
 
 #include <algorithm>
@@ -560,6 +559,11 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
       throw WatchdogException("Sorting the result would be too slow");
     }
 
+    permutation_.resize(query_mem_desc_.getEntryCount());
+    // PermutationView is used to share common API with parallelTop().
+    PermutationView pv(permutation_.data(), 0, permutation_.size());
+    pv = initPermutationBuffer(pv, 0, permutation_.size());
+
     if (top_n == 0 && !query_mem_desc_.hasKeylessHash() &&
         size_t(1) == order_entries.size() && isDirectColumnarConversionPossible() &&
         query_mem_desc_.didOutputColumnar() &&
@@ -568,23 +572,17 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
       const auto target_idx = order_entry.tle_no - 1;
       const auto chosen_bytes = query_mem_desc_.getPaddedSlotWidthBytes(target_idx);
       const size_t buf_size = query_mem_desc_.getEntryCount() * chosen_bytes;
-      auto sortkey_val_buff = reinterpret_cast<int64_t*>(new char[buf_size]);
+      std::vector<int64_t> sortkey_val_buff(buf_size);
       copyColumnIntoBuffer(
-          target_idx, reinterpret_cast<int8_t*>(sortkey_val_buff), buf_size);
-      permutation_.resize(query_mem_desc_.getEntryCount());
-      sort_onecol_cpu(sortkey_val_buff,
-                      reinterpret_cast<int32_t*>(&permutation_[0]),
+          target_idx, reinterpret_cast<int8_t*>(sortkey_val_buff.data()), buf_size);
+
+      sort_onecol_cpu(sortkey_val_buff.data(),
+                      pv,
                       query_mem_desc_.getEntryCount(),
                       order_entry.is_desc,
                       chosen_bytes);
-      delete sortkey_val_buff;
       return;
     }
-
-    permutation_.resize(query_mem_desc_.getEntryCount());
-    // PermutationView is used to share common API with parallelTop().
-    PermutationView pv(permutation_.data(), 0, permutation_.size());
-    pv = initPermutationBuffer(pv, 0, permutation_.size());
     if (top_n == 0) {
       top_n = pv.size();  // top_n == 0 implies a full sort
     }
@@ -1213,34 +1211,45 @@ bool result_set::use_parallel_algorithms(const ResultSet& rows) {
 
 template <typename T>
 void sort_on_cpu(T* val_buff,
-                 int32_t* idx_buff,
+                 PermutationView pv,
                  const uint64_t entry_count,
                  const bool desc) {
-  thrust::sequence(idx_buff, idx_buff + entry_count);
+  auto end = pv.size() - 1;
+  for (int i = 0; i <= end;) {
+    auto val = val_buf[pv[i]];
+    if (val == inline_int_null_val<T>()) {
+      std::swap(val_buf[pv[i]], val_buf[pv[end]]);
+      std::swap(pv[i], pv[end]);
+      --end;
+    } else {
+      ++i;
+    }
+  }
+
   if (desc) {
-    thrust::sort_by_key(val_buff, val_buff + entry_count, idx_buff, thrust::greater<T>());
+    thrust::sort_by_key(val_buff, val_buff + end + 1, pv.begin(), thrust::greater<T>());
   } else {
-    thrust::sort_by_key(val_buff, val_buff + entry_count, idx_buff, thrust::less<T>());
+    thrust::sort_by_key(val_buff, val_buff + end + 1, pv.begin(), thrust::less<T>());
   }
 }
 
 void sort_onecol_cpu(int64_t* val_buff,
-                     int32_t* idx_buff,
+                     PermutationView pv,
                      const uint64_t entry_count,
                      const bool desc,
                      const uint32_t chosen_bytes) {
   switch (chosen_bytes) {
     case 1:
-      sort_on_cpu(reinterpret_cast<int8_t*>(val_buff), idx_buff, entry_count, desc);
+      sort_on_cpu(reinterpret_cast<int8_t*>(val_buff), pv, entry_count, desc);
       break;
     case 2:
-      sort_on_cpu(reinterpret_cast<int16_t*>(val_buff), idx_buff, entry_count, desc);
+      sort_on_cpu(reinterpret_cast<int16_t*>(val_buff), pv, entry_count, desc);
       break;
     case 4:
-      sort_on_cpu(reinterpret_cast<int32_t*>(val_buff), idx_buff, entry_count, desc);
+      sort_on_cpu(reinterpret_cast<int32_t*>(val_buff), pv, entry_count, desc);
       break;
     case 8:
-      sort_on_cpu(val_buff, idx_buff, entry_count, desc);
+      sort_on_cpu(val_buff, pv, entry_count, desc);
       break;
     default:
       CHECK(false);
