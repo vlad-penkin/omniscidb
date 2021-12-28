@@ -37,8 +37,7 @@ size_t avxbmp::diffBitmap(std::vector<uint8_t>& bm1,
   for (size_t i = 0; i < bm1.size(); i++) {
     if (bm1[i] != bm2[i]) {
       if (verbose) {
-        std::cout << "Bitmaps differ at: " << i 
-                  << "; " << std::bitset<8>(bm1[i])
+        std::cout << "Bitmaps differ at: " << i << "; " << std::bitset<8>(bm1[i])
                   << " vs " << std::bitset<8>(bm2[i]) << std::endl;
       }
       diff_count++;

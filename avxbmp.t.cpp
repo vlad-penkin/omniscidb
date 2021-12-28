@@ -91,7 +91,6 @@ static void testParallelAVX512(const size_t size, bool verbose = false) {
       size, std::move(bitmap_creator), std::move(nulldata_populator), verbose);
 }
 
-
 //  ==================
 //  SimpleAVX512 tests
 //  ==================
@@ -226,19 +225,17 @@ TEST(ParallelAVX512, double) {
   testParallelAVX512<double>(1024 * 1024 + 63);
 }
 
-
 TEST(ParallelAVX512, various) {
   testParallelAVX512<uint8_t>(67, false);
   testParallelAVX512<uint8_t>(135, false);
-  testParallelAVX512<uint32_t>(155, false);  
-  testParallelAVX512<uint32_t>(300, false);  
+  testParallelAVX512<uint32_t>(155, false);
+  testParallelAVX512<uint32_t>(300, false);
   testParallelAVX512<uint8_t>(290, false);
   testParallelAVX512<uint64_t>(1200, false);
 
   testParallelAVX512<uint8_t>(3000031, false);
   testParallelAVX512<double>(3000023, false);
 }
-
 
 int main() try {
   testing::InitGoogleTest();
