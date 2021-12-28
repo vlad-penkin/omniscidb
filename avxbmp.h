@@ -8,7 +8,7 @@
 #include <atomic>
 // #include<bitset>
 #include <cstdint>
-// #include<iostream>
+#include<iostream>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -141,7 +141,6 @@ void avxbmp::createBitmapAVX512(std::vector<uint8_t>& bitmap_data,
                                 int64_t& null_count_out,
                                 const std::vector<TYPE>& vals) {
   size_t null_count = 0;
-  size_t size = vals.size();
   auto [avx512_processing_count, cpu_processing_count] = compute_adjusted_sizes(vals);
 
   gen_bitmap_avx512<TYPE>(bitmap_data.data(),
@@ -240,7 +239,82 @@ template <typename TYPE>
 void avxbmp::createBitmapParallelForAVX512(std::vector<uint8_t>& bitmap_data,
                                            int64_t& null_count_out,
                                            const std::vector<TYPE>& vals) {
-  throw std::runtime_error("TODO: IMPLEMENT avxbmp::createBitmapParallelForAVX512()!");
+
+  static_assert (sizeof (TYPE)<=64 && (64 % sizeof (TYPE) == 0), "Size of type must not exceed 64 and should devide 64.");
+
+  std::atomic<int64_t> null_count = 0;
+  
+
+
+  auto [avx512_processing_count, cpu_processing_count] = compute_adjusted_sizes(vals);
+
+  // Heuristic to compute appropriate block size for better load balance
+  const size_t min_block_size = 64/sizeof(TYPE);
+  const size_t cpu_count = std::thread::hardware_concurrency();
+
+  size_t blocks_per_thread = std::max<size_t>(1, avx512_processing_count/(min_block_size*cpu_count));
+  size_t block_size = blocks_per_thread*min_block_size;
+  
+  std::mutex mtx;
+
+  auto simple_par_processor = [&](size_t idx) {
+      size_t local_null_count = 0;
+      size_t processing_count = min_block_size;
+      uint8_t *bitmap_data_ptr = bitmap_data.data() + idx/8;
+      const TYPE * values_data_ptr = vals.data() + idx;
+
+      gen_bitmap_avx512<TYPE>(bitmap_data_ptr,
+                              &local_null_count,
+                              const_cast<TYPE*>(values_data_ptr),
+                              processing_count);
+      null_count += local_null_count;
+   };
+
+  auto par_processor = [&](size_t idx) {
+      size_t local_null_count = 0;
+      size_t processing_count = std::min(block_size, avx512_processing_count - idx);
+      uint8_t *bitmap_data_ptr = bitmap_data.data() + idx/8;
+      const TYPE * values_data_ptr = vals.data() + idx;
+
+      // {
+      //   std::lock_guard lock(mtx);
+      //   std::cout 
+      //     << "Processing range: " << idx << " - " << idx+processing_count 
+      //     << ",\tblock size: " << block_size 
+      //     << ",\tprocessing_count: " << processing_count
+      //     << std::endl;
+      // }
+
+      gen_bitmap_avx512<TYPE>(bitmap_data_ptr,
+                              &local_null_count,
+                              const_cast<TYPE*>(values_data_ptr),
+                              processing_count);
+      null_count += local_null_count;
+   };
+
+  tbb::parallel_for(static_cast<size_t>(0), avx512_processing_count, block_size, par_processor);
+ 
+
+  if (cpu_processing_count > 0) {
+    TYPE null_val = avxbmp::helpers::null_builder<TYPE>();
+    uint8_t valid_byte = 0;
+    size_t remaining_bits = 0;
+    int64_t cpus_null_count = 0;
+    for (size_t i = 0; i < cpu_processing_count; ++i) {
+      size_t valid = vals[avx512_processing_count + i] != null_val;
+      remaining_bits |= valid << i;
+      cpus_null_count += !valid;
+    }
+
+    int left_bytes_encoded_count = (cpu_processing_count + 7) / 8;
+    for (size_t i = 0; i < left_bytes_encoded_count; i++) {
+      uint8_t encoded_byte = 0xFF & (remaining_bits >> (8 * i));
+      bitmap_data[avx512_processing_count / 8 + i] = encoded_byte;
+    }
+    null_count+=cpus_null_count;
+  }
+
+  null_count_out = null_count.load();
 }
 
 template <typename TYPE>
