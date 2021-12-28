@@ -22,13 +22,27 @@ static void profiler(FUNCTION&& bitmap_creator,
   }
 
   //  measuring execution time profiling
-  auto start = std::chrono::high_resolution_clock::now();
+  // auto start = std::chrono::high_resolution_clock::now();
+  // for (size_t i = 0; i < iter_count; i++) {
+  //   std::invoke(bitmap_creator, bitmap_data, null_count, values);
+  // }
+  // size_t dur_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+  //                     std::chrono::high_resolution_clock::now() - start)
+  //                     .count();
+
+
+  std::vector<size_t> sokutei(iter_count,0);
+
   for (size_t i = 0; i < iter_count; i++) {
+    auto start = std::chrono::high_resolution_clock::now();
     std::invoke(bitmap_creator, bitmap_data, null_count, values);
-  }
-  size_t dur_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+    sokutei[i] = std::chrono::duration_cast<std::chrono::nanoseconds>(
                       std::chrono::high_resolution_clock::now() - start)
                       .count();
+  }
+  std::sort(std::begin(sokutei), std::end(sokutei), std::less<size_t>());
+ 
+  size_t dur_ns = sokutei[iter_count/2];
 
   std::invoke(responder, dur_ns);
 }
@@ -42,7 +56,8 @@ static void profileAVX512_parallel(size_t size, size_t iter_count = 200) {
   };
 
   auto responder = [&iter_count, &size](size_t dur_ns) {
-    double dur_per_iter = dur_ns / iter_count;
+//    double dur_per_iter = dur_ns / iter_count;
+    double dur_per_iter = dur_ns;
     double throughput_gibs =
         size * sizeof(TYPE) * 1.0e9 / dur_per_iter / (1024 * 1024 * 1024);
 
@@ -68,7 +83,8 @@ static void profileAVX512_single_thread(size_t size, size_t iter_count = 200) {
   };
 
   auto responder = [&iter_count, &size](size_t dur_ns) {
-    double dur_per_iter = dur_ns / iter_count;
+//    double dur_per_iter = dur_ns / iter_count;
+    double dur_per_iter = dur_ns;
     double throughput_gibs =
         size * sizeof(TYPE) * 1.0e9 / dur_per_iter / (1024 * 1024 * 1024);
 
@@ -94,7 +110,8 @@ static void profileDefault(size_t size, size_t iter_count = 200) {
   };
 
   auto responder = [&iter_count, &size](size_t dur_ns) {
-    double dur_per_iter = dur_ns / iter_count;
+//    double dur_per_iter = dur_ns / iter_count;
+    double dur_per_iter = dur_ns;
     double throughput_gibs =
         size * sizeof(TYPE) * 1.0e9 / dur_per_iter / (1024 * 1024 * 1024);
 
