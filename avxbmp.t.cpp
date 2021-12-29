@@ -226,14 +226,15 @@ TEST(ParallelAVX512, double) {
 }
 
 TEST(ParallelAVX512, various) {
-  testParallelAVX512<uint8_t>(67, false);
+  testParallelAVX512<int32_t>(155, false);
+  testParallelAVX512<int8_t>(67, false);
   testParallelAVX512<uint8_t>(135, false);
-  testParallelAVX512<uint32_t>(155, false);
+
   testParallelAVX512<uint32_t>(300, false);
   testParallelAVX512<uint8_t>(290, false);
   testParallelAVX512<uint64_t>(1200, false);
 
-  testParallelAVX512<uint8_t>(3000031, false);
+  testParallelAVX512<uint32_t>(3000031, false);
   testParallelAVX512<double>(3000023, false);
 }
 

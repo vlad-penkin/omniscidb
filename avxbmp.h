@@ -50,6 +50,21 @@ extern "C" size_t gen_bitmap_avx512_64(uint8_t* bitmap,
                                        uint64_t* data,
                                        size_t size,
                                        uint64_t null_val);
+extern "C" size_t gen_bitmap_avx512_8_intr(uint8_t* bitmap,
+                                           size_t* null_count_out,
+                                           uint8_t* data,
+                                           size_t size,
+                                           uint64_t null_val);
+extern "C" size_t gen_bitmap_avx512_32_intr(uint8_t* bitmap,
+                                            size_t* null_count,
+                                            uint32_t* data,
+                                            size_t size,
+                                            uint64_t null_val);
+extern "C" size_t gen_bitmap_avx512_64_intr(uint8_t* bitmap,
+                                            size_t* null_count,
+                                            uint64_t* data,
+                                            size_t size,
+                                            uint64_t null_val);
 
 namespace avxbmp {
 template <typename TYPE>
@@ -82,14 +97,55 @@ size_t diffBitmap(std::vector<uint8_t>& bm1,
                   std::vector<uint8_t>& bm2,
                   bool verbose = false);
 };  // namespace avxbmp
-    //  =================================
-    //  Inlined functions implementations
-    //  =================================
+
+//  =================================
+//  Inlined functions implementations
+//  =================================
+#define USE_AVX512_INTRINSICS
+
 template <typename TYPE>
 size_t avxbmp::gen_bitmap_avx512(uint8_t* bitmap,
                                  size_t* null_count,
                                  TYPE* data,
                                  size_t size) {
+#ifdef USE_AVX512_INTRINSICS
+  if constexpr (std::is_same<TYPE, int8_t>::value) {
+    return gen_bitmap_avx512_8_intr(
+        bitmap, null_count, reinterpret_cast<uint8_t*>(data), size, 0x8080808080808080);
+  } else if constexpr (std::is_same<TYPE, uint8_t>::value) {
+    return gen_bitmap_avx512_8_intr(
+        bitmap, null_count, reinterpret_cast<uint8_t*>(data), size, 0xFFFFFFFFFFFFFFFF);
+  } else if constexpr (std::is_same<TYPE, int32_t>::value) {
+    return gen_bitmap_avx512_32_intr(
+        bitmap, null_count, reinterpret_cast<uint32_t*>(data), size, 0x8000000080000000);
+  } else if constexpr (std::is_same<TYPE, uint32_t>::value) {
+    return gen_bitmap_avx512_32_intr(
+        bitmap, null_count, reinterpret_cast<uint32_t*>(data), size, 0xFFFFFFFFFFFFFFFF);
+  } else if constexpr (std::is_same<TYPE, int64_t>::value) {
+    return gen_bitmap_avx512_64_intr(bitmap,
+                                     null_count,
+                                     reinterpret_cast<uint64_t*>(data),
+                                     size,
+                                     avxbmp::helpers::null_builder<int64_t>());
+  } else if constexpr (std::is_same<TYPE, uint64_t>::value) {
+    return gen_bitmap_avx512_64_intr(bitmap,
+                                     null_count,
+                                     reinterpret_cast<uint64_t*>(data),
+                                     size,
+                                     avxbmp::helpers::null_builder<uint64_t>());
+  }
+  if constexpr (std::is_same<TYPE, float>::value) {
+    return gen_bitmap_avx512_32_intr(
+        bitmap, null_count, reinterpret_cast<uint32_t*>(data), size, 0x0080000000800000);
+  }
+  if constexpr (std::is_same<TYPE, double>::value) {
+    return gen_bitmap_avx512_64_intr(
+        bitmap, null_count, reinterpret_cast<uint64_t*>(data), size, 0x0010000000000000);
+  } else {
+    throw std::runtime_error("avxbm::gen_bitmap_avx512() -- Unsupported type: " +
+                             avxbmp::helpers::get_type_name<TYPE>() + ". Aborting.");
+  }
+#else   // USE ASSEMBLY CODE
   if constexpr (std::is_same<TYPE, int8_t>::value) {
     return gen_bitmap_avx512_8(
         bitmap, null_count, reinterpret_cast<uint8_t*>(data), size, 0x8080808080808080);
@@ -126,6 +182,7 @@ size_t avxbmp::gen_bitmap_avx512(uint8_t* bitmap,
     throw std::runtime_error("avxbm::gen_bitmap_avx512() -- Unsupported type: " +
                              avxbmp::helpers::get_type_name<TYPE>() + ". Aborting.");
   }
+#endif  // USE_AVX512_INTRINSICS
 }
 
 namespace {

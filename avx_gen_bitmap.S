@@ -20,11 +20,12 @@ gen_bitmap_avx512_8:
 .Lloop_start_gbm8:
         cmp         $0, %rcx
         jle         .Lend_gbm8
-        # loading 512 bytes stored at pointer contained in rdx (3rd arg) into zmm10
+
         # vmovapd     0(%rdx), %zmm10 # use for 64-byte alligned data
+        # loading 512 bits stored at pointer contained in rdx (3rd arg) into zmm10
         vmovupd     0(%rdx), %zmm10
 
-        # comparing 0xFF bytes (nulls) stored in %zmm0 and %zmm10; sets not  bit in %k1
+        # comparing 0xFF bytes (nulls) stored in %zmm0 and %zmm10;
         vpcmpneqb   %zmm0, %zmm10, %k1     
         kmovq	    %k1, %rax
 
@@ -36,6 +37,7 @@ gen_bitmap_avx512_8:
         popcnt	    %rax, %rax
         addq        %rax, %r9
 
+        # advancing *dst by 8 bytes, *src by 64 bytes
         addq        $8,  %rdi
         addq        $64, %rdx
 
