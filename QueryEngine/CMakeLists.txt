@@ -14,6 +14,7 @@ set(query_engine_source_files
     ArrayOps.cpp
     ArrowResultSetConverter.cpp
     ArrowResultSet.cpp
+    BitmapGenerators.cpp
     CalciteAdapter.cpp
     CalciteDeserializerUtils.cpp
     CardinalityEstimator.cpp

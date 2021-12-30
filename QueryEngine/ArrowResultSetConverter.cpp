@@ -272,7 +272,173 @@ void convert_column(ResultSetPtr result,
 
 #include<chrono>
 #include<tuple>
-#include<unordered_set>
+
+extern "C" size_t gen_bitmap_avx512_8(uint8_t* bitmap,
+                                      size_t* null_count,
+                                      uint8_t* data,
+                                      size_t size,
+                                      uint64_t null_val);
+extern "C" size_t gen_bitmap_avx512_32(uint8_t* bitmap,
+                                       size_t* null_count,
+                                       uint32_t* data,
+                                       size_t size,
+                                       uint64_t null_val);
+extern "C" size_t gen_bitmap_avx512_64(uint8_t* bitmap,
+                                       size_t* null_count,
+                                       uint64_t* data,
+                                       size_t size,
+                                       uint64_t null_val);
+
+template <typename TYPE>
+static std::pair<size_t, size_t> compute_adjusted_sizes(size_t size) {
+  __uint128_t size_bytes = size * sizeof(TYPE);
+  __uint128_t rem_size_bytes = size_bytes & 0b00111111;
+  __uint128_t rounded_size_bytes = size_bytes - rem_size_bytes;
+  return {rounded_size_bytes / sizeof(TYPE), rem_size_bytes / sizeof(TYPE)};
+}
+
+template <typename TYPE>
+static constexpr TYPE null_builder() {
+  static_assert(std::is_floating_point_v<TYPE> || std::is_integral_v<TYPE>,
+                "Unsupported type");
+
+  if constexpr (std::is_floating_point_v<TYPE>) {
+    return inline_fp_null_value<TYPE>();
+  } else if constexpr (std::is_integral_v<TYPE>) {
+    return inline_int_null_value<TYPE>();
+  }
+}
+
+template <typename TYPE>
+std::string get_type_name() {
+  if constexpr (std::is_same<TYPE, char>::value)
+    return "char";
+  else if constexpr (std::is_same<TYPE, int8_t>::value)
+    return "int8_t";
+  else if constexpr (std::is_same<TYPE, uint8_t>::value)
+    return "uint8_t";
+  else if constexpr (std::is_same<TYPE, int32_t>::value)
+    return "int32_t";
+  else if constexpr (std::is_same<TYPE, uint32_t>::value)
+    return "uint32_t";
+  else if constexpr (std::is_same<TYPE, int64_t>::value)
+    return "int64_t";
+  else if constexpr (std::is_same<TYPE, uint64_t>::value)
+    return "uint64_t";
+  else if constexpr (std::is_same<TYPE, double>::value)
+    return "double";
+  else if constexpr (std::is_same<TYPE, float>::value)
+    return "float";
+  else {
+    throw std::runtime_error("get_type_name() -- unsupported type");
+  }
+}
+
+template <typename TYPE>
+size_t gen_bitmap_avx512(uint8_t* bitmap,
+                         size_t* null_count,
+                         TYPE* data,
+                         size_t size) {
+
+  if constexpr (std::is_same<TYPE, int8_t>::value) {
+    return gen_bitmap_avx512_8(
+        bitmap, null_count, reinterpret_cast<uint8_t*>(data), size, 0x8080808080808080);
+  } else if constexpr (std::is_same<TYPE, uint8_t>::value) {
+    return gen_bitmap_avx512_8(
+        bitmap, null_count, reinterpret_cast<uint8_t*>(data), size, 0xFFFFFFFFFFFFFFFF);
+  } else if constexpr (std::is_same<TYPE, int32_t>::value) {
+    return gen_bitmap_avx512_32(
+        bitmap, null_count, reinterpret_cast<uint32_t*>(data), size, 0x8000000080000000);
+  } else if constexpr (std::is_same<TYPE, uint32_t>::value) {
+    return gen_bitmap_avx512_32(
+        bitmap, null_count, reinterpret_cast<uint32_t*>(data), size, 0xFFFFFFFFFFFFFFFF);
+  } else if constexpr (std::is_same<TYPE, int64_t>::value) {
+    return gen_bitmap_avx512_64(bitmap,
+                                null_count,
+                                reinterpret_cast<uint64_t*>(data),
+                                size,
+                                null_builder<int64_t>());
+  } else if constexpr (std::is_same<TYPE, uint64_t>::value) {
+    return gen_bitmap_avx512_64(bitmap,
+                                null_count,
+                                reinterpret_cast<uint64_t*>(data),
+                                size,
+                                null_builder<uint64_t>());
+  }
+  if constexpr (std::is_same<TYPE, float>::value) {
+    return gen_bitmap_avx512_32(
+        bitmap, null_count, reinterpret_cast<uint32_t*>(data), size, 0x0080000000800000);
+  }
+  if constexpr (std::is_same<TYPE, double>::value) {
+    return gen_bitmap_avx512_64(
+        bitmap, null_count, reinterpret_cast<uint64_t*>(data), size, 0x0010000000000000);
+  } else {
+    throw std::runtime_error("avxbm::gen_bitmap_avx512() -- Unsupported type: " +
+                             get_type_name<TYPE>() + ". Aborting.");
+  }
+}
+
+
+template<typename TYPE>
+void createBitmapParallelFor(
+                        uint8_t* bitmap_data,
+                        int64_t& null_count_out,
+                        const TYPE* vals,
+                        const size_t vals_size
+                      )
+{
+  static_assert(sizeof(TYPE) <= 64 && (64 % sizeof(TYPE) == 0),
+                "Size of type must not exceed 64 and should devide 64.");
+
+  auto [avx512_processing_count, cpu_processing_count] = compute_adjusted_sizes<TYPE>(vals_size);
+
+  // Heuristic to compute appropriate block size for better load balance
+  const size_t min_block_size = 64 / sizeof(TYPE);
+  const size_t cpu_count = std::thread::hardware_concurrency();
+
+  size_t blocks_per_thread =
+      std::max<size_t>(1, avx512_processing_count / (min_block_size * cpu_count));
+  size_t block_size = blocks_per_thread * min_block_size;
+
+  std::atomic<int64_t> null_count = 0;
+
+  auto par_processor = [&](size_t idx) {
+    size_t local_null_count = 0;
+    size_t processing_count = std::min(block_size, avx512_processing_count - idx);
+    uint8_t* bitmap_data_ptr = bitmap_data + idx / 8;
+    const TYPE* values_data_ptr = vals + idx;
+
+    gen_bitmap_avx512<TYPE>(bitmap_data_ptr,
+                            &local_null_count,
+                            const_cast<TYPE*>(values_data_ptr),
+                            processing_count);
+    null_count += local_null_count;
+  };
+
+  tbb::parallel_for(
+      static_cast<size_t>(0), avx512_processing_count, block_size, par_processor);
+
+  if (cpu_processing_count > 0) {
+    TYPE null_val = null_builder<TYPE>();
+    uint8_t valid_byte = 0;
+    size_t remaining_bits = 0;
+    int64_t cpus_null_count = 0;
+    for (size_t i = 0; i < cpu_processing_count; ++i) {
+      size_t valid = vals[avx512_processing_count + i] != null_val;
+      remaining_bits |= valid << i;
+      cpus_null_count += !valid;
+    }
+
+    int left_bytes_encoded_count = (cpu_processing_count + 7) / 8;
+    for (size_t i = 0; i < left_bytes_encoded_count; i++) {
+      uint8_t encoded_byte = 0xFF & (remaining_bits >> (8 * i));
+      bitmap_data[avx512_processing_count / 8 + i] = encoded_byte;
+    }
+    null_count += cpus_null_count;
+  }
+
+  null_count_out = null_count.load();
+}
 
 // convert_column() specialization for arrow::ChunkedArray output
 template <typename C_TYPE,
@@ -305,15 +471,11 @@ void convert_column(ResultSetPtr result,
   std::vector<std::tuple<size_t, size_t, size_t>>  
     v_jikosokutei(values.size());
 
-  std::vector<size_t> 
-    v_unique_tids(values.size());
-
   std::mutex mtx;
   std::unordered_set<size_t> total_unique_ids;
 
   threading::parallel_for(static_cast<size_t>(0), values.size(), [&](size_t idx) {
     size_t chunk_rows_count = chunks[idx].second;
-
 
     auto start = std::chrono::high_resolution_clock::now(); 
 
@@ -324,88 +486,22 @@ void convert_column(ResultSetPtr result,
 
     std::shared_ptr<arrow::Buffer> is_valid = std::move(res).ValueOrDie();
 
-    auto is_valid_data = is_valid->mutable_data();
+    uint8_t* bitmap = is_valid->mutable_data();
 
     const null_type_t<C_TYPE>* vals =
         reinterpret_cast<const null_type_t<C_TYPE>*>(values[idx]->data());
-    null_type_t<C_TYPE> null_val = null_type<C_TYPE>::value;
-
-    size_t unroll_count = chunk_rows_count & 0xFFFFFFFFFFFFFFF8ULL;
-
-  
-    std::unordered_set<size_t> thread_ids;
-
-    // 2. Var1: -> static_cast<size_t>(0), values.size() [start, stop, step]
-    //    Var2: -> blocked_range with splitter
-    // 3. Use AVX512f (base) & AVX512bw[] (1. zavodish vector s null; cf. __512i vec_val; read vector of values from memory; cast vals to 512<i/w/dw> 
-    //  intrinsic: load from memory v peremennuyu __m512<i/..>, mozhesh ukazatel' na pamyat' privesti na __m512, zatem instrinsicom sravnit' eti
-    //  constantu __m512i, i to, chto v pamyati p
-    //    popcnt -- returns kol-vo edinits/nulej)
-          //{ std::lock_guard lock(mtx);  thread_ids.insert(std::hash<std::thread::id>{}(std::this_thread::get_id())); }
-          // for (auto i = r.begin() * 8; i < r.end() * 8; i += 8) {
-        // char buffer[8*128];
- 
-
-    std::atomic<int64_t> null_count = 0;
-
+    
+    int64_t null_count = 0;
     start = std::chrono::high_resolution_clock::now(); 
 
-    constexpr size_t block_size = 64*1024;
-    threading::parallel_for(
-      static_cast<size_t>(0), unroll_count, block_size, [&](size_t idx) {
-
-        int64_t l_null_count = 0;
-        for (auto i = idx; i < std::min(idx+block_size, unroll_count); i += 8) {
-          uint8_t valid_byte = 0;
-          uint8_t valid;
-          valid = vals[i + 0] != null_val;
-          valid_byte |= valid << 0;
-          l_null_count += !valid;
-          valid = vals[i + 1] != null_val;
-          valid_byte |= valid << 1;
-          l_null_count += !valid;
-          valid = vals[i + 2] != null_val;
-          valid_byte |= valid << 2;
-          l_null_count += !valid;
-          valid = vals[i + 3] != null_val;
-          valid_byte |= valid << 3;
-          l_null_count += !valid;
-          valid = vals[i + 4] != null_val;
-          valid_byte |= valid << 4;
-          l_null_count += !valid;
-          valid = vals[i + 5] != null_val;
-          valid_byte |= valid << 5;
-          l_null_count += !valid;
-          valid = vals[i + 6] != null_val;
-          valid_byte |= valid << 6;
-          l_null_count += !valid;
-          valid = vals[i + 7] != null_val;
-          valid_byte |= valid << 7;
-          l_null_count += !valid;
-          is_valid_data[i >> 3] = valid_byte;
-        }
-
-        null_count += l_null_count;
-      });
-
+    createBitmapParallelFor<null_type_t<C_TYPE>>(
+                                    bitmap,
+                                    null_count,
+                                    vals,
+                                    chunk_rows_count
+                                    );
+ 
     size_t dur2 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now()-start).count(); 
-
-    // v_unique_tids[idx] = thread_ids.size();
-    // { std::lock_guard lock(mtx);  total_unique_ids.insert(std::begin(thread_ids), std::end(thread_ids)); }
-
-    //for (auto tid: thread_ids) {  std::cout << "tid: "<< tid << std::endl;  }
-    if (unroll_count != chunk_rows_count) {
-      uint8_t valid_byte = 0;
-      int64_t l_null_count = 0;
-      for (size_t i = unroll_count; i < chunk_rows_count; ++i) {
-        bool valid = vals[i] != null_val;
-        valid_byte |= valid << (i & 7);
-        l_null_count += !valid;
-      }
-      is_valid_data[unroll_count >> 3] = valid_byte;
-
-      null_count += l_null_count;
-    }
 
     if (!null_count) {
       is_valid.reset();
@@ -427,13 +523,21 @@ void convert_column(ResultSetPtr result,
 
   size_t dur_total = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now()-dur_total_start).count(); 
 
-  size_t total_unique_tids = 0;
-  for (size_t i = 0; i<v_jikosokutei.size();i++) {
-    auto [dur1, dur2, dur3] = v_jikosokutei[i];
-    std::cout << " -- fragment:\t" <<i+1<< ", unique TIDs:\t" <<v_unique_tids[i]<<", alloc. part: "<<dur1<<",\tbitmap loop: "<<dur2<<",\tmake_shared: "<<dur3<<std::endl;
-    total_unique_tids+=v_unique_tids[i];
+  // for (size_t i = 0; i<v_jikosokutei.size();i++) {
+  //   auto [dur1, dur2, dur3] = v_jikosokutei[i];
+  //   std::cout << " -- fragment:\t" <<i+1 << ", alloc. part: "<<dur1<<",\tbitmap loop: "<<dur2<<",\tmake_shared: "<<dur3<<std::endl;
+  // }
+  std::vector<size_t> bitmap_durations;
+  for (auto & [_1, bmp_dur, _2]: v_jikosokutei) {
+    bitmap_durations.push_back(bmp_dur);
   }
-  std::cout << " -- fragments count: " <<values.size()<<",\ttotal unique threads spawned: "<<total_unique_ids.size()<<"("<<total_unique_tids<<")"<<std::endl;
+  std::sort(std::begin(bitmap_durations), std::end(bitmap_durations), std::less<size_t>());
+  size_t median_duration = bitmap_durations[bitmap_durations.size()/2];
+  size_t avg_duration = std::accumulate(std::begin(bitmap_durations), std::end(bitmap_durations), decltype(bitmap_durations)::value_type(0));
+  avg_duration /= bitmap_durations.size();
+
+  std::cout << " -- Median bitmap creation duration, usec:  " << median_duration << std::endl;
+  std::cout << " -- Average bitmap creation duration, usec: " << avg_duration << std::endl;
   out = std::make_shared<arrow::ChunkedArray>(std::move(fragments));
 }
 

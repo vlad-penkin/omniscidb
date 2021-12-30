@@ -237,10 +237,6 @@ void avxbmp::createBitmapParallelFor(std::vector<uint8_t>& bitmap_data,
   size_t unroll_count = chunk_rows_count & 0xFFFFFFFFFFFFFFF8ULL;
 
   std::atomic<int64_t> null_count = 0;
-  // tbb::parallel_for(
-  //   tbb::blocked_range<size_t>(static_cast<size_t>(0), unroll_count / 8),
-  //     [&](auto r) {
-  // for (auto i = r.begin() * 8; i < r.end() * 8; i += 8) {
 
   constexpr size_t block_size = 64 * 1024;
 

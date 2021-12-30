@@ -142,21 +142,15 @@ void buildTable(size_t N = 30'000'000, size_t fragments_count = 1, std::string t
 
     auto schema = arrow::schema({arrow::field("i", arrow::int32())});
     std::shared_ptr<arrow::Table> table = arrow::Table::Make(schema, {array});
-    std::cout << "## buildTable() -- Importing arrow table"<<std::endl;
     g_dbe->importArrowTable(table_name, table, fragment_size);
   }
-
   //  testing for correctness
-  std::cout << "## buildTable() -- testing for correctness: lauching query \"SELECT * FROM " << table_name<< ";\"" <<std::endl;
   auto cursor = g_dbe->executeDML("select * from " + table_name + ";");
   ASSERT_NE(cursor, nullptr);
-  std::cout << "## buildTable() -- testing for correctness: invoking getArrowTable()"<<std::endl;
   auto table = cursor->getArrowTable();
   ASSERT_NE(table, nullptr);
-  std::cout << "## buildTable() -- testing for correctness: checking table sizes."<<std::endl;
   ASSERT_EQ(table->num_columns(), 1);
   ASSERT_EQ(table->num_rows(), (int64_t)N);
-  std::cout << "## buildTable() -- all checks passed"<<std::endl;
 }
 
 static void escape(void *p) {
