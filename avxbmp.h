@@ -314,21 +314,6 @@ void avxbmp::createBitmapParallelForAVX512(std::vector<uint8_t>& bitmap_data,
   // std::mutex mtx;
   std::atomic<int64_t> null_count = 0;
 
-  //  Note: for large sizes of values data it is undesirable
-  //  to use this function in parallel loop as the performance
-  //  drops drastically
-  auto simple_par_processor = [&](size_t idx) {
-    size_t local_null_count = 0;
-    size_t processing_count = min_block_size;
-    uint8_t* bitmap_data_ptr = bitmap_data.data() + idx / 8;
-    const TYPE* values_data_ptr = vals.data() + idx;
-
-    gen_bitmap_avx512<TYPE>(bitmap_data_ptr,
-                            &local_null_count,
-                            const_cast<TYPE*>(values_data_ptr),
-                            processing_count);
-    null_count += local_null_count;
-  };
 
   auto par_processor = [&](size_t idx) {
     size_t local_null_count = 0;
@@ -336,15 +321,6 @@ void avxbmp::createBitmapParallelForAVX512(std::vector<uint8_t>& bitmap_data,
     uint8_t* bitmap_data_ptr = bitmap_data.data() + idx / 8;
     const TYPE* values_data_ptr = vals.data() + idx;
 
-    // {
-    //   std::lock_guard lock(mtx);
-    //   std::cout
-    //     << "Processing range: " << idx << " - " << idx+processing_count
-    //     << ",\tblock size: " << block_size
-    //     << ",\tprocessing_count: " << processing_count
-    //     << std::endl;
-    // }
-
     gen_bitmap_avx512<TYPE>(bitmap_data_ptr,
                             &local_null_count,
                             const_cast<TYPE*>(values_data_ptr),
@@ -352,8 +328,6 @@ void avxbmp::createBitmapParallelForAVX512(std::vector<uint8_t>& bitmap_data,
     null_count += local_null_count;
   };
 
-  // tbb::parallel_for(static_cast<size_t>(0), avx512_processing_count, min_block_size,
-  // simple_par_processor);
   tbb::parallel_for(
       static_cast<size_t>(0), avx512_processing_count, block_size, par_processor);
 

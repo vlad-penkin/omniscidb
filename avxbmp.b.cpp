@@ -7,6 +7,11 @@
 #include <iostream>
 #include <vector>
 
+static size_t find_median(std::vector<size_t> & measurements) {
+  std::sort(std::begin(measurements), std::end(measurements), std::less<size_t>());
+  return measurements[measurements.size() / 2];
+}
+
 template <typename TYPE, typename FUNCTION, typename RESPONDER>
 static void profiler(FUNCTION&& bitmap_creator,
                      RESPONDER&& responder,
@@ -22,28 +27,17 @@ static void profiler(FUNCTION&& bitmap_creator,
   }
 
   //  measuring execution time profiling
-  // auto start = std::chrono::high_resolution_clock::now();
-  // for (size_t i = 0; i < iter_count; i++) {
-  //   std::invoke(bitmap_creator, bitmap_data, null_count, values);
-  // }
-  // size_t dur_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-  //                     std::chrono::high_resolution_clock::now() - start)
-  //                     .count();
-
-  std::vector<size_t> sokutei(iter_count, 0);
+  std::vector<size_t> durations(iter_count, 0);
 
   for (size_t i = 0; i < iter_count; i++) {
     auto start = std::chrono::high_resolution_clock::now();
     std::invoke(bitmap_creator, bitmap_data, null_count, values);
-    sokutei[i] = std::chrono::duration_cast<std::chrono::nanoseconds>(
+    durations[i] = std::chrono::duration_cast<std::chrono::nanoseconds>(
                      std::chrono::high_resolution_clock::now() - start)
                      .count();
   }
-  std::sort(std::begin(sokutei), std::end(sokutei), std::less<size_t>());
 
-  size_t dur_ns = sokutei[iter_count / 2];
-
-  std::invoke(responder, dur_ns);
+  std::invoke(responder, find_median(durations));
 }
 
 template <typename TYPE>
@@ -54,18 +48,16 @@ static void profileAVX512_parallel(size_t size, size_t iter_count = 200) {
     return avxbmp::createBitmapParallelForAVX512<TYPE>(bitmap_data, null_count_out, vals);
   };
 
-  auto responder = [&iter_count, &size](size_t dur_ns) {
-    //    double dur_per_iter = dur_ns / iter_count;
-    double dur_per_iter = dur_ns;
+  auto responder = [&iter_count, &size](size_t dur_per_iter_ns) {
     double throughput_gibs =
-        size * sizeof(TYPE) * 1.0e9 / dur_per_iter / (1024 * 1024 * 1024);
+        size * sizeof(TYPE) * 1.0e9 / dur_per_iter_ns / (1024 * 1024 * 1024);
 
     std::cout << "[AVX512 Parallel];\tSource size: " << std::setw(12) << std::right
               << size << ", type: " << std::setw(8)
               << avxbmp::helpers::get_type_name<TYPE>() << " (" << std::setw(0)
               << sizeof(TYPE) << " byte)"
               << ", elapsed time, usec: " << std::setw(7) << std::setprecision(6)
-              << std::left << dur_per_iter / 1000.0
+              << std::left << dur_per_iter_ns / 1000.0
               << ", throughput, GiB/sec: " << std::setw(8) << std::setprecision(3)
               << std::left << throughput_gibs << std::endl;
   };
@@ -81,18 +73,16 @@ static void profileAVX512_single_thread(size_t size, size_t iter_count = 200) {
     return avxbmp::createBitmapAVX512<TYPE>(bitmap_data, null_count_out, vals);
   };
 
-  auto responder = [&iter_count, &size](size_t dur_ns) {
-    //    double dur_per_iter = dur_ns / iter_count;
-    double dur_per_iter = dur_ns;
+  auto responder = [&iter_count, &size](size_t dur_per_iter_ns) {
     double throughput_gibs =
-        size * sizeof(TYPE) * 1.0e9 / dur_per_iter / (1024 * 1024 * 1024);
+        size * sizeof(TYPE) * 1.0e9 / dur_per_iter_ns / (1024 * 1024 * 1024);
 
     std::cout << "[AVX512 Single Thread];\tSource size: " << std::setw(12) << std::right
               << size << ", type: " << std::setw(8)
               << avxbmp::helpers::get_type_name<TYPE>() << " (" << std::setw(0)
               << sizeof(TYPE) << " byte)"
               << ", elapsed time, usec: " << std::setw(7) << std::setprecision(6)
-              << std::left << dur_per_iter / 1000.0
+              << std::left << dur_per_iter_ns / 1000.0
               << ", throughput, GiB/sec: " << std::setw(8) << std::setprecision(3)
               << std::left << throughput_gibs << std::endl;
   };
@@ -108,18 +98,16 @@ static void profileDefault(size_t size, size_t iter_count = 200) {
     return avxbmp::createBitmap<TYPE>(bitmap_data, null_count_out, vals);
   };
 
-  auto responder = [&iter_count, &size](size_t dur_ns) {
-    //    double dur_per_iter = dur_ns / iter_count;
-    double dur_per_iter = dur_ns;
+  auto responder = [&iter_count, &size](size_t dur_per_iter_ns) {
     double throughput_gibs =
-        size * sizeof(TYPE) * 1.0e9 / dur_per_iter / (1024 * 1024 * 1024);
+        size * sizeof(TYPE) * 1.0e9 / dur_per_iter_ns / (1024 * 1024 * 1024);
 
     std::cout << "[Default];             \tSource size: " << std::setw(12) << std::right
               << size << ", type: " << std::setw(8)
               << avxbmp::helpers::get_type_name<TYPE>() << " (" << std::setw(0)
               << sizeof(TYPE) << " byte)"
               << ", elapsed time, usec: " << std::setw(7) << std::setprecision(6)
-              << std::left << dur_per_iter / 1000.0
+              << std::left << dur_per_iter_ns / 1000.0
               << ", throughput, GiB/sec: " << std::setw(8) << std::setprecision(3)
               << std::left << throughput_gibs << std::endl;
   };
