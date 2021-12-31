@@ -79,7 +79,7 @@ static void testParallelAVX512(const size_t size, bool verbose = false) {
 
   auto nulldata_populator = [](std::vector<TYPE>& nulldata) {
     for (size_t i = 0; i < nulldata.size(); i++) {
-      nulldata[i] = (i % 2) == 0 ? 0 : avxbmp::helpers::null_builder<TYPE>();
+      nulldata[i] = (i % 3) == 0 ? 0 : avxbmp::helpers::null_builder<TYPE>();
     }
     // An alternative method:
     // for (size_t i=0, j=1; i<nulldata.size(); i++, j++) {
@@ -226,16 +226,16 @@ TEST(ParallelAVX512, double) {
 }
 
 TEST(ParallelAVX512, various) {
-  testParallelAVX512<int32_t>(155, false);
   testParallelAVX512<int8_t>(67, false);
   testParallelAVX512<uint8_t>(135, false);
-
-  testParallelAVX512<uint32_t>(300, false);
   testParallelAVX512<uint8_t>(290, false);
-  testParallelAVX512<uint64_t>(1200, false);
+  testParallelAVX512<uint32_t>(300, false);
+  testParallelAVX512<int32_t>(155, false);
 
-  testParallelAVX512<uint32_t>(3000031, false);
+  testParallelAVX512<int64_t>(1435, false);
+  testParallelAVX512<uint64_t>(4217, false);
   testParallelAVX512<double>(3000023, false);
+  testParallelAVX512<float>(300134, false);
 }
 
 int main() try {

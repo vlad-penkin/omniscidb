@@ -16,6 +16,7 @@
 
 //  project headers
 #include "ArrowResultSet.h"
+#include "BitmapGenerators.h"
 #include "Execute.h"
 #include "Shared/ArrowUtil.h"
 #include "Shared/DateConverters.h"
@@ -272,22 +273,6 @@ void convert_column(ResultSetPtr result,
 
 #include<chrono>
 #include<tuple>
-
-extern "C" size_t gen_bitmap_avx512_8(uint8_t* bitmap,
-                                      size_t* null_count,
-                                      uint8_t* data,
-                                      size_t size,
-                                      uint64_t null_val);
-extern "C" size_t gen_bitmap_avx512_32(uint8_t* bitmap,
-                                       size_t* null_count,
-                                       uint32_t* data,
-                                       size_t size,
-                                       uint64_t null_val);
-extern "C" size_t gen_bitmap_avx512_64(uint8_t* bitmap,
-                                       size_t* null_count,
-                                       uint64_t* data,
-                                       size_t size,
-                                       uint64_t null_val);
 
 template <typename TYPE>
 static std::pair<size_t, size_t> compute_adjusted_sizes(size_t size) {

@@ -9,13 +9,13 @@ LDDFLAGS:=\
 
 all:	avxbmp.b avxbmp.t
 
-avxbmp.b:	avx_gen_bitmap.o avxbmp.b.o avxbmp.o avxbmp_intr.o
+avxbmp.b:	avx_gen_bitmap.o avxbmp.o avxbmp_intr.o avxbmp.b.o 
 	@echo "Building:\t$^ -> $@"
 	@$(CXX) $^ $(LDDFLAGS) -ltbb -o $@
 
-avxbmp.t:	avx_gen_bitmap.o avxbmp.t.o avxbmp.o avxbmp_intr.o
+avxbmp.t:	avx_gen_bitmap.o avxbmp.o avxbmp_intr.o avxbmp.t.o 
 	@echo "Building:\t$^ -> $@"
-	@$(CXX) $^ $(LDDFLAGS) -ltbb -lgtest -lpthread -o $@
+	$(CXX) $^ $(LDDFLAGS) -ltbb -lgtest -lpthread -o $@
 
 intr: avxbmp_intr.cpp
 	$(CXX) -O3 -S $^ 

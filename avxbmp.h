@@ -22,9 +22,6 @@
 // #include <xmmintrin.h>
 
 //  =====================================================================
-//  TODO:
-//    4. If all goes well, convert to intrinsics
-//    5. Implement Bitmap creation for AVX2 (tentative)
 //  FINISHED:
 //    1. Finish createBitmapAVX512 to hangle odd (not divisible by 64 as
 //    length of raw data) arrays -- DONE, 2021.12.27
@@ -32,6 +29,8 @@
 //    3. Optimize performance createBitmapParallelForAVX512() for the size
 //    of the block range in the parallel for -- DONE, 2021.12.28 (using
 //    heuristic).
+//    4. If all goes well, convert to intrinsics  -- DONE, 2021.12.29
+//    5. Implement Bitmap creation for AVX2 (tentative) -- NOT NEEDED
 //  =====================================================================
 
 //  External dependences (implemented in .S file)
@@ -50,21 +49,23 @@ extern "C" size_t gen_bitmap_avx512_64(uint8_t* bitmap,
                                        uint64_t* data,
                                        size_t size,
                                        uint64_t null_val);
-extern "C" size_t gen_bitmap_avx512_8_intr(uint8_t* bitmap,
-                                           size_t* null_count_out,
-                                           uint8_t* data,
-                                           size_t size,
-                                           uint64_t null_val);
-extern "C" size_t gen_bitmap_avx512_32_intr(uint8_t* bitmap,
-                                            size_t* null_count,
-                                            uint32_t* data,
-                                            size_t size,
-                                            uint64_t null_val);
-extern "C" size_t gen_bitmap_avx512_64_intr(uint8_t* bitmap,
-                                            size_t* null_count,
-                                            uint64_t* data,
-                                            size_t size,
-                                            uint64_t null_val);
+
+//  External dependences, intrinsics implementation (in .cpp file)
+size_t gen_bitmap_avx512_8_intr(uint8_t* bitmap,
+                                size_t* null_count_out,
+                                uint8_t* data,
+                                size_t size,
+                                uint64_t null_val);
+size_t gen_bitmap_avx512_32_intr(uint8_t* bitmap,
+                                 size_t* null_count,
+                                 uint32_t* data,
+                                 size_t size,
+                                 uint64_t null_val);
+size_t gen_bitmap_avx512_64_intr(uint8_t* bitmap,
+                                 size_t* null_count,
+                                 uint64_t* data,
+                                 size_t size,
+                                 uint64_t null_val);
 
 namespace avxbmp {
 template <typename TYPE>
