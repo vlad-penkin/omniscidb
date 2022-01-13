@@ -2613,7 +2613,6 @@ FetchResult Executor::fetchChunks(
     const bool allow_runtime_interrupt) {
   auto timer = DEBUG_TIMER(__func__);
   INJECT_TIMER(fetchChunks);
-  auto step_timer = STEP_TIMER("DataFetching");
 
   const auto& col_global_ids = ra_exe_unit.input_col_descs;
   std::vector<std::vector<size_t>> selected_fragments_crossjoin;
