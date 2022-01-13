@@ -31,6 +31,7 @@ add_executable(CachingFileMgrTest CachingFileMgrTest.cpp)
 add_executable(JSONTest JSONTest.cpp)
 add_executable(DataRecyclerTest DataRecyclerTest.cpp)
 add_executable(DataMgrTest DataMgrTest.cpp)
+add_executable(ParallelSortTest ParallelSortTest.cpp)
 
 if(ENABLE_CUDA)
   message(DEBUG "Tests CUDA_COMPILATION_ARCH: ${CUDA_COMPILATION_ARCH}")
@@ -190,6 +191,7 @@ target_link_libraries(LoadTableTest ${THRIFT_HANDLER_TEST_LIBRARIES})
 target_link_libraries(DataRecyclerTest ${THRIFT_HANDLER_TEST_LIBRARIES})
 target_link_libraries(JSONTest gtest Logger Shared)
 target_link_libraries(DataMgrTest DataMgr ${THRIFT_HANDLER_TEST_LIBRARIES})
+target_link_libraries(ParallelSortTest ${EXECUTE_TEST_LIBS} ${THRIFT_HANDLER_TEST_LIBRARIES})
 
 
 if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
@@ -222,6 +224,7 @@ add_test(AlterTableDdlTest AlterTableDdlTest ${TEST_ARGS})
 add_test(UtilTest UtilTest ${TEST_ARGS})
 add_test(ExecuteTest ExecuteTest ${TEST_ARGS})
 add_test(NAME ExecuteTestTemporaryTables COMMAND ExecuteTest ${TEST_ARGS} "--use-temporary-tables")
+add_test(NAME ExecuteTestColumnarOutput COMMAND ExecuteTest ${TEST_ARGS} "--enable-columnar-output")
 add_test(GeospatialTest GeospatialTest ${TEST_ARGS})
 add_test(CodeGeneratorTest CodeGeneratorTest ${TEST_ARGS})
 add_test(ResultSetTest ResultSetTest ${TEST_ARGS})
@@ -282,6 +285,7 @@ add_test(DataRecyclerTest DataRecyclerTest ${TEST_ARGS})
 add_test(LoadTableTest LoadTableTest ${TEST_ARGS})
 add_test(JSONTest JSONTest ${TEST_ARGS})
 add_test(DataMgrTest DataMgrTest ${TEST_ARGS})
+add_test(ParallelSortTest ParallelSortTest ${TEST_ARGS})
 
 if(ENABLE_CUDA)
   add_test(GpuSharedMemoryTest GpuSharedMemoryTest ${TEST_ARGS})
@@ -380,6 +384,7 @@ set(TEST_PROGRAMS
   LoadTableTest
   JSONTest
   DataMgrTest
+  ParallelSortTest
 )
 
 if(ENABLE_CUDA)
@@ -400,6 +405,7 @@ endif()
 set(SANITY_TESTS ${TEST_PROGRAMS})
 list(APPEND SANITY_TESTS ExecuteTestTemporaryTables)
 list(APPEND SANITY_TESTS StringDictionaryHashTest)
+list(APPEND SANITY_TESTS ExecuteTestColumnarOutput)
 
 set_tests_properties(${SANITY_TESTS} PROPERTIES LABELS "sanity")
 
