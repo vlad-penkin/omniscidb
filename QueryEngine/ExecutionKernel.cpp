@@ -195,6 +195,7 @@ void ExecutionKernel::runImpl(Executor* executor,
     QueryFragmentDescriptor::computeAllTablesFragments(
         all_tables_fragments, ra_exe_unit_, shared_context.getQueryInfos());
 
+    auto step_timer = STEP_TIMER("DataFetching");
     *fetch_result = ra_exe_unit_.union_all
                         ? executor->fetchUnionChunks(column_fetcher,
                                                      ra_exe_unit_,
