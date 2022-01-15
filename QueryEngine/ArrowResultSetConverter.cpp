@@ -281,21 +281,11 @@ static std::pair<size_t, size_t> compute_adjusted_sizes(size_t size) {
   return {rounded_size_bytes / sizeof(TYPE), rem_size_bytes / sizeof(TYPE)};
 }
 
-template <typename TYPE>
-static constexpr TYPE null_builder() {
-  static_assert(std::is_floating_point_v<TYPE> || std::is_integral_v<TYPE>,
-                "Unsupported type");
-
-  if constexpr (std::is_floating_point_v<TYPE>) {
-    return inline_fp_null_value<TYPE>();
-  } else if constexpr (std::is_integral_v<TYPE>) {
-    return inline_int_null_value<TYPE>();
-  }
-}
 
 template <typename TYPE>
 size_t gen_bitmap(uint8_t* bitmap, const TYPE* data, size_t size) {
-  TYPE nullval = null_builder<TYPE>();
+  TYPE nullval = inline_null_value<TYPE>();
+
   if constexpr (sizeof(TYPE) == 1) {
     return gen_null_bitmap_8(bitmap,
                              reinterpret_cast<const uint8_t*>(data),
@@ -356,7 +346,8 @@ void create_bitmap_parallel_for_avx512(uint8_t* bitmap_data,
       br_par_processor);
 
   if (cpu_processing_count > 0) {
-    TYPE null_val = null_builder<TYPE>();
+    TYPE null_val = inline_null_value<TYPE>();
+
     uint8_t valid_byte = 0;
     size_t remaining_bits = 0;
     int64_t cpus_null_count = 0;
