@@ -241,7 +241,8 @@ int main(int argc, char** argv) {
 
   logger::init(log_options);
 
-  engine = DBEngine::create("--data " + std::string(BASE_PATH));
+  const auto opts = std::string("--data") + std::string(BASE_PATH);
+  engine = DBEngine::create(opts.c_str());
 
   int err{0};
 

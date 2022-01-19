@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
     if (columnar_output) {
       opt_str += "--columnar-output";
     }
-    auto dbe = DBEngine::create(opt_str);
+    auto dbe = DBEngine::create(opt_str.c_str());
     if (dbe) {
       dbe->executeDDL(std::string(R"(
 CREATE TEMPORARY TABLE test (

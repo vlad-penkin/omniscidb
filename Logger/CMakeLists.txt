@@ -7,3 +7,5 @@ target_link_libraries(Logger ${Boost_LIBRARIES})
 if(ENABLE_NVTX)
   target_link_libraries(Logger Shared ${CMAKE_DL_LIBS})
 endif()
+
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Logger.h DESTINATION ${CMAKE_BINARY_DIR}/Logger/)

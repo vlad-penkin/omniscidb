@@ -32,3 +32,7 @@ endif()
 add_definitions("-DTHRIFT_PACKAGE_VERSION=\"${Thrift_VERSION}\"")
 add_library(ThriftClient ThriftClient.cpp "cleanup_global_namespace.h" "boost_stacktrace.hpp")
 target_link_libraries(ThriftClient  ${Thrift_LIBRARIES} ${Boost_LIBRARIES})
+
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/sqltypes.h DESTINATION ${CMAKE_BINARY_DIR}/Shared/)
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/StringTransform.h DESTINATION ${CMAKE_BINARY_DIR}/Shared/)
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/InlineNullValues.h DESTINATION ${CMAKE_BINARY_DIR}/Shared/)

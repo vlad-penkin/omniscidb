@@ -281,9 +281,9 @@ TEST(DBEngine, ImportArrowTable) {
 
 TEST(DBEngine, SelectBool) {
   GTEST_SKIP();  //  `DBEngine::importArrowTable()' incorrectly imports bools so until
-                 //  that is fixed, this test will fail. Remove GTEST_SKIP(); after that 
+                 //  that is fixed, this test will fail. Remove GTEST_SKIP(); after that
                  //  bug is fixed.
-                 //  Cf: https://github.com/intel-ai/omniscidb/issues/218#issue-1070805451 
+                 //  Cf: https://github.com/intel-ai/omniscidb/issues/218#issue-1070805451
   auto cursor = g_dbe->executeDML("SELECT * FROM join_table;");
   ASSERT_NE(cursor, nullptr);
   auto table = cursor->getArrowTable();
@@ -486,7 +486,7 @@ int main(int argc, char* argv[]) try {
   check_file_existence(NULLSTABLE6x4_CSV_FILE);
   check_file_existence(JOIN_TABLE_CSV_FILE);
 
-  g_dbe = EmbeddedDatabase::DBEngine::create(options_str);
+  g_dbe = EmbeddedDatabase::DBEngine::create(options_str.c_str());
 
   load_table6x4_csv(TABLE6x4_CSV_FILE, "test", /*fragment_size=*/0);
   load_table6x4_csv(TABLE6x4_CSV_FILE, "test_chunked", /*fragment_size=*/4);

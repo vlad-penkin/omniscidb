@@ -447,10 +447,15 @@ namespace {
 std::mutex engine_create_mutex;
 }
 
-std::shared_ptr<DBEngine> DBEngine::create(const std::string& cmd_line) {
+std::shared_ptr<DBEngine> DBEngine::create(const char* cmd_line) {
+  std::cout << "Creating new DB Engine!" << std::endl;
+
   const std::lock_guard<std::mutex> lock(engine_create_mutex);
   auto engine = std::make_shared<DBEngineImpl>();
-  if (!engine->init(cmd_line)) {
+  std::string cmd_line_str;
+  cmd_line_str += cmd_line;
+  const auto cmd_line_str = std::string(cmd_line);
+  if (!engine->init(cmd_line_str)) {
     throw std::runtime_error("DBE initialization failed");
   }
   return engine;

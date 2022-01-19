@@ -1,6 +1,12 @@
 add_library(DBEngine SHARED DBETypes.cpp DBEngine.cpp DBEngine.h DBETypes.h)
 
 target_link_libraries(DBEngine mapd_thrift thrift_handler Catalog QueryState Parser QueryEngine DataMgr ${Arrow_LIBRARIES} ${Boost_LIBRARIES} ${CMAKE_DL_LIBS} ${TBB_LIBS} Geospatial)
+
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/DBWrapper.h DESTINATION ${CMAKE_BINARY_DIR}/)
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/DBEngine.h DESTINATION ${CMAKE_BINARY_DIR}/Embedded/)
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/DBETypes.h DESTINATION ${CMAKE_BINARY_DIR}/Embedded/)
+
+
 install(TARGETS DBEngine DESTINATION "lib" COMPONENT "DBE")
 install(FILES DBEngine.h DBETypes.h DESTINATION "Embedded" COMPONENT "include")
 install(FILES Python/DBEngine.pxd DESTINATION "Embedded" COMPONENT "include")

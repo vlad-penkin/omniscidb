@@ -403,3 +403,5 @@ add_custom_target(QueryEngineCudaTargets
 
 add_executable(group_by_hash_test ${group_by_hash_test_files})
 target_link_libraries(group_by_hash_test gtest Logger Shared ${Boost_LIBRARIES} ${PROFILER_LIBS})
+
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/TargetValue.h DESTINATION ${CMAKE_BINARY_DIR}/QueryEngine/)

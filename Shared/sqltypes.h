@@ -23,8 +23,8 @@
 #pragma once
 
 #include "../Logger/Logger.h"
-#include "StringTransform.h"
-#include "funcannotations.h"
+#include "Shared/StringTransform.h"
+#include "Shared/funcannotations.h"
 
 #include <cassert>
 #include <cfloat>
