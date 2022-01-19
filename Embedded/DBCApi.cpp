@@ -21,4 +21,29 @@ void* create_db_engine(const char* cmd_line) {
   }
   return nullptr;
 }
+
+void destroy_db_engine(void* db_engine) {
+  if (g_db_engine.get() != db_engine) {
+    std::cerr << "DBEngine pointer does not match stored instance!" << std::endl;
+  }
+  g_db_engine.reset();
+}
+
+void execute_ddl(const char* query) {
+  if (!g_db_engine) {
+    std::cerr << "DBEngine does not exist!" << std::endl;
+    return;
+  }
+
+  g_db_engine->executeDDL(std::string(query));
+}
+
+void execute_dml(const char* query) {
+  if (!g_db_engine) {
+    std::cerr << "DBEngine does not exist!" << std::endl;
+    return;
+  }
+
+  g_db_engine->executeDML(std::string(query));
+}
 }

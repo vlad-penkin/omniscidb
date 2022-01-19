@@ -448,13 +448,9 @@ std::mutex engine_create_mutex;
 }
 
 std::shared_ptr<DBEngine> DBEngine::create(const char* cmd_line) {
-  std::cout << "Creating new DB Engine!" << std::endl;
-
   const std::lock_guard<std::mutex> lock(engine_create_mutex);
   auto engine = std::make_shared<DBEngineImpl>();
-  std::string cmd_line_str;
-  cmd_line_str += cmd_line;
-  if (!engine->init(cmd_line_str)) {
+  if (!engine->init(std::string(cmd_line))) {
     throw std::runtime_error("DBE initialization failed");
   }
   return engine;
