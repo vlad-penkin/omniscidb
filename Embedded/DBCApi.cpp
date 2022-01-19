@@ -3,6 +3,8 @@
 
 #include <iostream>
 
+using namespace EmbeddedDatabase;
+
 extern "C" {
 
 static std::shared_ptr<EmbeddedDatabase::DBEngine> g_db_engine;
@@ -38,12 +40,17 @@ void execute_ddl(const char* query) {
   g_db_engine->executeDDL(std::string(query));
 }
 
-void execute_dml(const char* query) {
+// TODO: deleter API, though this will delete everything on shutdown
+static std::unordered_map<Cursor*, std::shared_ptr<Cursor>> g_cursors;
+
+Cursor* execute_dml(const char* query) {
   if (!g_db_engine) {
     std::cerr << "DBEngine does not exist!" << std::endl;
-    return;
+    return nullptr;
   }
 
-  g_db_engine->executeDML(std::string(query));
+  auto cursor = g_db_engine->executeDML(std::string(query));
+  CHECK(g_cursors.insert(std::make_pair(cursor.get(), cursor)).second);
+  return cursor.get();
 }
 }

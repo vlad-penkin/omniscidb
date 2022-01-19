@@ -1,4 +1,8 @@
 
+#include "Embedded/DBETypes.h"
+#include "Embedded/DBEngine.h"
+
+namespace EmbeddedDatabase {
 
 extern "C" {
 
@@ -8,5 +12,7 @@ void destroy_db_engine(void* db_engine);
 
 void execute_ddl(const char* query);
 
-void execute_dml(const char* query);
+EmbeddedDatabase::Cursor* execute_dml(const char* query);
 }
+
+}  // namespace EmbeddedDatabase
