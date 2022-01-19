@@ -454,7 +454,6 @@ std::shared_ptr<DBEngine> DBEngine::create(const char* cmd_line) {
   auto engine = std::make_shared<DBEngineImpl>();
   std::string cmd_line_str;
   cmd_line_str += cmd_line;
-  const auto cmd_line_str = std::string(cmd_line);
   if (!engine->init(cmd_line_str)) {
     throw std::runtime_error("DBE initialization failed");
   }

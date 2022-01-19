@@ -1,2 +1,6 @@
-#include "Embedded/DBETypes.h"
-#include "Embedded/DBEngine.h"
+
+
+extern "C" {
+
+void* create_db_engine(const char* cmd_line);
+}

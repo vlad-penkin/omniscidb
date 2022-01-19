@@ -1,4 +1,4 @@
-add_library(DBEngine SHARED DBETypes.cpp DBEngine.cpp DBEngine.h DBETypes.h)
+add_library(DBEngine SHARED DBETypes.cpp DBEngine.cpp DBCApi.cpp DBEngine.h DBETypes.h DBWrapper.h)
 
 target_link_libraries(DBEngine mapd_thrift thrift_handler Catalog QueryState Parser QueryEngine DataMgr ${Arrow_LIBRARIES} ${Boost_LIBRARIES} ${CMAKE_DL_LIBS} ${TBB_LIBS} Geospatial)
 
