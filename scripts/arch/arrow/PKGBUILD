@@ -1,13 +1,15 @@
 # Maintainer: Guillaume Horel <guillaume.horel@gmail.com>
 
 pkgname='arrow'
-pkgver=4.0.1
+pkgver=6.0.1
 pkgrel=10
-pkgdesc="A columnar in-memory analytics layer for big data."
+pkgdesc="Columnar in-memory analytics layer for big data."
 arch=('x86_64')
 url="https://arrow.apache.org"
 license=('Apache')
-depends=('boost-libs' 'double-conversion' 'c-ares' 'gflags' 'google-glog' 'libutf8proc' 'lz4' 'protobuf' 'rapidjson' 'thrift' 'uriparser' 'zstd')
+depends=('boost-libs' 'brotli' 'bzip2' 'double-conversion' 'c-ares' 'gflags' 'grpc'
+         'google-glog' 'jemalloc' 'libutf8proc' 'lz4' 'openssl' 'protobuf' 'rapidjson' 'snappy'
+         'thrift' 'uriparser' 'xsimd' 'zlib' 'zstd')
 checkdepends=('git')
 optdepends=()
 provides=('parquet-cpp')
@@ -43,7 +45,7 @@ build(){
                                       -DARROW_PROTOBUF_USE_SHARED=ON \
                                       -DARROW_GFLAGS_USE_SHARED=ON \
                                       -DARROW_USE_GLOG=ON \
-                                      -DARROW_WITH_ZSTD=BUNDLED \
+                                      -DARROW_WITH_ZSTD=OFF \
                                       -DARROW_WITH_SNAPPY=BUNDLED \
                                       -DARROW_WITH_BROTLI=BUNDLED \
                                       -DARROW_WITH_ZLIB=BUNDLED \
