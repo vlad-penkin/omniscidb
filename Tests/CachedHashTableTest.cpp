@@ -17,6 +17,7 @@
 #include "Catalog/Catalog.h"
 #include "Logger/Logger.h"
 #include "QueryEngine/Execute.h"
+#include "QueryEngine/JoinHashTable/PerfectHashTable.h"
 #include "QueryEngine/MurmurHash1Inl.h"
 #include "QueryEngine/ResultSet.h"
 #include "QueryRunner/QueryRunner.h"
