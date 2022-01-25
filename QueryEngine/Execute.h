@@ -50,6 +50,7 @@
 #include "QueryEngine/GpuSharedMemoryContext.h"
 #include "QueryEngine/GroupByAndAggregate.h"
 #include "QueryEngine/JoinHashTable/HashJoin.h"
+#include "QueryEngine/Kernel.h"
 #include "QueryEngine/LoopControlFlow/JoinLoop.h"
 #include "QueryEngine/NvidiaKernel.h"
 #include "QueryEngine/PlanState.h"
@@ -75,7 +76,11 @@
 #include "StringDictionary/StringDictionaryProxy.h"
 #include "ThriftHandler/CommandLineOptions.h"
 
+#ifdef USE_LEGACY_KERNELS
 using ExecutionKernel = LegacyExecutionKernel;
+#else
+using ExecutionKernel = Kernel;
+#endif
 
 using QueryCompilationDescriptorOwned = std::unique_ptr<QueryCompilationDescriptor>;
 class QueryMemoryDescriptor;
