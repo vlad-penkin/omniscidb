@@ -70,19 +70,19 @@ class SharedKernelContext {
 #endif  // HAVE_TBB
 };
 
-class ExecutionKernel {
+class LegacyExecutionKernel {
  public:
-  ExecutionKernel(const RelAlgExecutionUnit& ra_exe_unit,
-                  const ExecutorDeviceType chosen_device_type,
-                  int chosen_device_id,
-                  const ExecutionOptions& eo,
-                  const ColumnFetcher& column_fetcher,
-                  const QueryCompilationDescriptor& query_comp_desc,
-                  const QueryMemoryDescriptor& query_mem_desc,
-                  const FragmentsList& frag_list,
-                  const ExecutorDispatchMode kernel_dispatch_mode,
-                  RenderInfo* render_info,
-                  const int64_t rowid_lookup_key)
+  LegacyExecutionKernel(const RelAlgExecutionUnit& ra_exe_unit,
+                        const ExecutorDeviceType chosen_device_type,
+                        int chosen_device_id,
+                        const ExecutionOptions& eo,
+                        const ColumnFetcher& column_fetcher,
+                        const QueryCompilationDescriptor& query_comp_desc,
+                        const QueryMemoryDescriptor& query_mem_desc,
+                        const FragmentsList& frag_list,
+                        const ExecutorDispatchMode kernel_dispatch_mode,
+                        RenderInfo* render_info,
+                        const int64_t rowid_lookup_key)
       : ra_exe_unit_(ra_exe_unit)
       , chosen_device_type(chosen_device_type)
       , chosen_device_id(chosen_device_id)
@@ -125,7 +125,7 @@ class ExecutionKernel {
 #ifdef HAVE_TBB
 class KernelSubtask {
  public:
-  KernelSubtask(ExecutionKernel& k,
+  KernelSubtask(LegacyExecutionKernel& k,
                 SharedKernelContext& shared_context,
                 std::shared_ptr<FetchResult> fetch_result,
                 std::shared_ptr<std::list<ChunkIter>> chunk_iterators,
@@ -147,7 +147,7 @@ class KernelSubtask {
  private:
   void runImpl(Executor* executor);
 
-  ExecutionKernel& kernel_;
+  LegacyExecutionKernel& kernel_;
   SharedKernelContext& shared_context_;
   std::shared_ptr<FetchResult> fetch_result_;
   std::shared_ptr<std::list<ChunkIter>> chunk_iterators_;

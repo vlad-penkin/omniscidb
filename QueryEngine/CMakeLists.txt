@@ -67,6 +67,7 @@ set(query_engine_source_files
     JoinHashTable/PerfectJoinHashTable.cpp
     JoinHashTable/Runtime/HashJoinRuntime.cpp
     JoinHashTable/RangeJoinHashTable.cpp
+    Kernel.cpp
     LogicalIR.cpp
     LLVMFunctionAttributesUtil.cpp
     LLVMGlobalContext.cpp

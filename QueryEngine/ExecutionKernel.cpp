@@ -120,10 +120,10 @@ SharedKernelContext::getFragmentResults() {
   return all_fragment_results_;
 }
 
-void ExecutionKernel::run(Executor* executor,
-                          const size_t thread_idx,
-                          SharedKernelContext& shared_context) {
-  DEBUG_TIMER("ExecutionKernel::run");
+void LegacyExecutionKernel::run(Executor* executor,
+                                const size_t thread_idx,
+                                SharedKernelContext& shared_context) {
+  DEBUG_TIMER("LegacyExecutionKernel::run");
   INJECT_TIMER(kernel_run);
   std::optional<logger::QidScopeGuard> qid_scope_guard;
   if (ra_exe_unit_.query_state) {
@@ -155,9 +155,9 @@ void ExecutionKernel::run(Executor* executor,
   }
 }
 
-void ExecutionKernel::runImpl(Executor* executor,
-                              const size_t thread_idx,
-                              SharedKernelContext& shared_context) {
+void LegacyExecutionKernel::runImpl(Executor* executor,
+                                    const size_t thread_idx,
+                                    SharedKernelContext& shared_context) {
   CHECK(executor);
   const auto memory_level = chosen_device_type == ExecutorDeviceType::GPU
                                 ? Data_Namespace::GPU_LEVEL

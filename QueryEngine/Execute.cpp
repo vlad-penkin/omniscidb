@@ -52,6 +52,7 @@
 #include "QueryEngine/JoinHashTable/BaselineJoinHashTable.h"
 #include "QueryEngine/JoinHashTable/OverlapsJoinHashTable.h"
 #include "QueryEngine/JsonAccessors.h"
+#include "QueryEngine/Kernel.h"
 #include "QueryEngine/OutputBufferInitialization.h"
 #include "QueryEngine/QueryDispatchQueue.h"
 #include "QueryEngine/QueryRewrite.h"

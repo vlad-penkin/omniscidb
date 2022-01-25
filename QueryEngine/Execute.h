@@ -75,6 +75,8 @@
 #include "StringDictionary/StringDictionaryProxy.h"
 #include "ThriftHandler/CommandLineOptions.h"
 
+using ExecutionKernel = LegacyExecutionKernel;
+
 using QueryCompilationDescriptorOwned = std::unique_ptr<QueryCompilationDescriptor>;
 class QueryMemoryDescriptor;
 using QueryMemoryDescriptorOwned = std::unique_ptr<QueryMemoryDescriptor>;
@@ -1157,7 +1159,7 @@ class Executor {
   friend class CodeGenerator;
   friend class ColumnFetcher;
   friend struct DiamondCodegen;  // cgen_state_
-  friend class ExecutionKernel;
+  friend class LegacyExecutionKernel;
   friend class KernelSubtask;
   friend class HashJoin;  // cgen_state_
   friend class OverlapsJoinHashTable;
