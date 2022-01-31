@@ -366,6 +366,19 @@ class QueryCompilationDescriptor;
 
 std::ostream& operator<<(std::ostream&, FetchResult const&);
 
+struct StreamExecutionContext {
+  std::unique_ptr<QueryCompilationDescriptor> query_comp_desc;
+  std::unique_ptr<QueryMemoryDescriptor> query_mem_desc;
+  std::unique_ptr<ColumnCacheMap> column_cache;
+  std::unique_ptr<ColumnFetcher> column_fetcher;
+  RelAlgExecutionUnit ra_exe_unit;
+  CompilationOptions co;
+  ExecutionOptions eo;
+  std::unique_ptr<SharedKernelContext> shared_context;
+
+  StreamExecutionContext(RelAlgExecutionUnit ra_exe_unit) : ra_exe_unit(ra_exe_unit) {}
+};
+
 class Executor {
   static_assert(sizeof(float) == 4 && sizeof(double) == 8,
                 "Host hardware not supported, unexpected size of float / double.");
@@ -404,7 +417,8 @@ class Executor {
   static void addUdfIrToModule(const std::string& udf_ir_filename, const bool is_cuda_ir);
 
   /**
-   * Returns pointer to the intermediate tables vector currently stored by this executor.
+   * Returns pointer to the intermediate tables vector currently stored by this
+   * executor.
    */
   const TemporaryTables* getTemporaryTables() const;
 
@@ -568,8 +582,8 @@ class Executor {
 
   /**
    * @brief Compiles and dispatches a table function; that is, a function that takes as
-   * input one or more columns and returns a ResultSet, which can be parsed by subsequent
-   * execution steps
+   * input one or more columns and returns a ResultSet, which can be parsed by
+   * subsequent execution steps
    */
   ResultSetPtr executeTableFunction(const TableFunctionExecutionUnit exe_unit,
                                     const std::vector<InputTableInfo>& table_infos,
@@ -777,6 +791,18 @@ class Executor {
                                      const bool has_cardinality_estimation,
                                      ColumnCacheMap& column_cache);
 
+  std::shared_ptr<StreamExecutionContext> prepareStreamingExecution(
+      const RelAlgExecutionUnit& ra_exe_unit,
+      const CompilationOptions& co,
+      const ExecutionOptions& eo,
+      const std::vector<InputTableInfo>& table_infos,
+      ColumnCacheMap& column_cache);
+
+  ResultSetPtr runOnBatch(std::shared_ptr<StreamExecutionContext> ctx,
+                          const FragmentsList& fragments);
+
+  ResultSetPtr finishBatchExecution(std::shared_ptr<StreamExecutionContext> ctx);
+
   std::vector<llvm::Value*> inlineHoistedLiterals();
 
   std::tuple<CompilationResult, std::unique_ptr<QueryMemoryDescriptor>> compileWorkUnit(
@@ -797,9 +823,9 @@ class Executor {
                                        const ExecutionOptions& eo,
                                        const std::vector<InputTableInfo>& query_infos,
                                        ColumnCacheMap& column_cache);
-  // Create a callback which hoists left hand side filters above the join for left joins,
-  // eliminating extra computation of the probe and matches if the row does not pass the
-  // filters
+  // Create a callback which hoists left hand side filters above the join for left
+  // joins, eliminating extra computation of the probe and matches if the row does not
+  // pass the filters
   JoinLoop::HoistedFiltersCallback buildHoistLeftHandSideFiltersCb(
       const RelAlgExecutionUnit& ra_exe_unit,
       const size_t level_idx,
@@ -1087,8 +1113,8 @@ class Executor {
   static QuerySessionMap queries_session_map_;
   static std::map<int, std::shared_ptr<Executor>> executors_;
 
-  // SQL queries take a shared lock, exclusive options (cache clear, memory clear) take a
-  // write lock
+  // SQL queries take a shared lock, exclusive options (cache clear, memory clear) take
+  // a write lock
   static mapd_shared_mutex execute_mutex_;
 
   struct ExecutorMutexHolder {

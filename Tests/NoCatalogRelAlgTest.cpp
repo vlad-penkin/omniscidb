@@ -238,6 +238,172 @@ TEST_F(NoCatalogRelAlgTest, InnerJoin) {
                    std::vector<double>({110.1, 120.2, 130.3, 140.4, 150.5}));
 }
 
+TEST_F(NoCatalogRelAlgTest, StreamingAggregate) {
+  auto ra = R"""(
+{
+  "rels": [
+    {
+      "id": "0",
+      "relOp": "EnumerableTableScan",
+      "table": [
+        "omnisci",
+        "test_agg"
+      ],
+      "fieldNames": [
+        "id",
+        "val",
+        "rowid"
+      ],
+      "inputs": []
+    },
+    {
+      "id": "1",
+      "relOp": "LogicalProject",
+      "fields": [
+        "val"
+      ],
+      "exprs": [
+        {
+          "input": 1 
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "relOp": "LogicalAggregate",
+      "fields": [
+        "sum"
+      ],
+      "group":[],
+      "aggs": [
+        {
+          "agg": "SUM",
+          "distinct" : false,
+          "operands": [0],
+          "type": {
+            "type": "BIGINT",
+            "nullable": true
+          }
+        }
+      ]
+    }
+  ]
+})""";
+
+  auto dag =
+      std::make_unique<RelAlgDagBuilder>(ra, TEST_DB_ID, schema_provider_, nullptr);
+  if (executor_.get() == nullptr) {
+    std::cout << "** Error ** -- executor_ is nulltpr. Aborting." << std::endl;
+    std::abort();
+  }
+
+  auto ra_executor =
+      RelAlgExecutor(executor_.get(), TEST_DB_ID, schema_provider_, std::move(dag));
+
+  ra_executor.prepareStreamingExecution(CompilationOptions(), ExecutionOptions());
+
+  (void)ra_executor.runOnBatch({3, {0}});
+  (void)ra_executor.runOnBatch({3, {1}});
+
+  auto rs = ra_executor.finishStreamingExecution();
+
+  std::vector<std::string> col_names;
+  col_names.push_back("sum");
+  auto converter = std::make_unique<ArrowResultSetConverter>(rs, col_names, -1);
+  auto at = converter->convertToArrowTable();
+
+  TestHelpers::compare_arrow_table(at, std::vector<int64_t>{410});
+}
+
+TEST_F(NoCatalogRelAlgTest, StreamingFilter) {
+  GTEST_SKIP();
+  auto ra = R"""(
+{
+  "rels": [
+    {
+      "id": "0",
+      "relOp": "LogicalTableScan",
+      "fieldNames": [
+        "id",
+        "val",
+        "rowid"
+      ],
+      "table": [
+        "omnisci",
+        "test_agg"
+      ],
+      "inputs": []
+    },
+    {
+      "id": "1",
+      "relOp": "LogicalFilter",
+      "condition": {
+        "op": ">",
+        "operands": [
+          {
+            "input": 1
+          },
+          {
+            "literal": 20,
+            "type": "DECIMAL",
+            "target_type": "INTEGER",
+            "scale": 0,
+            "precision": 1,
+            "type_scale": 0,
+            "type_precision": 10
+          }
+        ],
+        "type": {
+          "type": "BOOLEAN",
+          "nullable": true
+        }
+      }
+    },
+    {
+      "id": "2",
+      "relOp": "LogicalProject",
+      "fields": [
+        "res"
+      ],
+      "exprs": [
+        {
+          "input": 1
+        }
+      ]
+    }
+  ]
+})""";
+
+  auto dag =
+      std::make_unique<RelAlgDagBuilder>(ra, TEST_DB_ID, schema_provider_, nullptr);
+  if (executor_.get() == nullptr) {
+    std::cout << "** Error ** -- executor_ is nulltpr. Aborting." << std::endl;
+    std::abort();
+  }
+
+  auto ra_executor =
+      RelAlgExecutor(executor_.get(), TEST_DB_ID, schema_provider_, std::move(dag));
+
+  ra_executor.prepareStreamingExecution(CompilationOptions(), ExecutionOptions());
+
+  std::vector<std::string> col_names;
+  col_names.push_back("res");
+
+  auto rs = ra_executor.runOnBatch({3, {0}});
+
+  auto converter = std::make_unique<ArrowResultSetConverter>(rs, col_names, -1);
+  auto at = converter->convertToArrowTable();
+
+  TestHelpers::compare_arrow_table(at, std::vector<int64_t>{30, 40, 50});
+
+  rs = ra_executor.runOnBatch({3, {1}});
+
+  converter = std::make_unique<ArrowResultSetConverter>(rs, col_names, -1);
+  at = converter->convertToArrowTable();
+
+  TestHelpers::compare_arrow_table(at, std::vector<int64_t>{70, 90, 100});
+}
+
 int main(int argc, char** argv) {
   TestHelpers::init_logger_stderr_only(argc, argv);
   testing::InitGoogleTest(&argc, argv);

@@ -1477,6 +1477,106 @@ TemporaryTable Executor::executeWorkUnit(size_t& max_groups_buffer_entry_guess,
   }
 }
 
+std::shared_ptr<StreamExecutionContext> Executor::prepareStreamingExecution(
+    const RelAlgExecutionUnit& ra_exe_unit,
+    const CompilationOptions& co,
+    const ExecutionOptions& eo,
+    const std::vector<InputTableInfo>& query_infos,
+    ColumnCacheMap& column_cache) {
+  const auto device_type = getDeviceTypeForTargets(ra_exe_unit, co.device_type);
+
+  auto query_comp_desc_owned = std::make_unique<QueryCompilationDescriptor>();
+  std::unique_ptr<QueryMemoryDescriptor> query_mem_desc_owned;
+
+  int8_t crt_min_byte_width{MAX_BYTE_WIDTH_SUPPORTED};
+
+  auto column_fetcher = std::make_unique<ColumnFetcher>(this, column_cache);
+
+  query_mem_desc_owned = query_comp_desc_owned->compile(-1,
+                                                        crt_min_byte_width,
+                                                        false,
+                                                        ra_exe_unit,
+                                                        query_infos,
+                                                        *column_fetcher,
+                                                        {device_type,
+                                                         co.hoist_literals,
+                                                         co.opt_level,
+                                                         co.with_dynamic_watchdog,
+                                                         co.allow_lazy_fetch,
+                                                         co.filter_on_deleted_column,
+                                                         co.explain_type,
+                                                         co.register_intel_jit_listener},
+                                                        eo,
+                                                        nullptr,
+                                                        this);
+
+  for (const auto target_expr : ra_exe_unit.target_exprs) {
+    plan_state_->target_exprs_.push_back(target_expr);
+  }
+
+  CHECK(query_mem_desc_owned);
+
+  auto ctx = std::make_shared<StreamExecutionContext>(std::move(ra_exe_unit));
+  ctx->query_comp_desc = std::move(query_comp_desc_owned);
+  ctx->query_mem_desc = std::move(query_mem_desc_owned);
+  ctx->co = co;
+  ctx->eo = eo;
+  ctx->column_fetcher = std::move(column_fetcher);
+  ctx->shared_context = std::make_unique<SharedKernelContext>(query_infos);
+
+  std::cout << "Table ID before: " << ctx->shared_context->getQueryInfos()[0].table_id
+            << std::endl;
+  return ctx;
+}
+
+ResultSetPtr Executor::runOnBatch(std::shared_ptr<StreamExecutionContext> ctx,
+                                  const FragmentsList& fragments) {
+  auto kernel = std::make_unique<ExecutionKernel>(ctx->ra_exe_unit,
+                                                  ExecutorDeviceType::CPU,
+                                                  0,
+                                                  ctx->eo,
+                                                  *ctx->column_fetcher,
+                                                  *ctx->query_comp_desc,
+                                                  *ctx->query_mem_desc,
+                                                  fragments,
+                                                  ExecutorDispatchMode::KernelPerFragment,
+                                                  nullptr,
+                                                  -1  // TODO: rowid_lookup_key ???
+  );
+
+  kernel->run(this, 0, *ctx->shared_context);
+
+  return ctx->shared_context->getFragmentResults().back().first;
+}
+
+ResultSetPtr Executor::finishBatchExecution(std::shared_ptr<StreamExecutionContext> ctx) {
+  for (auto& exec_ctx : ctx->shared_context->getTlsExecutionContext()) {
+    if (exec_ctx) {
+      ResultSetPtr results;
+      if (ctx->ra_exe_unit.estimator) {
+        results = std::shared_ptr<ResultSet>(exec_ctx->estimator_result_set_.release());
+      } else {
+        results = exec_ctx->getRowSet(ctx->ra_exe_unit, exec_ctx->query_mem_desc_);
+      }
+      ctx->shared_context->addDeviceResults(std::move(results), 0, {});
+    }
+  }
+
+  try {
+    return collectAllDeviceResults(*ctx->shared_context,
+                                   ctx->ra_exe_unit,
+                                   *ctx->query_mem_desc,
+                                   ctx->query_comp_desc->getDeviceType(),
+                                   row_set_mem_owner_);
+  } catch (ReductionRanOutOfSlots&) {
+    throw QueryExecutionError(ERR_OUT_OF_SLOTS);
+  } catch (QueryExecutionError& e) {
+    VLOG(1) << "Error received! error_code: " << e.getErrorCode()
+            << ", what(): " << e.what();
+    throw QueryExecutionError(e.getErrorCode());
+  }
+}
+
 TemporaryTable Executor::executeWorkUnitImpl(
     size_t& max_groups_buffer_entry_guess,
     const bool is_agg,
@@ -2531,18 +2631,11 @@ FetchResult Executor::fetchChunks(
         continue;
       }
       const int table_id = col_id->getTableId();
-      const auto fragments_it = all_tables_fragments.find(table_id);
-      CHECK(fragments_it != all_tables_fragments.end());
-      const auto fragments = fragments_it->second;
       auto it = plan_state_->global_to_local_col_ids_.find(*col_id);
       CHECK(it != plan_state_->global_to_local_col_ids_.end());
       CHECK_LT(static_cast<size_t>(it->second),
                plan_state_->global_to_local_col_ids_.size());
       const size_t frag_id = selected_frag_ids[local_col_to_frag_pos[it->second]];
-      if (!fragments->size()) {
-        return {};
-      }
-      CHECK_LT(frag_id, fragments->size());
       auto memory_level_for_column = memory_level;
       if (plan_state_->columns_to_fetch_.find(*col_id) ==
           plan_state_->columns_to_fetch_.end()) {

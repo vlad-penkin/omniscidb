@@ -191,8 +191,17 @@ void ExecutionKernel::runImpl(Executor* executor,
   std::shared_ptr<FetchResult> fetch_result(new FetchResult);
   try {
     std::map<int, const TableFragments*> all_tables_fragments;
+    std::vector<TableFragments> streaming_table_fragments;
     QueryFragmentDescriptor::computeAllTablesFragments(
         all_tables_fragments, ra_exe_unit_, shared_context.getQueryInfos());
+
+    for (auto& qi : shared_context.getQueryInfos()) {
+      if (qi.is_streaming) {
+        auto table_info = data_mgr->getTableInfo(qi.db_id, qi.table_id);
+        streaming_table_fragments.emplace_back(table_info.fragments);
+        all_tables_fragments[qi.table_id] = &streaming_table_fragments.back();
+      }
+    }
 
     *fetch_result = ra_exe_unit_.union_all
                         ? executor->fetchUnionChunks(column_fetcher,

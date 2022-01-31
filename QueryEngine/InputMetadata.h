@@ -75,6 +75,7 @@ struct InputTableInfo {
   int db_id;
   int table_id;
   Fragmenter_Namespace::TableInfo info;
+  bool is_streaming{false};
 };
 
 class InputTableInfoCache {
