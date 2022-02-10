@@ -64,7 +64,6 @@ add_executable(CtasUpdateTest CtasUpdateTest.cpp)
 add_executable(CorrelatedSubqueryTest CorrelatedSubqueryTest.cpp)
 add_executable(CtasIntegrationTest CtasIntegrationTest.cpp)
 add_executable(DateTimeUtilsTest Shared/DateTimeUtilsTest.cpp)
-add_executable(ThreadingTest Shared/ThreadingTest.cpp)
 add_executable(ThreadingTestSTD Shared/ThreadingTest.cpp)
 add_executable(CalciteOptimizeTest CalciteOptimizeTest.cpp)
 add_executable(JoinHashTableTest JoinHashTableTest.cpp)
@@ -145,7 +144,6 @@ target_link_libraries(GeoTypesTest gtest Logger Shared Geospatial ${CMAKE_DL_LIB
 target_link_libraries(CorrelatedSubqueryTest ${EXECUTE_TEST_LIBS})
 target_link_libraries(CtasIntegrationTest gtest Logger Shared mapd_thrift ThriftClient ${LLVM_LINKER_FLAGS})
 target_link_libraries(DateTimeUtilsTest gtest Logger Shared ${LLVM_LINKER_FLAGS})
-target_link_libraries(ThreadingTest gtest Logger Shared ${LLVM_LINKER_FLAGS} ${TBB_LIBRARIES})
 target_link_libraries(ThreadingTestSTD gtest Logger Shared ${LLVM_LINKER_FLAGS})
 target_compile_definitions(ThreadingTestSTD PRIVATE ENABLE_TBB=0)
 target_link_libraries(CalciteOptimizeTest ${EXECUTE_TEST_LIBS})
@@ -238,7 +236,6 @@ add_test(OverlapsJoinTest OverlapsJoinTest ${TEST_ARGS})
 add_test(CtasUpdateTest CtasUpdateTest ${TEST_ARGS})
 add_test(CorrelatedSubqueryTest CorrelatedSubqueryTest ${TEST_ARGS})
 add_test(DateTimeUtilsTest DateTimeUtilsTest ${TEST_ARGS})
-add_test(ThreadingTest ThreadingTest ${TEST_ARGS})
 add_test(ThreadingTestSTD ThreadingTestSTD ${TEST_ARGS})
 add_test(CalciteOptimizeTest CalciteOptimizeTest ${TEST_ARGS})
 add_test(JoinHashTableTest JoinHashTableTest ${TEST_ARGS})
@@ -328,7 +325,6 @@ set(TEST_PROGRAMS
   CtasUpdateTest
   CorrelatedSubqueryTest
   DateTimeUtilsTest
-  ThreadingTest
   ThreadingTestSTD
   CalciteOptimizeTest
   JoinHashTableTest
