@@ -26,6 +26,7 @@ constexpr int TEST_DB_ID = (TEST_SCHEMA_ID << 24) + 1;
 constexpr int TEST1_TABLE_ID = 1;
 constexpr int TEST2_TABLE_ID = 2;
 constexpr int TEST_AGG_TABLE_ID = 3;
+constexpr int TEST_STREAMING_TABLE_ID = 4;
 
 using TestHelpers::compare_res_data;
 using TestHelpers::inline_null_value;
@@ -79,6 +80,23 @@ class TestSchemaProvider : public TestHelpers::TestSchemaProvider {
     addColumnInfo(
         TEST_DB_ID, TEST_AGG_TABLE_ID, 2, "val", SQLTypeInfo(SQLTypes::kINT), false);
     addRowidColumn(TEST_DB_ID, TEST_AGG_TABLE_ID);
+
+    // Table test_streaming
+    addTableInfo(TEST_DB_ID,
+                 TEST_STREAMING_TABLE_ID,
+                 "test_streaming",
+                 false,
+                 Data_Namespace::MemoryLevel::CPU_LEVEL,
+                 1);
+    addColumnInfo(
+        TEST_DB_ID, TEST_STREAMING_TABLE_ID, 1, "id", SQLTypeInfo(SQLTypes::kINT), false);
+    addColumnInfo(TEST_DB_ID,
+                  TEST_STREAMING_TABLE_ID,
+                  2,
+                  "val",
+                  SQLTypeInfo(SQLTypes::kINT),
+                  false);
+    addRowidColumn(TEST_DB_ID, TEST_STREAMING_TABLE_ID);
   }
 
   ~TestSchemaProvider() override = default;
@@ -118,6 +136,10 @@ class TestDataProvider : public TestHelpers::TestDataProvider {
     test_agg.addColFragment<int32_t>(
         2, {inline_null_value<int32_t>(), 70, inline_null_value<int32_t>(), 90, 100});
     tables_.emplace(std::make_pair(TEST_AGG_TABLE_ID, test_agg));
+
+    TestHelpers::TestTableData test_streaming(
+        TEST_DB_ID, TEST_STREAMING_TABLE_ID, 2, schema_provider_);
+    tables_.emplace(std::make_pair(TEST_STREAMING_TABLE_ID, test_streaming));
   }
 
   ~TestDataProvider() override = default;
@@ -132,7 +154,7 @@ class NoCatalogRelAlgTest : public ::testing::Test {
     data_mgr_ = std::make_shared<DataMgr>("", system_parameters, nullptr, false);
     auto* ps_mgr = data_mgr_->getPersistentStorageMgr();
     ps_mgr->registerDataProvider(TEST_SCHEMA_ID,
-                                 std::make_unique<TestDataProvider>(schema_provider_));
+                                 std::make_shared<TestDataProvider>(schema_provider_));
 
     executor_ = std::make_shared<Executor>(0,
                                            data_mgr_.get(),
@@ -155,6 +177,12 @@ class NoCatalogRelAlgTest : public ::testing::Test {
         RelAlgExecutor(executor_.get(), TEST_DB_ID, schema_provider_, std::move(dag));
     return ra_executor.executeRelAlgQuery(
         CompilationOptions(), ExecutionOptions(), false, nullptr);
+  }
+
+  TestDataProvider& getDataProvider() {
+    auto* ps_mgr = data_mgr_->getPersistentStorageMgr();
+    auto data_provider_ptr = ps_mgr->getDataProvider(TEST_SCHEMA_ID);
+    return dynamic_cast<TestDataProvider&>(*data_provider_ptr);
   }
 
  protected:
@@ -247,7 +275,7 @@ TEST_F(NoCatalogRelAlgTest, StreamingAggregate) {
       "relOp": "EnumerableTableScan",
       "table": [
         "omnisci",
-        "test_agg"
+        "test_streaming"
       ],
       "fieldNames": [
         "id",
@@ -302,8 +330,19 @@ TEST_F(NoCatalogRelAlgTest, StreamingAggregate) {
 
   ra_executor.prepareStreamingExecution(CompilationOptions(), ExecutionOptions());
 
-  (void)ra_executor.runOnBatch({3, {0}});
-  (void)ra_executor.runOnBatch({3, {1}});
+  TestDataProvider& data_provider = getDataProvider();
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {1, 2, 3});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {3, 3, 3});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {3, 1, 4});
+
+  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0, 1}});
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {4, 5, 6});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {7, 8, 9});
+
+  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {2}});
 
   auto rs = ra_executor.finishStreamingExecution();
 
@@ -312,7 +351,7 @@ TEST_F(NoCatalogRelAlgTest, StreamingAggregate) {
   auto converter = std::make_unique<ArrowResultSetConverter>(rs, col_names, -1);
   auto at = converter->convertToArrowTable();
 
-  TestHelpers::compare_arrow_table(at, std::vector<int64_t>{410});
+  TestHelpers::compare_arrow_table(at, std::vector<int64_t>{41});
 }
 
 TEST_F(NoCatalogRelAlgTest, StreamingFilter) {
