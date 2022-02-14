@@ -4664,6 +4664,9 @@ TEST_F(Select, Case) {
     c("SELECT CASE str WHEN 'foo' THEN 'truncated' ELSE 'bar' END trunc"
       " FROM test ORDER BY trunc;",
       dt);
+    c("SELECT CASE str WHEN 'foo' THEN 'bar' ELSE 'truncated' END trunc"
+      " FROM test ORDER BY trunc;",
+      dt);
   }
 }
 
