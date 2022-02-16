@@ -31,6 +31,7 @@ constexpr int TEST_DB_ID = (TEST_SCHEMA_ID << 24) + 1;
 constexpr int TEST1_TABLE_ID = 1;
 constexpr int TEST2_TABLE_ID = 2;
 constexpr int TEST_AGG_TABLE_ID = 3;
+constexpr int TEST_STREAMING_TABLE_ID = 4;
 
 constexpr int CALCITE_PORT = 3278;
 
@@ -86,6 +87,23 @@ class TestSchemaProvider : public TestHelpers::TestSchemaProvider {
     addColumnInfo(
         TEST_DB_ID, TEST_AGG_TABLE_ID, 2, "val", SQLTypeInfo(SQLTypes::kINT), false);
     addRowidColumn(TEST_DB_ID, TEST_AGG_TABLE_ID);
+
+    // Table test_streaming
+    addTableInfo(TEST_DB_ID,
+                 TEST_STREAMING_TABLE_ID,
+                 "test_streaming",
+                 false,
+                 Data_Namespace::MemoryLevel::CPU_LEVEL,
+                 1);
+    addColumnInfo(
+        TEST_DB_ID, TEST_STREAMING_TABLE_ID, 1, "id", SQLTypeInfo(SQLTypes::kINT), false);
+    addColumnInfo(TEST_DB_ID,
+                  TEST_STREAMING_TABLE_ID,
+                  2,
+                  "val",
+                  SQLTypeInfo(SQLTypes::kINT),
+                  false);
+    addRowidColumn(TEST_DB_ID, TEST_STREAMING_TABLE_ID);
   }
 
   ~TestSchemaProvider() override = default;
@@ -125,6 +143,10 @@ class TestDataProvider : public TestHelpers::TestDataProvider {
     test_agg.addColFragment<int32_t>(
         2, {inline_null_value<int32_t>(), 70, inline_null_value<int32_t>(), 90, 100});
     tables_.emplace(std::make_pair(TEST_AGG_TABLE_ID, test_agg));
+
+    TestHelpers::TestTableData test_streaming(
+        TEST_DB_ID, TEST_STREAMING_TABLE_ID, 2, schema_provider_);
+    tables_.emplace(std::make_pair(TEST_STREAMING_TABLE_ID, test_streaming));
   }
 
   ~TestDataProvider() override = default;
@@ -176,6 +198,21 @@ class NoCatalogSqlTest : public ::testing::Test {
         CompilationOptions(), ExecutionOptions(), false, nullptr);
   }
 
+  RelAlgExecutor getExecutor(const std::string& sql) {
+    auto schema_json = schema_to_json(schema_provider_);
+    const auto query_ra =
+        calcite_->process("admin", "test_db", pg_shim(sql), schema_json).plan_result;
+    auto dag = std::make_unique<RelAlgDagBuilder>(
+        query_ra, TEST_DB_ID, schema_provider_, nullptr);
+    return RelAlgExecutor(executor_.get(), TEST_DB_ID, schema_provider_, std::move(dag));
+  }
+
+  TestDataProvider& getDataProvider() {
+    auto* ps_mgr = data_mgr_->getPersistentStorageMgr();
+    auto data_provider_ptr = ps_mgr->getDataProvider(TEST_SCHEMA_ID);
+    return dynamic_cast<TestDataProvider&>(*data_provider_ptr);
+  }
+
  protected:
   static std::shared_ptr<DataMgr> data_mgr_;
   static SchemaProviderPtr schema_provider_;
@@ -223,6 +260,33 @@ TEST_F(NoCatalogSqlTest, GroupBySingleColumn) {
                    std::vector<int32_t>({5, 2, 1}),
                    std::vector<int64_t>({250, 60, 100}),
                    std::vector<double>({50, 30, 100}));
+}
+
+TEST_F(NoCatalogSqlTest, StreamingAggregate) {
+  auto ra_executor = getExecutor("SELECT SUM(val) FROM test_streaming;");
+  ra_executor.prepareStreamingExecution(CompilationOptions(), ExecutionOptions());
+  TestDataProvider& data_provider = getDataProvider();
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {1, 2, 3});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {3, 3, 3});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {3, 1, 4});
+
+  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0, 1}});
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {4, 5, 6});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {7, 8, 9});
+
+  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {2}});
+
+  auto rs = ra_executor.finishStreamingExecution();
+
+  std::vector<std::string> col_names;
+  col_names.push_back("sum");
+  auto converter = std::make_unique<ArrowResultSetConverter>(rs, col_names, -1);
+  auto at = converter->convertToArrowTable();
+
+  TestHelpers::compare_arrow_table(at, std::vector<int64_t>{41});
 }
 
 int main(int argc, char** argv) {
