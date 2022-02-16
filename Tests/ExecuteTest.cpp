@@ -23,6 +23,7 @@
 #include "../QueryEngine/Descriptors/RelAlgExecutionDescriptor.h"
 #include "../QueryEngine/Execute.h"
 #include "../QueryEngine/ExpressionRange.h"
+#include "../QueryEngine/Globals.h"
 #include "../QueryEngine/ResultSetReductionJIT.h"
 #include "../QueryRunner/QueryRunner.h"
 #include "../Shared/DateConverters.h"
@@ -19321,6 +19322,11 @@ int main(int argc, char** argv) {
                          ->default_value(g_enable_bump_allocator)
                          ->implicit_value(true),
                      "Enable the bump allocator for projection queries on GPU.");
+  desc.add_options()("use_groupby_buffer_desc",
+                     po::value<bool>(&g_use_groupby_buffer_desc)
+                         ->default_value(g_use_groupby_buffer_desc)
+                         ->implicit_value(true),
+                     "Use GroupBy Buffer Descriptor for hash tables.");
   desc.add_options()("keep-data", "Don't drop tables at the end of the tests");
   desc.add_options()("use-existing-data",
                      "Don't create and drop tables and only run select tests (it "

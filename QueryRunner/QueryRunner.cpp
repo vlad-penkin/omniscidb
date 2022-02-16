@@ -27,6 +27,7 @@
 #include "QueryEngine/CalciteAdapter.h"
 #include "QueryEngine/DataRecycler/HashtableRecycler.h"
 #include "QueryEngine/ExtensionFunctionsWhitelist.h"
+#include "QueryEngine/Globals.h"
 #include "QueryEngine/JoinHashTable/PerfectJoinHashTable.h"
 #include "QueryEngine/QueryDispatchQueue.h"
 #include "QueryEngine/QueryPlanDagExtractor.h"
@@ -574,6 +575,8 @@ std::shared_ptr<ResultSet> QueryRunner::runSQL(const std::string& query_str,
                                                const bool allow_loop_joins) {
   auto co = CompilationOptions::defaults(device_type);
   co.hoist_literals = hoist_literals;
+  co.use_groupby_buffer_desc = g_use_groupby_buffer_desc;
+
   return runSQL(
       query_str, std::move(co), defaultExecutionOptionsForRunSQL(allow_loop_joins));
 }
@@ -637,6 +640,7 @@ std::shared_ptr<ResultSet> QueryRunner::runSQLWithAllowingInterrupt(
         auto executor = Executor::getExecutor(worker_id, &cat.getDataMgr());
         CompilationOptions co = CompilationOptions::defaults(device_type);
         co.opt_level = ExecutorOptLevel::LoopStrengthReduction;
+        co.use_groupby_buffer_desc = g_use_groupby_buffer_desc;
 
         ExecutionOptions eo = {g_enable_columnar_output,
                                true,
@@ -754,6 +758,7 @@ std::shared_ptr<ExecutionResult> run_select_query_with_filter_push_down(
   CompilationOptions co = CompilationOptions::defaults(device_type);
   co.opt_level = ExecutorOptLevel::LoopStrengthReduction;
   co.explain_type = explain_type;
+  co.use_groupby_buffer_desc = g_use_groupby_buffer_desc;
 
   ExecutionOptions eo = {g_enable_columnar_output,
                          true,
@@ -860,6 +865,8 @@ std::shared_ptr<ExecutionResult> QueryRunner::runSelectQuery(const std::string& 
         co = CompilationOptions::defaults(co.device_type);
         co.explain_type = explain_type;
         co.opt_level = ExecutorOptLevel::LoopStrengthReduction;
+        co.use_groupby_buffer_desc = g_use_groupby_buffer_desc;
+
         auto calcite_mgr = cat.getCalciteMgr();
         const auto query_ra = calcite_mgr
                                   ->process(query_state->createQueryStateProxy(),
@@ -890,6 +897,7 @@ std::shared_ptr<ExecutionResult> QueryRunner::runSelectQuery(
     const bool just_explain) {
   auto co = CompilationOptions::defaults(device_type);
   co.hoist_literals = hoist_literals;
+  co.use_groupby_buffer_desc = g_use_groupby_buffer_desc;
   return runSelectQuery(query_str,
                         std::move(co),
                         defaultExecutionOptionsForRunSQL(allow_loop_joins, just_explain));

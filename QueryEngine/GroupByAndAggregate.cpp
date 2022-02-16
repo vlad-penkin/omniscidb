@@ -37,6 +37,7 @@
 #include "../Utils/ChunkIter.h"
 #include "DataMgr/BufferMgr/BufferMgr.h"
 #include "Execute.h"
+#include "HashTableDesc.h"
 #include "QueryTemplateGenerator.h"
 #include "RuntimeFunctions.h"
 #include "StreamingTopN.h"
@@ -1276,17 +1277,44 @@ GroupByAndAggregate::codegenMultiColumnBaselineHash(
     const size_t key_width,
     const int32_t row_size_quad) {
   AUTOMATIC_IR_METADATA(executor_->cgen_state_.get());
+
+  std::vector<llvm::Value*> func_args;
+
   if (group_key->getType() != llvm::Type::getInt64PtrTy(LL_CONTEXT)) {
     CHECK(key_width == sizeof(int32_t));
     group_key =
         LL_BUILDER.CreatePointerCast(group_key, llvm::Type::getInt64PtrTy(LL_CONTEXT));
   }
-  std::vector<llvm::Value*> func_args{
-      groups_buffer,
-      LL_INT(static_cast<int32_t>(query_mem_desc.getEntryCount())),
-      &*group_key,
-      &*key_size_lv,
-      LL_INT(static_cast<int32_t>(key_width))};
+
+  if (co.use_groupby_buffer_desc) {
+    auto* desc_type = llvm::StructType::get(llvm::Type::getInt8PtrTy(LL_CONTEXT),
+                                            LL_BUILDER.getInt64Ty());
+    auto* desc_ptr_type = llvm::PointerType::getUnqual(desc_type);
+
+    llvm::Value* hash_table_desc_ptr =
+        LL_BUILDER.CreatePointerCast(groups_buffer, desc_ptr_type);
+    CHECK(hash_table_desc_ptr);
+
+    auto hash_ptr_ptr = LL_BUILDER.CreateStructGEP(hash_table_desc_ptr, 0);
+    llvm::Value* hash_ptr = LL_BUILDER.CreateLoad(hash_ptr_ptr);
+    auto hash_size_ptr = LL_BUILDER.CreateStructGEP(hash_table_desc_ptr, 1);
+    llvm::Value* hash_size = LL_BUILDER.CreateLoad(hash_size_ptr);
+
+    func_args = std::vector<llvm::Value*>{hash_ptr,
+                                          hash_size,
+                                          &*group_key,
+                                          &*key_size_lv,
+                                          LL_INT(static_cast<int32_t>(key_width))};
+
+  } else {
+    func_args = std::vector<llvm::Value*>{
+        groups_buffer,
+        LL_INT(static_cast<int32_t>(query_mem_desc.getEntryCount())),
+        &*group_key,
+        &*key_size_lv,
+        LL_INT(static_cast<int32_t>(key_width))};
+  }
+
   std::string func_name{"get_group_value"};
   if (query_mem_desc.didOutputColumnar()) {
     func_name += "_columnar_slot";
@@ -1296,6 +1324,7 @@ GroupByAndAggregate::codegenMultiColumnBaselineHash(
   if (co.with_dynamic_watchdog) {
     func_name += "_with_watchdog";
   }
+
   if (query_mem_desc.didOutputColumnar()) {
     return std::make_tuple(groups_buffer, emitCall(func_name, func_args));
   } else {
