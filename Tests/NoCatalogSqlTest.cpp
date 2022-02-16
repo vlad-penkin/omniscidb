@@ -289,6 +289,37 @@ TEST_F(NoCatalogSqlTest, StreamingAggregate) {
   TestHelpers::compare_arrow_table(at, std::vector<int64_t>{41});
 }
 
+TEST_F(NoCatalogSqlTest, StreamingFilter) {
+  GTEST_SKIP();
+  auto ra_executor = getExecutor("SELECT val FROM test_streaming WHERE val > 20;");
+  ra_executor.prepareStreamingExecution(CompilationOptions(), ExecutionOptions());
+
+  std::vector<std::string> col_names;
+  col_names.push_back("val");
+
+  TestDataProvider& data_provider = getDataProvider();
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {10, 20, 30});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {3, 30, 3});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {30, 1, 40});
+
+  auto rs = ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0, 1}});
+
+  auto converter = std::make_unique<ArrowResultSetConverter>(rs, col_names, -1);
+  auto at = converter->convertToArrowTable();
+  TestHelpers::compare_arrow_table(at, std::vector<int64_t>{30, 30, 40});
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {40, 50, 60});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {70, 8, 90});
+
+  rs = ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {2}});
+
+  converter = std::make_unique<ArrowResultSetConverter>(rs, col_names, -1);
+  at = converter->convertToArrowTable();
+  TestHelpers::compare_arrow_table(at, std::vector<int64_t>{70, 90});
+}
+
 int main(int argc, char** argv) {
   TestHelpers::init_logger_stderr_only(argc, argv);
   testing::InitGoogleTest(&argc, argv);
