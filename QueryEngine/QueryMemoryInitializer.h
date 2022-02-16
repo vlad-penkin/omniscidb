@@ -50,7 +50,8 @@ class QueryMemoryInitializer {
                          std::shared_ptr<RowSetMemoryOwner> row_set_mem_owner,
                          DeviceAllocator* gpu_allocator,
                          const size_t thread_idx,
-                         const Executor* executor);
+                         const Executor* executor,
+                         bool use_hash_table_desc = false);
 
   // Table functions execution constructor
   QueryMemoryInitializer(const TableFunctionExecutionUnit& exe_unit,
@@ -62,7 +63,10 @@ class QueryMemoryInitializer {
                          const std::vector<std::vector<uint64_t>>& frag_offsets,
                          std::shared_ptr<RowSetMemoryOwner> row_set_mem_owner,
                          DeviceAllocator* device_allocator,
-                         const Executor* executor);
+                         const Executor* executor,
+                         bool use_hash_table_desc = false);
+
+  ~QueryMemoryInitializer();
 
   const auto getCountDistinctBitmapPtr() const { return count_distinct_bitmap_mem_; }
 
@@ -96,6 +100,14 @@ class QueryMemoryInitializer {
     CHECK_LT(index, init_agg_vals_.size());
     return init_agg_vals_[index];
   }
+
+  // const std::vector <int64_t*> getGroupByHashTableDescPtr() {
+  //   std::vector <int64_t*> rv;
+  //   for (auto *desc: group_by_hash_tabler_descs_) {
+  //     rv.push_back(reinterpret_cast<int64_t*>(desc));
+  //   }
+  //   return rv;
+  // }
 
   const auto getGroupByBuffersPtr() {
     return reinterpret_cast<int64_t**>(group_by_buffers_.data());
@@ -231,6 +243,8 @@ class QueryMemoryInitializer {
 
   size_t num_buffers_;
   std::vector<int64_t*> group_by_buffers_;
+  // std::vector<HashTableDesc*> group_by_hash_table_descs_;
+
   std::shared_ptr<VarlenOutputInfo> varlen_output_info_;
   CUdeviceptr varlen_output_buffer_;
   int8_t* varlen_output_buffer_host_ptr_;
@@ -243,6 +257,7 @@ class QueryMemoryInitializer {
   DeviceAllocator* device_allocator_{nullptr};
   std::vector<Data_Namespace::AbstractBuffer*> temporary_buffers_;
 
+  bool use_hash_table_desc_;
   const size_t thread_idx_;
 
   friend class Executor;  // Accesses result_sets_

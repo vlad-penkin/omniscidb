@@ -58,6 +58,7 @@ ResultSetStorage::ResultSetStorage(const std::vector<TargetInfo>& targets,
                                    const bool buff_is_provided)
     : targets_(targets)
     , query_mem_desc_(query_mem_desc)
+    , hash_table_desc_{buff, query_mem_desc.getEntryCount()}
     , buff_(buff)
     , buff_is_provided_(buff_is_provided)
     , target_init_vals_(result_set::initialize_target_values_for_storage(targets)) {}
