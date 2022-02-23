@@ -43,6 +43,7 @@
 #include <type_traits>
 #include <typeinfo>
 
+#include "Calcite/Calcite.h"
 #include "Catalog/Catalog.h"
 #include "Catalog/DataframeTableDescriptor.h"
 #include "Catalog/SharedDictionaryValidator.h"
@@ -4383,7 +4384,9 @@ void CopyTableStmt::execute(
       // regular import
       auto importer = importer_factory(catalog, td, file_path, copy_params);
       auto start_time = ::toString(std::chrono::system_clock::now());
-      auto executor = Executor::getExecutor(Executor::UNITARY_EXECUTOR_ID, &catalog.getDataMgr()).get();
+      auto executor =
+          Executor::getExecutor(Executor::UNITARY_EXECUTOR_ID, &catalog.getDataMgr())
+              .get();
       auto query_session = session.get_session_id();
       auto query_str = "COPYING " + td->tableName;
       if (g_enable_non_kernel_time_query_interrupt) {

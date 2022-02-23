@@ -51,11 +51,8 @@
 #include <rapidjson/ostreamwrapper.h>
 #include <rapidjson/writer.h>
 
+#include "Calcite/Calcite.h"
 #include "Catalog/SysCatalog.h"
-
-#include "QueryEngine/Execute.h"
-#include "QueryEngine/TableOptimizer.h"
-
 #include "DataMgr/FileMgr/FileMgr.h"
 #include "DataMgr/FileMgr/GlobalFileMgr.h"
 #include "DataMgr/ForeignStorage/ForeignStorageInterface.h"
