@@ -22,16 +22,16 @@
  * Copyright (c) 2014 MapD Technologies, Inc.  All rights reserved.
  */
 
-#include "Execute.h"
-#include "ParserNode.h"
+#include "Parser/ParserNode.h"
+#include "QueryEngine/Execute.h"
+#include "QueryEngine/ResultSet.h"
+#include "QueryEngine/ResultSetGeoSerialization.h"
+#include "QueryEngine/RuntimeFunctions.h"
 #include "QueryEngine/TargetValue.h"
-#include "ResultSet.h"
-#include "ResultSetGeoSerialization.h"
-#include "RuntimeFunctions.h"
+#include "QueryEngine/TypePunning.h"
 #include "Shared/SqlTypesLayout.h"
 #include "Shared/likely.h"
 #include "Shared/sqltypes.h"
-#include "TypePunning.h"
 
 #include <boost/math/special_functions/fpclassify.hpp>
 

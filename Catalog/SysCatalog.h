@@ -43,16 +43,15 @@
 
 #include "tbb/concurrent_hash_map.h"
 
-#include "Grantee.h"
-#include "ObjectRoleDescriptor.h"
-#include "PkiServer.h"
-#include "UserMetadata.h"
+#include "Catalog/AuthMetadata.h"
+#include "Catalog/Grantee.h"
+#include "Catalog/ObjectRoleDescriptor.h"
+#include "Catalog/UserMetadata.h"
 
 #include "../DataMgr/DataMgr.h"
 #include "../SqliteConnector/SqliteConnector.h"
 #include "LeafHostInfo.h"
 
-#include "../Calcite/Calcite.h"
 #include "Shared/Restriction.h"
 #include "Shared/mapd_shared_mutex.h"
 
@@ -67,6 +66,7 @@ inline const std::string INFORMATION_SCHEMA_DB = "information_schema";
 inline const std::string INFORMATION_SCHEMA_MIGRATION = "information_schema_db_created";
 
 class Calcite;
+class PkiServer;
 
 extern std::string g_base_path;
 

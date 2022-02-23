@@ -41,6 +41,7 @@
 #include "Shared/TypedDataAccessors.h"
 #include "Shared/measure.h"
 #include "Shared/misc.h"
+#include "Catalog/Catalog.h"
 #include "ImportExport/ImportUtils.h"
 
 #include <boost/algorithm/cxx11/any_of.hpp>

@@ -17,6 +17,7 @@
 #include "TableOptimizer.h"
 
 #include "Analyzer/Analyzer.h"
+#include "Catalog/Catalog.h"
 #include "LockMgr/LockMgr.h"
 #include "Logger/Logger.h"
 #include "QueryEngine/Execute.h"

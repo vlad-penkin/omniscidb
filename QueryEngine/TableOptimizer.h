@@ -16,8 +16,11 @@
 
 #pragma once
 
-#include "Catalog/Catalog.h"
+namespace Catalog_Namespace {
+class Catalog;
+}
 
+#include "Catalog/TableDescriptor.h"
 #include "SchemaMgr/SchemaProvider.h"
 
 class Executor;

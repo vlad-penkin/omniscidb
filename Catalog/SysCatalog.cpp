@@ -34,7 +34,9 @@
 #include <string_view>
 #include "Catalog.h"
 
-#include "Catalog/AuthMetadata.h"
+#include "PkiServer.h"
+
+#include "../Calcite/Calcite.h"
 #include "QueryEngine/ExternalCacheInvalidators.h"
 
 #include <boost/algorithm/string/predicate.hpp>
@@ -1833,9 +1835,9 @@ void SysCatalog::revokeDBObjectPrivilegesFromAll_unsafe(DBObject dbObject,
   dbObject.loadKey(*catalog);
   auto privs = (dbObject.getObjectKey().permissionType == TableDBObjectType)
                    ? AccessPrivileges::ALL_TABLE
-                   : (dbObject.getObjectKey().permissionType == DashboardDBObjectType)
-                         ? AccessPrivileges::ALL_DASHBOARD
-                         : AccessPrivileges::ALL_TABLE;
+               : (dbObject.getObjectKey().permissionType == DashboardDBObjectType)
+                   ? AccessPrivileges::ALL_DASHBOARD
+                   : AccessPrivileges::ALL_TABLE;
   dbObject.setPrivileges(privs);
   for (const auto& grantee : granteeMap_) {
     if (grantee.second->findDbObject(dbObject.getObjectKey(), true)) {
