@@ -16,6 +16,15 @@ set(datamgr_source_files
         FileMgr/FileMgr.cpp
         FileMgr/FileBuffer.cpp
         FileMgr/FileInfo.cpp
+        ForeignStorage/ArrowForeignStorage.cpp
+        ForeignStorage/CacheEvictionAlgorithms/LRUEvictionAlgorithm.cpp
+        ForeignStorage/ForeignStorageInterface.cpp
+        ForeignStorage/ForeignStorageBuffer.cpp
+        ForeignStorage/ForeignStorageCache.cpp
+        ForeignStorage/FsiChunkUtils.cpp
+        ForeignStorage/FsiJsonUtils.cpp
+        ForeignStorage/FileReader.cpp
+        ForeignStorage/FileRegions.cpp
         BufferMgr/GpuCudaBufferMgr/GpuCudaBufferMgr.cpp
         BufferMgr/GpuCudaBufferMgr/GpuCudaBuffer.cpp
         BufferMgr/CpuBufferMgr/CpuBufferMgr.cpp
@@ -25,19 +34,6 @@ set(datamgr_source_files
         BufferMgr/Buffer.cpp
         PersistentStorageMgr/PersistentStorageMgr.cpp
         )
-
-if (ENABLE_FSI)
-    list(APPEND datamgr_source_files
-            ForeignStorage/ArrowForeignStorage.cpp
-            ForeignStorage/CacheEvictionAlgorithms/LRUEvictionAlgorithm.cpp
-            ForeignStorage/ForeignStorageInterface.cpp
-            ForeignStorage/ForeignStorageBuffer.cpp
-            ForeignStorage/ForeignStorageCache.cpp
-            ForeignStorage/FsiChunkUtils.cpp
-            ForeignStorage/FsiJsonUtils.cpp
-            ForeignStorage/FileReader.cpp
-            ForeignStorage/FileRegions.cpp)
-endif ()
 
 # On Linux, Arrow internally links symbols for its dependency libraries (such as the C++ AWS SDK)
 # when it is built as a shared library. In this case, set a flag that would be used to determine

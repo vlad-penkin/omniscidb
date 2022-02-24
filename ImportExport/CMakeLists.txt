@@ -8,18 +8,16 @@ if(ENABLE_IMPORT_PARQUET)
   list(APPEND IMPORT_EXPORT_LIBRARIES "${Parquet_LIBRARIES}")
 endif()
 
-set(IMPORT_SOURCES
-  Importer.cpp
-  DelimitedParserUtils.cpp)
+set(IMPORT_EXPORT_SOURCES
+        DelimitedParserUtils.cpp
+        Importer.cpp
+        QueryExporter.cpp
+        QueryExporterCSV.cpp
+        RenderGroupAnalyzer.cpp)
 
-set(EXPORT_SOURCES
-  QueryExporter.cpp
-  QueryExporterCSV.cpp)
+add_library(ImportExport ${IMPORT_EXPORT_SOURCES} ${S3Archive})
 
-add_library(RenderGroupAnalyzer RenderGroupAnalyzer.cpp)
-add_library(ImportExport ${IMPORT_SOURCES} ${EXPORT_SOURCES} ${S3Archive})
-
-target_link_libraries(ImportExport RenderGroupAnalyzer mapd_thrift Logger Shared Catalog DataMgr StringDictionary ${CMAKE_DL_LIBS}
+target_link_libraries(ImportExport Utils mapd_thrift Logger Shared Catalog DataMgr StringDictionary ${CMAKE_DL_LIBS}
  ${LibArchive_LIBRARIES} ${IMPORT_EXPORT_LIBRARIES} ${Arrow_LIBRARIES})
 
 add_library(RowToColumn RowToColumnLoader.cpp RowToColumnLoader.h DelimitedParserUtils.cpp DelimitedParserUtils.h)
