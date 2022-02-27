@@ -149,9 +149,6 @@ class PerfectJoinHashTable : public HashJoin {
                              const Data_Namespace::MemoryLevel effective_memory_level,
                              const int device_id);
 
-  Data_Namespace::MemoryLevel getEffectiveMemoryLevel(
-      const std::vector<InnerOuter>& inner_outer_pairs) const;
-
   std::vector<InnerOuter> inner_outer_pairs_;
 
   PerfectJoinHashTable(const std::shared_ptr<Analyzer::BinOper> qual_bin_oper,
@@ -168,7 +165,8 @@ class PerfectJoinHashTable : public HashJoin {
                        const int device_count,
                        QueryPlanHash hashtable_cache_key,
                        HashtableCacheMetaInfo hashtable_cache_meta_info,
-                       const TableIdToNodeMap& table_id_to_node_map)
+                       const TableIdToNodeMap& table_id_to_node_map,
+                       const InnerOuterStringOpInfos& inner_outer_string_op_infos = {})
       : HashJoin(data_provider)
       , qual_bin_oper_(qual_bin_oper)
       , join_type_(join_type)
@@ -184,7 +182,8 @@ class PerfectJoinHashTable : public HashJoin {
       , needs_dict_translation_(false)
       , table_id_to_node_map_(table_id_to_node_map)
       , hashtable_cache_key_(hashtable_cache_key)
-      , hashtable_cache_meta_info_(hashtable_cache_meta_info) {
+      , hashtable_cache_meta_info_(hashtable_cache_meta_info)
+      , inner_outer_string_op_infos_(inner_outer_string_op_infos) {
     CHECK(col_range.getType() == ExpressionRangeType::Integer);
     CHECK_GT(device_count_, 0);
     hash_tables_for_device_.resize(device_count_);
@@ -212,6 +211,7 @@ class PerfectJoinHashTable : public HashJoin {
   llvm::Value* codegenHashTableLoad(const size_t table_idx);
 
   std::vector<llvm::Value*> getHashJoinArgs(llvm::Value* hash_ptr,
+                                            llvm::Value* key_lvs,
                                             const Analyzer::Expr* key_col,
                                             const CompilationOptions& co);
 
@@ -225,6 +225,7 @@ class PerfectJoinHashTable : public HashJoin {
     const ExpressionRange col_range;
     const Analyzer::ColumnVar* inner_col;
     const Analyzer::ColumnVar* outer_col;
+    InnerOuterStringOpInfos inner_outer_string_op_infos;
     const ChunkKey chunk_key;
     const size_t num_elements;
     const SQLOps optype;
@@ -261,6 +262,7 @@ class PerfectJoinHashTable : public HashJoin {
   const int device_count_;
   mutable bool needs_dict_translation_;
   const TableIdToNodeMap table_id_to_node_map_;
+  const InnerOuterStringOpInfos inner_outer_string_op_infos_;
   QueryPlanHash hashtable_cache_key_;
   HashtableCacheMetaInfo hashtable_cache_meta_info_;
 
@@ -268,9 +270,19 @@ class PerfectJoinHashTable : public HashJoin {
   static std::unique_ptr<HashingSchemeRecycler> hash_table_layout_cache_;
 };
 
-bool needs_dictionary_translation(const Analyzer::ColumnVar* inner_col,
-                                  const Analyzer::Expr* outer_col,
-                                  const Executor* executor);
+bool needs_dictionary_translation(
+    const InnerOuter& inner_outer_col_pair,
+    const InnerOuterStringOpInfos& inner_outer_string_op_infos,
+    const Executor* executor);
+
+inline Data_Namespace::MemoryLevel get_effective_memory_level(
+    const Data_Namespace::MemoryLevel memory_level,
+    const bool needs_dict_translation) {
+  if (needs_dict_translation) {
+    return Data_Namespace::CPU_LEVEL;
+  }
+  return memory_level;
+}
 
 const InputTableInfo& get_inner_query_info(
     const int inner_table_id,

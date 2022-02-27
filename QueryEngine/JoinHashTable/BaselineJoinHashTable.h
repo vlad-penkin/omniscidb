@@ -118,18 +118,20 @@ class BaselineJoinHashTable : public HashJoin {
   virtual ~BaselineJoinHashTable() {}
 
  protected:
-  BaselineJoinHashTable(const std::shared_ptr<Analyzer::BinOper> condition,
-                        const JoinType join_type,
-                        const std::vector<InputTableInfo>& query_infos,
-                        const Data_Namespace::MemoryLevel memory_level,
-                        DataProvider* data_provider,
-                        ColumnCacheMap& column_cache,
-                        Executor* executor,
-                        const std::vector<InnerOuter>& inner_outer_pairs,
-                        const int device_count,
-                        QueryPlanHash hashtable_cache_key,
-                        HashtableCacheMetaInfo hashtable_cache_meta_info,
-                        const TableIdToNodeMap& table_id_to_node_map);
+  BaselineJoinHashTable(
+      const std::shared_ptr<Analyzer::BinOper> condition,
+      const JoinType join_type,
+      const std::vector<InputTableInfo>& query_infos,
+      const Data_Namespace::MemoryLevel memory_level,
+      DataProvider* data_provider,
+      ColumnCacheMap& column_cache,
+      Executor* executor,
+      const std::vector<InnerOuter>& inner_outer_pairs,
+      const std::vector<InnerOuterStringOpInfos>& col_pairs_string_op_infos,
+      const int device_count,
+      QueryPlanHash hashtable_cache_key,
+      HashtableCacheMetaInfo hashtable_cache_meta_info,
+      const TableIdToNodeMap& table_id_to_node_map);
 
   size_t getComponentBufferSize() const noexcept override;
 
@@ -157,9 +159,6 @@ class BaselineJoinHashTable : public HashJoin {
   virtual llvm::Value* codegenKey(const CompilationOptions&);
 
   size_t shardCount() const;
-
-  Data_Namespace::MemoryLevel getEffectiveMemoryLevel(
-      const std::vector<InnerOuter>& inner_outer_pairs) const;
 
   void reify(const HashType preferred_layout);
 
@@ -202,6 +201,7 @@ class BaselineJoinHashTable : public HashJoin {
 
   struct AlternativeCacheKeyForBaselineHashJoin {
     std::vector<InnerOuter> inner_outer_pairs;
+    std::vector<InnerOuterStringOpInfos> inner_outer_string_op_infos_pairs;
     const size_t num_elements;
     const SQLOps optype;
     const JoinType join_type;
@@ -219,6 +219,9 @@ class BaselineJoinHashTable : public HashJoin {
         boost::hash_combine(hash, outer_col->toString());
       }
     }
+    if (info.inner_outer_string_op_infos_pairs.size()) {
+      boost::hash_combine(hash, ::toString(info.inner_outer_string_op_infos_pairs));
+    }
     boost::hash_combine(hash, info.num_elements);
     boost::hash_combine(hash, ::toString(info.join_type));
     return hash;
@@ -234,7 +237,7 @@ class BaselineJoinHashTable : public HashJoin {
   std::mutex str_proxy_translation_mutex_;
   std::vector<const StringDictionaryProxy::IdMap*> str_proxy_translation_maps_;
 
-  std::vector<InnerOuter> inner_outer_pairs_;
+  std::vector<InnerOuterStringOpInfos> inner_outer_string_op_infos_pairs_;
   const int device_count_;
   mutable bool needs_dict_translation_;
   std::optional<HashType>

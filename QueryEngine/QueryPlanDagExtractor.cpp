@@ -46,7 +46,8 @@ std::vector<InnerOuterOrLoopQual> QueryPlanDagExtractor::normalizeColumnsPair(
                                            const TemporaryTables* temporary_table) {
     try {
       auto inner_outer_pair =
-          HashJoin::normalizeColumnPair(lhs, rhs, schema_provider_, temporary_table);
+          HashJoin::normalizeColumnPair(lhs, rhs, schema_provider_, temporary_table)
+              .first;
       InnerOuterOrLoopQual valid_qual{
           std::make_pair(inner_outer_pair.first, inner_outer_pair.second), false};
       result.push_back(valid_qual);

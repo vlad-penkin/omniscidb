@@ -92,9 +92,11 @@ class HashtableRecycler
       std::vector<const Analyzer::ColumnVar*>& outer_cols,
       Executor* executor);
 
-  static bool isSafeToCacheHashtable(const TableIdToNodeMap& table_id_to_node_map,
-                                     bool need_dict_translation,
-                                     const int table_id);
+  static bool isSafeToCacheHashtable(
+      const TableIdToNodeMap& table_id_to_node_map,
+      bool need_dict_translation,
+      const std::vector<InnerOuterStringOpInfos>& inner_outer_string_op_info_pairs,
+      const int table_id);
 
   // this function is required to test data recycler
   // specifically, it is tricky to get a hashtable cache key when we only know

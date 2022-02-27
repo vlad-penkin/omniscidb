@@ -256,7 +256,21 @@ std::string HashtableRecycler::getJoinColumnInfoString(
 bool HashtableRecycler::isSafeToCacheHashtable(
     const TableIdToNodeMap& table_id_to_node_map,
     bool need_dict_translation,
+    const std::vector<InnerOuterStringOpInfos>& inner_outer_string_op_info_pairs,
     const int table_id) {
+  // Disable all recycling when string ops are applied to join quals until we can
+  // add these to the cache key
+  constexpr bool string_ops_considered_safe = false;
+  if (!string_ops_considered_safe) {
+    for (const auto& inner_outer_string_op_infos_pair :
+         inner_outer_string_op_info_pairs) {
+      if (!inner_outer_string_op_infos_pair.first.empty() ||
+          !inner_outer_string_op_infos_pair.second.empty()) {
+        return false;
+      }
+    }
+  }
+
   // if hashtable is built from subquery's resultset we need to check
   // 1) whether resulset rows can have inconsistency, e.g., rows can randomly be
   // permutated per execution and 2) whether it needs dictionary translation for hashtable

@@ -27,9 +27,13 @@
 #include "QueryEngine/ColumnarResults.h"
 #include "QueryEngine/CompilationOptions.h"
 #include "QueryEngine/Descriptors/RowSetMemoryOwner.h"
+#include "QueryEngine/ExpressionRange.h"
 #include "QueryEngine/InputMetadata.h"
 #include "QueryEngine/JoinHashTable/HashTable.h"
 #include "QueryEngine/JoinHashTable/Runtime/HashJoinRuntime.h"
+#include "StringOps/StringOpInfo.h"
+
+class CodeGenerator;
 
 #ifdef HAVE_CUDA
 #include <cuda.h>
@@ -80,6 +84,8 @@ class OverlapsHashTableTooBig : public HashJoinFail {
 };
 
 using InnerOuter = std::pair<const Analyzer::ColumnVar*, const Analyzer::Expr*>;
+using InnerOuterStringOpInfos = std::pair<std::vector<StringOps_Namespace::StringOpInfo>,
+                                          std::vector<StringOps_Namespace::StringOpInfo>>;
 
 struct ColumnsForDevice {
   const std::vector<JoinColumn> join_columns;
@@ -100,7 +106,7 @@ struct HashJoinMatchingSet {
 
 struct CompositeKeyInfo {
   std::vector<const void*> sd_inner_proxy_per_key;
-  std::vector<const void*> sd_outer_proxy_per_key;
+  std::vector<void*> sd_outer_proxy_per_key;
   std::vector<ChunkKey> cache_key_chunks;  // used for the cache key
 };
 
@@ -229,16 +235,17 @@ class HashJoin {
   }
 
   // Swap the columns if needed and make the inner column the first component.
-  static InnerOuter normalizeColumnPair(const Analyzer::Expr* lhs,
-                                        const Analyzer::Expr* rhs,
-                                        SchemaProviderPtr schema_provider,
-                                        const TemporaryTables* temporary_tables);
-
-  // Normalize each expression tuple
-  static std::vector<InnerOuter> normalizeColumnPairs(
-      const Analyzer::BinOper* condition,
+  static std::pair<InnerOuter, InnerOuterStringOpInfos> normalizeColumnPair(
+      const Analyzer::Expr* lhs,
+      const Analyzer::Expr* rhs,
       SchemaProviderPtr schema_provider,
       const TemporaryTables* temporary_tables);
+
+  // Normalize each expression tuple
+  static std::pair<std::vector<InnerOuter>, std::vector<InnerOuterStringOpInfos>>
+  normalizeColumnPairs(const Analyzer::BinOper* condition,
+                       SchemaProviderPtr schema_provider,
+                       const TemporaryTables* temporary_tables);
 
   HashTable* getHashTableForDevice(const size_t device_id) const {
     CHECK_LT(device_id, hash_tables_for_device_.size());
@@ -290,20 +297,33 @@ class HashJoin {
 
   static CompositeKeyInfo getCompositeKeyInfo(
       const std::vector<InnerOuter>& inner_outer_pairs,
-      const Executor* executor);
+      const Executor* executor,
+      const std::vector<InnerOuterStringOpInfos>& inner_outer_string_op_infos_pairs = {});
 
   static std::vector<const StringDictionaryProxy::IdMap*>
-  translateCompositeStrDictProxies(const CompositeKeyInfo& composite_key_info,
-                                   const Executor* executor);
+  translateCompositeStrDictProxies(
+      const CompositeKeyInfo& composite_key_info,
+      const std::vector<InnerOuterStringOpInfos>& string_op_infos_for_keys,
+      const Executor* executor);
 
   static std::pair<const StringDictionaryProxy*, const StringDictionaryProxy*>
-  getStrDictProxies(const InnerOuter& cols, const Executor* executor);
+  getStrDictProxies(const InnerOuter& cols,
+                    const Executor* executor,
+                    const bool has_string_ops);
 
   static const StringDictionaryProxy::IdMap* translateInnerToOuterStrDictProxies(
       const InnerOuter& cols,
+      const InnerOuterStringOpInfos& inner_outer_string_op_infos,
+      ExpressionRange& old_col_range,
       const Executor* executor);
 
  protected:
+  static llvm::Value* codegenColOrStringOper(
+      const Analyzer::Expr* col_or_string_oper,
+      const std::vector<StringOps_Namespace::StringOpInfo>& string_op_infos,
+      CodeGenerator& code_generator,
+      const CompilationOptions& co);
+
   HashJoin(DataProvider* data_provider) : data_provider_(data_provider) {}
 
   virtual size_t getComponentBufferSize() const noexcept = 0;
@@ -315,6 +335,17 @@ class HashJoin {
 std::ostream& operator<<(std::ostream& os, const DecodedJoinHashBufferEntry& e);
 
 std::ostream& operator<<(std::ostream& os, const DecodedJoinHashBufferSet& s);
+
+std::ostream& operator<<(std::ostream& os,
+                         const InnerOuterStringOpInfos& inner_outer_string_op_infos);
+std::ostream& operator<<(
+    std::ostream& os,
+    const std::vector<InnerOuterStringOpInfos>& inner_outer_string_op_infos_pairs);
+
+std::string toString(const InnerOuterStringOpInfos& inner_outer_string_op_infos);
+
+std::string toString(
+    const std::vector<InnerOuterStringOpInfos>& inner_outer_string_op_infos_pairs);
 
 std::shared_ptr<Analyzer::ColumnVar> getSyntheticColumnVar(std::string_view table,
                                                            std::string_view column,
