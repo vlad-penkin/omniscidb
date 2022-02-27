@@ -245,6 +245,7 @@ target_precompile_headers(QueryEngine PRIVATE
 
 set(QUERY_ENGINE_LIBS
         OSDependent
+        StringOps
         Analyzer
         StringDictionary
         Utils

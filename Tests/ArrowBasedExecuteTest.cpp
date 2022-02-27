@@ -17444,7 +17444,7 @@ TEST_F(Select, VariableLengthAggs) {
   }
 }
 
-TEST_F(Select, Interop) {
+TEST_F(Select, DISABLED_Interop) {
   g_enable_interop = true;
   ScopeGuard interop_guard = [] { g_enable_interop = false; };
   for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {

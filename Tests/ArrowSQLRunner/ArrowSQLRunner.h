@@ -50,7 +50,10 @@ void createTable(
 
 void dropTable(const std::string& table_name);
 
-void insertCsvValues(const std::string& table_name, const std::string& values);
+void insertCsvValues(const std::string& table_name,
+                     const std::string& values,
+                     const bool escaping = false,
+                     const bool quoting = false);
 
 void insertJsonValues(const std::string& table_name, const std::string& values);
 

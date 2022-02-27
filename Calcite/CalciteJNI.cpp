@@ -381,7 +381,7 @@ class CalciteJNI::Impl {
       return ext_arg_type_vals_[index];
     }
     throw std::runtime_error("ExtArgumentType enum value is out of range (" +
-                             to_string(index) + ")");
+                             std::to_string(index) + ")");
   }
 
   void addArgTypesAndNames(

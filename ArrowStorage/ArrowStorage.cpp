@@ -856,8 +856,8 @@ std::shared_ptr<arrow::Table> ArrowStorage::parseCsv(
 #endif
 
   auto arrow_parse_options = arrow::csv::ParseOptions::Defaults();
-  arrow_parse_options.quoting = false;
-  arrow_parse_options.escaping = false;
+  arrow_parse_options.quoting = parse_options.quoting;
+  arrow_parse_options.escaping = parse_options.escaping;
   arrow_parse_options.newlines_in_values = false;
   arrow_parse_options.delimiter = parse_options.delimiter;
 

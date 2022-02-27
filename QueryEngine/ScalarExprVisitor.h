@@ -72,9 +72,9 @@ class ScalarExprVisitor {
     if (width_bucket) {
       return visitWidthBucket(width_bucket);
     }
-    const auto lower = dynamic_cast<const Analyzer::LowerExpr*>(expr);
-    if (lower) {
-      return visitLower(lower);
+    const auto string_oper = dynamic_cast<const Analyzer::StringOper*>(expr);
+    if (string_oper) {
+      return visitStringOper(string_oper);
     }
     const auto cardinality = dynamic_cast<const Analyzer::CardinalityExpr*>(expr);
     if (cardinality) {
@@ -199,8 +199,12 @@ class ScalarExprVisitor {
     return result;
   }
 
-  virtual T visitLower(const Analyzer::LowerExpr* lower_expr) const {
-    return visit(lower_expr->get_arg());
+  virtual T visitStringOper(const Analyzer::StringOper* string_oper) const {
+    T result = defaultResult();
+    for (const auto& arg : string_oper->getOwnArgs()) {
+      result = aggregateResult(result, visit(arg.get()));
+    }
+    return result;
   }
 
   virtual T visitCardinality(const Analyzer::CardinalityExpr* cardinality) const {

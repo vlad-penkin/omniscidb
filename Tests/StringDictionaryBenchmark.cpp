@@ -248,7 +248,8 @@ BENCHMARK_DEFINE_F(StringDictionaryFixture, BulkTranslation_10M_Unique)
                                                       num_source_strings,
                                                       num_dest_strings,
                                                       false,
-                                                      dummy_callback);
+                                                      dummy_callback,
+                                                      {});
   }
 }
 
@@ -359,7 +360,24 @@ BENCHMARK_DEFINE_F(StringDictionaryProxyFixture,
       2, BASE_PATH2, false, false, true, append_strings_10M_10M_10_randomized);
   for (auto _ : state) {
     auto id_map =
-        source_proxy->buildIntersectionTranslationMapToOtherProxy(dest_proxy.get());
+        source_proxy->buildIntersectionTranslationMapToOtherProxy(dest_proxy.get(), {});
+    CHECK_EQ(id_map.numUntranslatedStrings(), 0UL);
+  }
+}
+
+BENCHMARK_DEFINE_F(
+    StringDictionaryProxyFixture,
+    BuildIntersectionTranlsatationMapToOtherProxy_10M_Unique_Full_Overlap_Double_Reverse_Op)
+(benchmark::State& state) {
+  const auto source_proxy = create_and_populate_str_proxy(
+      1, BASE_PATH1, false, false, true, append_strings_10M_10M_10);
+  const auto dest_proxy = create_and_populate_str_proxy(
+      2, BASE_PATH2, false, false, true, append_strings_10M_10M_10_randomized);
+  for (auto _ : state) {
+    auto id_map = source_proxy->buildIntersectionTranslationMapToOtherProxy(
+        dest_proxy.get(),
+        {StringOps_Namespace::StringOpInfo(SqlStringOpKind::REVERSE, {}),
+         StringOps_Namespace::StringOpInfo(SqlStringOpKind::REVERSE, {})});
     CHECK_EQ(id_map.numUntranslatedStrings(), 0UL);
   }
 }
@@ -392,7 +410,7 @@ BENCHMARK_DEFINE_F(
   dest_proxy->getOrAddTransientBulk(append_strings_10M_10M_10_randomized_truncated_100);
   for (auto _ : state) {
     auto id_map =
-        source_proxy->buildIntersectionTranslationMapToOtherProxy(dest_proxy.get());
+        source_proxy->buildIntersectionTranslationMapToOtherProxy(dest_proxy.get(), {});
     const size_t num_expected_untranslated_strings =
         num_elems - first_n_elems - last_n_elems;
     CHECK_EQ(id_map.numUntranslatedStrings(), num_expected_untranslated_strings);
@@ -426,7 +444,8 @@ BENCHMARK_DEFINE_F(
                                     append_strings_10M_10M_10_randomized_truncated_8M);
   dest_proxy->getOrAddTransientBulk(append_strings_10M_10M_10_randomized_truncated_100);
   for (auto _ : state) {
-    auto id_map = source_proxy->buildUnionTranslationMapToOtherProxy(dest_proxy.get());
+    auto id_map =
+        source_proxy->buildUnionTranslationMapToOtherProxy(dest_proxy.get(), {});
     const size_t num_expected_untranslated_strings =
         num_elems - first_n_elems - last_n_elems;
     CHECK_EQ(id_map.numUntranslatedStrings(), num_expected_untranslated_strings);
@@ -488,6 +507,13 @@ BENCHMARK_REGISTER_F(StringDictionaryProxyFixture,
 BENCHMARK_REGISTER_F(
     StringDictionaryProxyFixture,
     BuildIntersectionTranlsatationMapToOtherProxy_10M_Unique_Full_Overlap)
+    ->MeasureProcessCPUTime()
+    ->UseRealTime()
+    ->Unit(benchmark::kMillisecond);
+
+BENCHMARK_REGISTER_F(
+    StringDictionaryProxyFixture,
+    BuildIntersectionTranlsatationMapToOtherProxy_10M_Unique_Full_Overlap_Double_Reverse_Op)
     ->MeasureProcessCPUTime()
     ->UseRealTime()
     ->Unit(benchmark::kMillisecond);

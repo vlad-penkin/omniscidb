@@ -40,6 +40,8 @@ class ArrowStorage : public SimpleSchemaProvider, public AbstractDataProvider {
 
     char delimiter = ',';
     bool header = true;
+    bool escaping = false;  // uses default escape of '\\'
+    bool quoting = false;
     size_t skip_rows = 0;
     size_t block_size = 20 << 20;  // Default block size is 20MB
   };

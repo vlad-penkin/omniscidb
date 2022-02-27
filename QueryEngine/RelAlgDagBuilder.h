@@ -40,6 +40,7 @@
 #include "SchemaMgr/ColumnInfo.h"
 #include "SchemaMgr/SchemaProvider.h"
 #include "SchemaMgr/TableInfo.h"
+#include "Shared/StringTransform.h"
 #include "Shared/toString.h"
 
 class Rex {

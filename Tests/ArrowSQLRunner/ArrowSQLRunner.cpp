@@ -67,9 +67,14 @@ class ArrowSQLRunnerImpl {
 
   void dropTable(const std::string& table_name) { storage_->dropTable(table_name); }
 
-  void insertCsvValues(const std::string& table_name, const std::string& values) {
+  void insertCsvValues(const std::string& table_name,
+                       const std::string& values,
+                       const bool escaping,
+                       const bool quoting) {
     ArrowStorage::CsvParseOptions parse_options;
     parse_options.header = false;
+    parse_options.escaping = escaping;
+    parse_options.quoting = quoting;
     storage_->appendCsvData(values, table_name, parse_options);
   }
 
@@ -419,8 +424,11 @@ void dropTable(const std::string& table_name) {
   ArrowSQLRunnerImpl::get()->dropTable(table_name);
 }
 
-void insertCsvValues(const std::string& table_name, const std::string& values) {
-  ArrowSQLRunnerImpl::get()->insertCsvValues(table_name, values);
+void insertCsvValues(const std::string& table_name,
+                     const std::string& values,
+                     const bool escaping,
+                     const bool quoting) {
+  ArrowSQLRunnerImpl::get()->insertCsvValues(table_name, values, escaping, quoting);
 }
 
 void insertJsonValues(const std::string& table_name, const std::string& values) {

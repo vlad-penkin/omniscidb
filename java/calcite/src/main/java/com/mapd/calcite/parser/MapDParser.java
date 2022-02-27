@@ -326,6 +326,7 @@ public final class MapDParser {
                                     .withHintStrategyTable(
                                             OmniSciHintStrategyTable.HINT_STRATEGY_TABLE)
                                     .build())
+
                     .typeSystem(createTypeSystem())
                     .context(MAPD_CONNECTION_CONTEXT)
                     .build();
@@ -1048,6 +1049,10 @@ public final class MapDParser {
       for (int i = 0; i < operands.length; ++i) {
         node_call.setOperand(i, expand(operands[i], id_to_expr, typeFactory));
       }
+      SqlNode expanded_substr = expandSubstr(node_call, typeFactory);
+      if (expanded_substr != null) {
+        return expanded_substr;
+      }
       SqlNode expanded_variance = expandVariance(node_call, typeFactory);
       if (expanded_variance != null) {
         return expanded_variance;
@@ -1085,6 +1090,26 @@ public final class MapDParser {
       }
     }
     return new_group_by_list;
+  }
+
+  private SqlNode expandSubstr(
+          final SqlBasicCall proj_call, RelDataTypeFactory typeFactory) {
+    // Expand SUBSTR to Calcite-native SUBSTRING
+    if (!proj_call.getOperator().isName("SUBSTR", false)) {
+      return null;
+    }
+    if (proj_call.operandCount() < 2 || proj_call.operandCount() > 3) {
+      return null;
+    }
+    final SqlParserPos pos = proj_call.getParserPosition();
+    final SqlNode primary_operand = proj_call.operand(0);
+    final SqlNode from_operand = proj_call.operand(1);
+    if (proj_call.operandCount() == 2) {
+      return SqlStdOperatorTable.SUBSTRING.createCall(pos, primary_operand, from_operand);
+    }
+    final SqlNode for_operand = proj_call.operand(2);
+    return SqlStdOperatorTable.SUBSTRING.createCall(
+            pos, primary_operand, from_operand, for_operand);
   }
 
   private SqlNode expandVariance(
