@@ -17938,6 +17938,10 @@ TEST(Select, ParseIntegerExceptions) {
   }
 }
 
+TEST(Heterogeneous, Simplest) {
+  c("SELECT count(x) from test_heterogen;", ExecutorDeviceType::GPU);
+}
+
 class SubqueryTestEnv : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -18008,6 +18012,93 @@ TEST_F(SubqueryTestEnv, SubqueryTest) {
 }
 
 namespace {
+int create_and_populate_heterogeneous_table() {
+  const std::string table_name = "test_heterogen";
+  try {
+    const std::string drop_test_table{"DROP TABLE IF EXISTS " + table_name + ";"};
+    run_ddl_statement(drop_test_table);
+    g_sqlite_comparator.query(drop_test_table);
+
+    const std::string create_test_table = "CREATE TABLE " + table_name +
+                                          " (x INTEGER, y TEXT, t INTEGER, d DATE, f "
+                                          "FLOAT, dd DOUBLE) WITH (FRAGMENT_SIZE=4)";
+    run_ddl_statement(create_test_table);
+    g_sqlite_comparator.query(create_test_table + ";");
+    {
+      const std::string insert_query{"INSERT INTO " + table_name +
+                                     " VALUES(1, 'aaa', 4, '2019-03-02', 1, 1);"};
+      run_multiple_agg(insert_query, ExecutorDeviceType::CPU);
+      g_sqlite_comparator.query(insert_query);
+    }
+    {
+      const std::string insert_query{"INSERT INTO " + table_name +
+                                     " VALUES(0, 'aaa', 5, '2019-03-01', 0, 0);"};
+      run_multiple_agg(insert_query, ExecutorDeviceType::CPU);
+      g_sqlite_comparator.query(insert_query);
+    }
+    {
+      const std::string insert_query{"INSERT INTO " + table_name +
+                                     " VALUES(2, 'ccc', 6, '2019-03-03', 2, 2);"};
+      run_multiple_agg(insert_query, ExecutorDeviceType::CPU);
+      g_sqlite_comparator.query(insert_query);
+    }
+    {
+      const std::string insert_query{"INSERT INTO " + table_name +
+                                     " VALUES(10, 'bbb', 7, '2019-03-11', 10, 10);"};
+      run_multiple_agg(insert_query, ExecutorDeviceType::CPU);
+      g_sqlite_comparator.query(insert_query);
+    }
+    {
+      const std::string insert_query{"INSERT INTO " + table_name +
+                                     " VALUES(3, 'bbb', 8, '2019-03-04', 3, 3);"};
+      run_multiple_agg(insert_query, ExecutorDeviceType::CPU);
+      g_sqlite_comparator.query(insert_query);
+    }
+    {
+      const std::string insert_query{"INSERT INTO " + table_name +
+                                     " VALUES(6, 'bbb', 9, '2019-03-07', 6, 6);"};
+      run_multiple_agg(insert_query, ExecutorDeviceType::CPU);
+      g_sqlite_comparator.query(insert_query);
+    }
+    {
+      const std::string insert_query{"INSERT INTO " + table_name +
+                                     " VALUES(9, 'bbb', 10, '2019-03-10', 9, 9);"};
+      run_multiple_agg(insert_query, ExecutorDeviceType::CPU);
+      g_sqlite_comparator.query(insert_query);
+    }
+    {
+      const std::string insert_query{"INSERT INTO " + table_name +
+                                     " VALUES(6, 'bbb', 11, '2019-03-07', 6, 6);"};
+      run_multiple_agg(insert_query, ExecutorDeviceType::CPU);
+      g_sqlite_comparator.query(insert_query);
+    }
+    {
+      const std::string insert_query{"INSERT INTO " + table_name +
+                                     " VALUES(9, 'bbb', 12, '2019-03-10', 9, 9);"};
+      run_multiple_agg(insert_query, ExecutorDeviceType::CPU);
+      g_sqlite_comparator.query(insert_query);
+    }
+    {
+      const std::string insert_query{"INSERT INTO " + table_name +
+                                     " VALUES(9, 'bbb', 13, '2019-03-10', 9, 9);"};
+      run_multiple_agg(insert_query, ExecutorDeviceType::CPU);
+      g_sqlite_comparator.query(insert_query);
+    }
+    {
+      const std::string insert_query{"INSERT INTO " + table_name +
+                                     " VALUES(NULL, NULL, 14, NULL, NULL, NULL);"};
+      run_multiple_agg(insert_query, ExecutorDeviceType::CPU);
+      g_sqlite_comparator.query(insert_query);
+    }
+
+  } catch (std::runtime_error const& e) {
+    LOG(ERROR) << "Failed to (re-)create table '" + table_name +
+                      "' with error: " + e.what();
+    return -EEXIST;
+  }
+  return 0;
+}
+
 int create_and_populate_window_func_table(const bool multi_frag) {
   std::string create_table_suffix = " WITH (FRAGMENT_SIZE=";
   const std::string fragment_size = (multi_frag ? "2" : "32000000");
@@ -19040,6 +19131,11 @@ int create_and_populate_tables(const bool use_temporary_tables) {
   int rc = create_and_populate_rounding_table();
   if (rc) {
     return rc;
+  }
+
+  int het = create_and_populate_heterogeneous_table();
+  if (het) {
+    return het;
   }
 
   for (auto is_multi_frag : {false, true}) {
