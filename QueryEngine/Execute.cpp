@@ -1453,7 +1453,7 @@ TemporaryTable Executor::executeWorkUnit(size_t& max_groups_buffer_entry_guess,
   }
 }
 
-std::shared_ptr<StreamExecutionContext> Executor::prepareStreamingExecution(
+std::shared_ptr<StreamExecutionContext> Executor::compileWorkUnitForStreaming(
     const RelAlgExecutionUnit& ra_exe_unit,
     const CompilationOptions& co,
     const ExecutionOptions& eo,
@@ -1505,8 +1505,8 @@ std::shared_ptr<StreamExecutionContext> Executor::prepareStreamingExecution(
   return ctx;
 }
 
-ResultSetPtr Executor::runOnBatch(std::shared_ptr<StreamExecutionContext> ctx,
-                                  const FragmentsList& fragments) {
+ResultSetPtr Executor::runStreamingKernel(std::shared_ptr<StreamExecutionContext> ctx,
+                                          const FragmentsList& fragments) {
   // TODO: get rid of multifragment case
   CHECK(fragments.size() == 1);
   auto query_mem_desc = *ctx->query_mem_desc;
@@ -1541,8 +1541,7 @@ ResultSetPtr Executor::runOnBatch(std::shared_ptr<StreamExecutionContext> ctx,
   return nullptr;
 }
 
-ResultSetPtr Executor::finishStreamExecution(
-    std::shared_ptr<StreamExecutionContext> ctx) {
+ResultSetPtr Executor::doStreamingReduction(std::shared_ptr<StreamExecutionContext> ctx) {
   for (auto& exec_ctx : ctx->shared_context->getTlsExecutionContext()) {
     if (exec_ctx) {
       CHECK(!ctx->ra_exe_unit.estimator);

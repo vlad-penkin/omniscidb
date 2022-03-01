@@ -425,7 +425,7 @@ void RelAlgExecutor::prepareStreamingExecution(const CompilationOptions& co,
 
   auto table_infos = get_table_infos(work_unit.exe_unit, executor_);
 
-  stream_execution_context_ = executor_->prepareStreamingExecution(
+  stream_execution_context_ = executor_->compileWorkUnitForStreaming(
       ra_exe_unit, co_hint_applied, eo_hint_applied, table_infos, *column_cache);
 
   stream_execution_context_->column_cache = std::move(column_cache);
@@ -459,11 +459,11 @@ RelAlgExecutor::WorkUnit RelAlgExecutor::createWorkUnitForStreaming(
 
 ResultSetPtr RelAlgExecutor::runOnBatch(const FragmentsPerTable& fragments) {
   FragmentsList fl{fragments};
-  return executor_->runOnBatch(stream_execution_context_, fl);
+  return executor_->runStreamingKernel(stream_execution_context_, fl);
 }
 
 ResultSetPtr RelAlgExecutor::finishStreamingExecution() {
-  return executor_->finishStreamExecution(stream_execution_context_);
+  return executor_->doStreamingReduction(stream_execution_context_);
 }
 
 ExecutionResult RelAlgExecutor::executeRelAlgQueryNoRetry(const CompilationOptions& co,
