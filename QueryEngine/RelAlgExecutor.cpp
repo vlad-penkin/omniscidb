@@ -435,12 +435,12 @@ void RelAlgExecutor::prepareStreamingExecution(const CompilationOptions& co,
 
   auto table_infos = get_table_infos(work_unit.exe_unit, executor_);
 
-  stream_execution_context_ = executor_->prepareStreamingExecution(ra_exe_unit,
-                                                                   co_hint_applied,
-                                                                   eo_hint_applied,
-                                                                   table_infos,
-                                                                   data_provider_,
-                                                                   *column_cache);
+  stream_execution_context_ = executor_->compileWorkUnitForStreaming(ra_exe_unit,
+                                                                     co_hint_applied,
+                                                                     eo_hint_applied,
+                                                                     table_infos,
+                                                                     data_provider_,
+                                                                     *column_cache);
 
   stream_execution_context_->column_cache = std::move(column_cache);
   stream_execution_context_->is_agg = node_is_aggregate(body);
@@ -473,11 +473,11 @@ RelAlgExecutor::WorkUnit RelAlgExecutor::createWorkUnitForStreaming(
 
 ResultSetPtr RelAlgExecutor::runOnBatch(const FragmentsPerTable& fragments) {
   FragmentsList fl{fragments};
-  return executor_->runOnBatch(stream_execution_context_, fl);
+  return executor_->runStreamingKernel(stream_execution_context_, fl);
 }
 
 ResultSetPtr RelAlgExecutor::finishStreamingExecution() {
-  return executor_->finishStreamExecution(stream_execution_context_);
+  return executor_->doStreamingReduction(stream_execution_context_);
 }
 
 ExecutionResult RelAlgExecutor::executeRelAlgQueryNoRetry(const CompilationOptions& co,
@@ -1786,10 +1786,9 @@ ExecutionResult RelAlgExecutor::executeTableFunction(const RelTableFunction* tab
                          {}};
 
   try {
-    result = {
-        executor_->executeTableFunction(
-            table_func_work_unit.exe_unit, table_infos, co, eo, data_provider_),
-        body->getOutputMetainfo()};
+    result = {executor_->executeTableFunction(
+                  table_func_work_unit.exe_unit, table_infos, co, eo, data_provider_),
+              body->getOutputMetainfo()};
   } catch (const QueryExecutionError& e) {
     handlePersistentError(e.getErrorCode());
     CHECK(e.getErrorCode() == Executor::ERR_OUT_OF_GPU_MEM);
@@ -2995,16 +2994,17 @@ ExecutionResult RelAlgExecutor::handleOutOfMemoryRetry(
   auto ra_exe_unit_in = work_unit.exe_unit;
   ra_exe_unit_in.use_bump_allocator = false;
 
-  auto result = ExecutionResult{std::make_shared<ResultSet>(std::vector<TargetInfo>{},
-                                                            co.device_type,
-                                                            QueryMemoryDescriptor(),
-                                                            nullptr,
-                                                            executor_->getDataMgr(),
-                                                            executor_->getBufferProvider(),
-                                                            executor_->getDatabaseId(),
-                                                            executor_->blockSize(),
-                                                            executor_->gridSize()),
-                                {}};
+  auto result =
+      ExecutionResult{std::make_shared<ResultSet>(std::vector<TargetInfo>{},
+                                                  co.device_type,
+                                                  QueryMemoryDescriptor(),
+                                                  nullptr,
+                                                  executor_->getDataMgr(),
+                                                  executor_->getBufferProvider(),
+                                                  executor_->getDatabaseId(),
+                                                  executor_->blockSize(),
+                                                  executor_->gridSize()),
+                      {}};
 
   const auto table_infos = get_table_infos(ra_exe_unit_in, executor_);
   auto max_groups_buffer_entry_guess = work_unit.max_groups_buffer_entry_guess;

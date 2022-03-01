@@ -755,7 +755,7 @@ class Executor {
                                      DataProvider* data_provider,
                                      ColumnCacheMap& column_cache);
 
-  std::shared_ptr<StreamExecutionContext> prepareStreamingExecution(
+  std::shared_ptr<StreamExecutionContext> compileWorkUnitForStreaming(
       const RelAlgExecutionUnit& ra_exe_unit,
       const CompilationOptions& co,
       const ExecutionOptions& eo,
@@ -763,10 +763,10 @@ class Executor {
       DataProvider* data_provider,
       ColumnCacheMap& column_cache);
 
-  ResultSetPtr runOnBatch(std::shared_ptr<StreamExecutionContext> ctx,
-                          const FragmentsList& fragments);
+  ResultSetPtr runStreamingKernel(std::shared_ptr<StreamExecutionContext> ctx,
+                                    const FragmentsList& fragments);
 
-  ResultSetPtr finishStreamExecution(std::shared_ptr<StreamExecutionContext> ctx);
+  ResultSetPtr doStreamingReduction(std::shared_ptr<StreamExecutionContext> ctx);
 
   std::vector<llvm::Value*> inlineHoistedLiterals();
 
