@@ -292,7 +292,6 @@ TEST_F(NoCatalogSqlTest, StreamingAggregate) {
 }
 
 TEST_F(NoCatalogSqlTest, StreamingFilter) {
-  GTEST_SKIP();
   auto ra_executor = getExecutor("SELECT val FROM test_streaming WHERE val > 20;");
   ra_executor.prepareStreamingExecution(CompilationOptions(), ExecutionOptions());
 
@@ -318,6 +317,33 @@ TEST_F(NoCatalogSqlTest, StreamingFilter) {
   auto converter = std::make_unique<ArrowResultSetConverter>(rs, col_names, -1);
   auto at = converter->convertToArrowTable();
   ArrowTestHelpers::compare_arrow_table(at, std::vector<int32_t>{30, 30, 40, 70, 90});
+}
+
+TEST_F(NoCatalogSqlTest, StreamingGroupBy) {
+  auto ra_executor = getExecutor("SELECT id, SUM(val) FROM test_streaming group by id;");
+  ra_executor.prepareStreamingExecution(CompilationOptions(), ExecutionOptions());
+  TestDataProvider& data_provider = getDataProvider();
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {1, 2, 1});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {4, 8, 3});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {16, 9, 32});
+
+  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0, 1}});
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {5, 2, 9});
+
+  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {2}});
+
+  auto rs = ra_executor.finishStreamingExecution();
+
+  std::vector<std::string> col_names{"id", "sum"};
+  auto converter = std::make_unique<ArrowResultSetConverter>(rs, col_names, -1);
+  auto at = converter->convertToArrowTable();
+
+  ArrowTestHelpers::compare_arrow_table(
+      at, std::vector<int32_t>{2, 1}, std::vector<int64_t>{70, 18});
 }
 
 int main(int argc, char** argv) {
