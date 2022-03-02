@@ -2452,14 +2452,6 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
                                                        render_info,
                                                        eo.output_columnar_hint);
 
-  if (query_mem_desc->getQueryDescriptionType() ==
-          QueryDescriptionType::GroupByBaselineHash &&
-      !has_cardinality_estimation &&
-      (!render_info || !render_info->isPotentialInSituRender()) && !eo.just_explain) {
-    const auto col_range_info = group_by_and_aggregate.getColRangeInfo();
-    throw CardinalityEstimationRequired(col_range_info.max - col_range_info.min);
-  }
-
   const bool output_columnar = query_mem_desc->didOutputColumnar();
   const bool gpu_shared_mem_optimization =
       is_gpu_shared_mem_supported(query_mem_desc.get(),

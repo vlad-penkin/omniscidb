@@ -1468,7 +1468,7 @@ std::shared_ptr<StreamExecutionContext> Executor::compileWorkUnitForStreaming(
 
   auto column_fetcher = std::make_unique<ColumnFetcher>(this, column_cache);
 
-  query_mem_desc_owned = query_comp_desc_owned->compile(-1,
+  query_mem_desc_owned = query_comp_desc_owned->compile(1000,
                                                         crt_min_byte_width,
                                                         false,
                                                         ra_exe_unit,
