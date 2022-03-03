@@ -7494,11 +7494,10 @@ void import_varlen_lazy_fetch() {
   run_ddl_statement(create_query);
   std::string insert_query("INSERT INTO " + table_name + " VALUES(");
   for (int i = 0; i < 255; i++) {
-    run_multiple_agg(
-        insert_query + std::to_string(i - 127) + ", " + 
-            "\'number" + std::to_string(i) + "\', " + "{" +
-            std::to_string(2 * i) + ", " + std::to_string(2 * i + 1) + "}" + ");",
-        ExecutorDeviceType::CPU);
+    run_multiple_agg(insert_query + std::to_string(i - 127) + ", " + "\'number" +
+                         std::to_string(i) + "\', " + "{" + std::to_string(2 * i) + ", " +
+                         std::to_string(2 * i + 1) + "}" + ");",
+                     ExecutorDeviceType::CPU);
   }
 }
 
@@ -17939,7 +17938,7 @@ TEST(Select, ParseIntegerExceptions) {
 }
 
 TEST(Heterogeneous, Simplest) {
-  c("SELECT count(x) from test_heterogen;", ExecutorDeviceType::GPU);
+  c("SELECT (x + t) as T from test_heterogen;", ExecutorDeviceType::CPU);
 }
 
 class SubqueryTestEnv : public ::testing::Test {
@@ -18021,8 +18020,9 @@ int create_and_populate_heterogeneous_table() {
 
     const std::string create_test_table = "CREATE TABLE " + table_name +
                                           " (x INTEGER, y TEXT, t INTEGER, d DATE, f "
-                                          "FLOAT, dd DOUBLE) WITH (FRAGMENT_SIZE=4)";
-    run_ddl_statement(create_test_table);
+                                          "FLOAT, dd DOUBLE)";
+    const std::string create_table_suffix = " WITH (FRAGMENT_SIZE=4)";
+    run_ddl_statement(create_test_table + create_table_suffix);
     g_sqlite_comparator.query(create_test_table + ";");
     {
       const std::string insert_query{"INSERT INTO " + table_name +
