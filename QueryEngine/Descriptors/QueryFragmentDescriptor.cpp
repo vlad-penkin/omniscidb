@@ -68,6 +68,7 @@ void QueryFragmentDescriptor::buildFragmentKernelMap(
     const ExecutorDeviceType& device_type,
     const bool enable_multifrag_kernels,
     const bool enable_inner_join_fragment_skipping,
+    const bool enable_heterogeneous_scheduling,
     Executor* executor) {
   // For joins, only consider the cardinality of the LHS
   // columns in the bytes per row count.
@@ -80,7 +81,14 @@ void QueryFragmentDescriptor::buildFragmentKernelMap(
 
   const auto num_bytes_for_row = executor->getNumBytesForFetchedRow(lhs_table_ids);
 
-  if (ra_exe_unit.union_all) {
+  if (enable_heterogeneous_scheduling) {
+    buildHeterogeneousKernelMap(ra_exe_unit,
+                                frag_offsets,
+                                device_count - cpu_threads(),
+                                cpu_threads(),
+                                num_bytes_for_row,
+                                executor);
+  } else if (ra_exe_unit.union_all) {
     buildFragmentPerKernelMapForUnion(ra_exe_unit,
                                       frag_offsets,
                                       device_count,
@@ -102,6 +110,118 @@ void QueryFragmentDescriptor::buildFragmentKernelMap(
                               num_bytes_for_row,
                               device_type,
                               executor);
+  }
+}
+
+void QueryFragmentDescriptor::buildHeterogeneousKernelMap(
+    const RelAlgExecutionUnit& ra_exe_unit,
+    const std::vector<uint64_t>& frag_offsets,
+    const unsigned gpu_count,
+    const unsigned cpu_count,
+    const size_t num_bytes_for_row,
+    Executor* executor) {
+  std::cerr << "Hello heterogeneity!\nWe have " << cpu_count << " CPUs and " << gpu_count
+            << "GPUs\n";
+
+  const auto& outer_table_desc = ra_exe_unit.input_descs.front();
+  const int outer_table_id = outer_table_desc.getTableId();
+  auto it = selected_tables_fragments_.find(outer_table_id);
+  CHECK(it != selected_tables_fragments_.end());
+  const auto outer_fragments = it->second;
+  outer_fragments_size_ = outer_fragments->size();
+
+  std::cerr << "Got " << outer_fragments_size_ << " fragments " << std::endl;
+
+  bool is_temporary_table = false;
+  if (outer_table_id > 0) {
+    auto schema_provider = executor->getSchemaProvider();
+    auto table_info =
+        schema_provider->getTableInfo(executor->getDatabaseId(), outer_table_id);
+    CHECK(table_info);
+    // Temporary tables will not have a table descriptor and not have deleted rows.
+    if (table_info->isTemporary()) {
+      // for temporary tables, we won't have delete column metadata available. However, we
+      // know the table fits in memory as it is a temporary table, so signal to the lower
+      // layers that we can disregard the early out select * optimization
+      is_temporary_table = true;
+    }
+  }
+
+  // instead of buildFragmentPerKernelForTable
+  auto get_fragment_tuple_count =
+      [&is_temporary_table](const auto& fragment) -> std::optional<size_t> {
+    if (is_temporary_table) {
+      return std::nullopt;
+    }
+    return fragment.getNumTuples();
+  };
+
+  for (size_t i = 0; i < outer_fragments_size_; ++i) {
+    if (!allowed_outer_fragment_indices_.empty()) {
+      if (std::find(allowed_outer_fragment_indices_.begin(),
+                    allowed_outer_fragment_indices_.end(),
+                    i) == allowed_outer_fragment_indices_.end()) {
+        continue;
+      }
+    }
+    const auto& fragment = (*outer_fragments)[i];
+
+    // FIXME split equally
+    ExecutorDeviceType device_type =
+        i % 2 ? ExecutorDeviceType::GPU : ExecutorDeviceType::CPU;
+
+    std::cerr << "Creating kernel for fragment id=" << i << ", device type: "
+              << (device_type == ExecutorDeviceType::CPU ? "CPU" : "GPU") << "\n";
+
+    const auto skip_frag = executor->skipFragment(
+        outer_table_desc, fragment, ra_exe_unit.simple_quals, frag_offsets, i);
+    if (skip_frag.first) {
+      continue;
+    }
+    rowid_lookup_key_ = std::max(rowid_lookup_key_, skip_frag.second);
+    const int chosen_device_count =
+        device_type == ExecutorDeviceType::CPU ? 1 : gpu_count;
+    CHECK_GT(chosen_device_count, 0);
+    const auto memory_level = device_type == ExecutorDeviceType::GPU
+                                  ? Data_Namespace::GPU_LEVEL
+                                  : Data_Namespace::CPU_LEVEL;
+    const int device_id = fragment.deviceIds[static_cast<int>(memory_level)];
+
+    std::cerr << "Device id = " << device_id << "\n";
+
+    if (device_type == ExecutorDeviceType::GPU) {
+      checkDeviceMemoryUsage(fragment, device_id, num_bytes_for_row);
+    }
+
+    ExecutionKernelDescriptor execution_kernel_desc{
+        device_id, {}, get_fragment_tuple_count(fragment)};
+    {
+      for (size_t j = 0; j < ra_exe_unit.input_descs.size(); ++j) {
+        const auto frag_ids =
+            executor->getTableFragmentIndices(ra_exe_unit,
+                                              device_type,
+                                              j,
+                                              i,
+                                              selected_tables_fragments_,
+                                              executor->getInnerTabIdToJoinCond());
+        const auto table_id = ra_exe_unit.input_descs[j].getTableId();
+        auto table_frags_it = selected_tables_fragments_.find(table_id);
+        CHECK(table_frags_it != selected_tables_fragments_.end());
+
+        execution_kernel_desc.fragments.emplace_back(
+            FragmentsPerTable{table_id, frag_ids});
+      }
+    }
+
+    auto itr = execution_kernels_per_device_.find(device_id);
+    if (itr == execution_kernels_per_device_.end()) {
+      auto const pair = execution_kernels_per_device_.insert(std::make_pair(
+          device_id,
+          std::vector<ExecutionKernelDescriptor>{std::move(execution_kernel_desc)}));
+      CHECK(pair.second);
+    } else {
+      itr->second.emplace_back(std::move(execution_kernel_desc));
+    }
   }
 }
 

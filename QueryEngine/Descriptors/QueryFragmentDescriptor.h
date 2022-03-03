@@ -83,6 +83,7 @@ class QueryFragmentDescriptor {
                               const ExecutorDeviceType& device_type,
                               const bool enable_multifrag_kernels,
                               const bool enable_inner_join_fragment_skipping,
+                              const bool enable_heterogeneous_scheduling,
                               Executor* executor);
 
   /**
@@ -138,6 +139,48 @@ class QueryFragmentDescriptor {
     }
   }
 
+  template <typename DISPATCH_FCN>
+  void assignFragsToHeterogeneousKernelDispatch(
+      DISPATCH_FCN f,
+      const RelAlgExecutionUnit& ra_exe_unit) const {
+    if (execution_kernels_per_device_.empty()) {
+      return;
+    }
+    std::cerr << "execution kernels per device:\n";
+    for (const auto& k : execution_kernels_per_device_) {
+      std::cerr << "id=" << k.first << " num=" << k.second.size() << "\n";
+    }
+
+    size_t tuple_count = 0;
+
+    std::unordered_map<int, size_t> execution_kernel_index;
+    for (const auto& device_itr : execution_kernels_per_device_) {
+      CHECK(execution_kernel_index.insert(std::make_pair(device_itr.first, size_t(0)))
+                .second);
+    }
+
+    bool dispatch_finished = false;
+    unsigned i = 0;
+    while (!dispatch_finished) {
+      dispatch_finished = true;
+      for (const auto& device_itr : execution_kernels_per_device_) {
+        auto& kernel_idx = execution_kernel_index[device_itr.first];
+        if (kernel_idx < device_itr.second.size()) {
+          dispatch_finished = false;
+          ExecutorDeviceType device_type =
+              i % 2 ? ExecutorDeviceType::GPU : ExecutorDeviceType::CPU;
+
+          const auto& execution_kernel = device_itr.second[kernel_idx++];
+          f(device_itr.first, execution_kernel.fragments, rowid_lookup_key_, device_type);
+          ++i;
+          if (terminateDispatchMaybe(tuple_count, ra_exe_unit, execution_kernel)) {
+            return;
+          }
+        }
+      }
+    }
+  }
+
   bool shouldCheckWorkUnitWatchdog() const {
     return rowid_lookup_key_ < 0 && !execution_kernels_per_device_.empty();
   }
@@ -154,6 +197,13 @@ class QueryFragmentDescriptor {
   double gpu_input_mem_limit_percent_;
   std::map<size_t, size_t> tuple_count_per_device_;
   std::map<size_t, size_t> available_gpu_mem_bytes_;
+
+  void buildHeterogeneousKernelMap(const RelAlgExecutionUnit& ra_exe_unit,
+                                   const std::vector<uint64_t>& frag_offsets,
+                                   const unsigned gpu_count,
+                                   const unsigned cpu_count,
+                                   const size_t num_bytes_for_row,
+                                   Executor* executor);
 
   void buildFragmentPerKernelMapForUnion(const RelAlgExecutionUnit& ra_exe_unit,
                                          const std::vector<uint64_t>& frag_offsets,

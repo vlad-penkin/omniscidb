@@ -162,6 +162,9 @@ void ExecutionKernel::runImpl(Executor* executor,
   const auto memory_level = chosen_device_type == ExecutorDeviceType::GPU
                                 ? Data_Namespace::GPU_LEVEL
                                 : Data_Namespace::CPU_LEVEL;
+  std::cerr << "Running kernel on "
+            << (chosen_device_type == ExecutorDeviceType::GPU ? "GPU" : "CPU")
+            << std::endl;
   CHECK_GE(frag_list.size(), size_t(1));
   // frag_list[0].table_id is how we tell which query we are running for UNION ALL.
   const int outer_table_id = ra_exe_unit_.union_all
