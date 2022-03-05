@@ -1468,7 +1468,7 @@ std::shared_ptr<StreamExecutionContext> Executor::compileWorkUnitForStreaming(
 
   auto column_fetcher = std::make_unique<ColumnFetcher>(this, column_cache);
 
-  query_mem_desc_owned = query_comp_desc_owned->compile(1000,
+  query_mem_desc_owned = query_comp_desc_owned->compile(-1,
                                                         crt_min_byte_width,
                                                         false,
                                                         ra_exe_unit,
@@ -1523,6 +1523,7 @@ ResultSetPtr Executor::runStreamingKernel(std::shared_ptr<StreamExecutionContext
 
     query_mem_desc.setEntryCount(num_tuples);  // TODO(fexolm) set appropriate entry count
   }
+  query_mem_desc.setEntryCount(10000);  // TODO(fexolm) set appropriate entry count
   auto kernel = std::make_unique<ExecutionKernel>(ctx->ra_exe_unit,
                                                   ctx->co.device_type,
                                                   0,

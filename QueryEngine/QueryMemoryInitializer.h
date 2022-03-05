@@ -51,7 +51,7 @@ class QueryMemoryInitializer {
                          DeviceAllocator* gpu_allocator,
                          const size_t thread_idx,
                          const Executor* executor,
-                         bool use_hash_table_desc = false);
+                         bool use_hash_table_desc = true);
 
   // Table functions execution constructor
   QueryMemoryInitializer(const TableFunctionExecutionUnit& exe_unit,
@@ -64,7 +64,7 @@ class QueryMemoryInitializer {
                          std::shared_ptr<RowSetMemoryOwner> row_set_mem_owner,
                          DeviceAllocator* device_allocator,
                          const Executor* executor,
-                         bool use_hash_table_desc = false);
+                         bool use_hash_table_desc = true);
 
   ~QueryMemoryInitializer();
 

@@ -38,7 +38,7 @@ struct CompilationOptions {
                                         // scans. Primarily disabled for delete queries.
   ExecutorExplainType explain_type{ExecutorExplainType::Default};
   bool register_intel_jit_listener{false};
-  bool use_groupby_buffer_desc{false};
+  bool use_groupby_buffer_desc{true};
 
   static CompilationOptions makeCpuOnly(const CompilationOptions& in) {
     return CompilationOptions{ExecutorDeviceType::CPU,

@@ -406,11 +406,12 @@ ExecutionEngineWrapper CodeGenerator::generateNativeCPUCode(
     const std::unordered_set<llvm::Function*>& live_funcs,
     const CompilationOptions& co) {
   auto module = func->getParent();
+  // module->print(llvm::outs(), nullptr);
   // run optimizations
-#ifndef WITH_JIT_DEBUG
-  llvm::legacy::PassManager pass_manager;
-  optimize_ir(func, module, pass_manager, live_funcs, co);
-#endif  // WITH_JIT_DEBUG
+// #ifndef WITH_JIT_DEBUG
+//   llvm::legacy::PassManager pass_manager;
+//   optimize_ir(func, module, pass_manager, live_funcs, co);
+// #endif  // WITH_JIT_DEBUG
 
   auto init_err = llvm::InitializeNativeTarget();
   CHECK(!init_err);

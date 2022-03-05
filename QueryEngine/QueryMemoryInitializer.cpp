@@ -468,6 +468,7 @@ QueryMemoryInitializer::QueryMemoryInitializer(
   if (use_hash_table_desc_) {
     auto* desc = new HashTableDesc(reinterpret_cast<int8_t*>(group_by_buffer),
                                    query_mem_desc.getEntryCount());
+    std::cout << "#### " << __PRETTY_FUNCTION__ << ", desc->size: "  << desc->size << std::endl;
     group_by_buffers_.push_back(reinterpret_cast<int64_t*>(desc));
   } else {
     group_by_buffers_.push_back(group_by_buffer);

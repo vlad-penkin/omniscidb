@@ -703,6 +703,19 @@ std::vector<int64_t*> QueryExecutionContext::launchCpuCode(
                                const uint32_t*,  // num_tables
                                const int64_t*);  // join_hash_tables_ptr
     if (is_group_by) {
+      {
+        auto i64descs = query_buffers_->getGroupByBuffersPtr();
+
+        for (size_t i=0; i<query_buffers_->getGroupByBuffersSize(); i++) {
+            auto *desc = reinterpret_cast<HashTableDesc*>(i64descs[i]);
+            if (desc) {
+              std::cout << "### desc->size: " << desc->size << std::endl;
+            }
+            else {
+              std::cout << "### ACHTUNG! nullptr!" << std::endl;
+            }
+        }
+      }
       reinterpret_cast<agg_query>(native_code->func())(
           multifrag_cols_ptr,
           &num_fragments,
@@ -743,6 +756,20 @@ std::vector<int64_t*> QueryExecutionContext::launchCpuCode(
                                const uint32_t*,  // num_tables
                                const int64_t*);  // join_hash_tables_ptr
     if (is_group_by) {
+      {
+        auto i64descs = query_buffers_->getGroupByBuffersPtr();
+
+        for (size_t i=0; i<query_buffers_->getGroupByBuffersSize(); i++) {
+            auto *desc = reinterpret_cast<HashTableDesc*>(i64descs[i]);
+            if (desc) {
+              std::cout << "### desc->size: " << desc->size << std::endl;
+            }
+            else {
+              std::cout << "### ACHTUNG! nullptr!" << std::endl;
+            }
+        }
+
+      }
       reinterpret_cast<agg_query>(native_code->func())(
           multifrag_cols_ptr,
           &num_fragments,
