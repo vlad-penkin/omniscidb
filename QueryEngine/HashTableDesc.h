@@ -19,14 +19,14 @@
 
 struct HashTableDesc {
   int8_t* ptr{nullptr};
-  size_t size{0};
+  uint32_t size{0};
 
-  HashTableDesc(int8_t*, size_t);
+  HashTableDesc(int8_t*, uint32_t);
   HashTableDesc() = default;
 };
 
 inline __attribute__((always_inline))
-HashTableDesc::HashTableDesc(int8_t* ptr_, size_t size_)
+HashTableDesc::HashTableDesc(int8_t* ptr_, uint32_t size_)
     : ptr(ptr_), size(size_) {}
 
 #endif  // HASH_TABLE_DESC_H

@@ -1287,8 +1287,8 @@ GroupByAndAggregate::codegenMultiColumnBaselineHash(
   }
 
   if (co.use_groupby_buffer_desc) {
-    auto* desc_type = llvm::StructType::get(llvm::Type::getInt8PtrTy(LL_CONTEXT),
-                                            LL_BUILDER.getInt64Ty());
+    auto* desc_type = llvm::StructType::get(llvm::Type::getInt64PtrTy(LL_CONTEXT),
+                                            LL_BUILDER.getInt32Ty());
     auto* desc_ptr_type = llvm::PointerType::getUnqual(desc_type);
 
     llvm::Value* hash_table_desc_ptr =
@@ -1299,13 +1299,6 @@ GroupByAndAggregate::codegenMultiColumnBaselineHash(
     llvm::Value* hash_ptr = LL_BUILDER.CreateLoad(hash_ptr_ptr);
     auto hash_size_ptr = LL_BUILDER.CreateStructGEP(hash_table_desc_ptr, 1);
     llvm::Value* hash_size = LL_BUILDER.CreateLoad(hash_size_ptr);
-    //get_group_value(dest->ptr, desc->size, ...)
-    // llvm::FunctionCallee CalleeF = executor_->cgen_state_->module_
-    //   ->getOrInsertFunction("printf", llvm::FunctionType::get(llvm::IntegerType::getInt32Ty(LL_CONTEXT), 
-    //       llvm::PointerType::get(llvm::Type::getInt8Ty(LL_CONTEXT), 0), true /* this is var arg func type*/));
-
-    // std::vector<llvm::Value *> ArgsV {hash_size};
-    // LL_BUILDER.CreateCall(CalleeF, ArgsV, "printfCall");
 
     func_args = std::vector<llvm::Value*>{hash_ptr,
                                           hash_size,
