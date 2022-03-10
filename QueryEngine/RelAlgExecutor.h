@@ -406,6 +406,7 @@ class RelAlgExecutor {
   std::optional<std::function<void()>> post_execution_callback_;
 
   std::shared_ptr<StreamExecutionContext> stream_execution_context_;
+  std::shared_ptr<StreamExecutionContext> stream_estimation_context_;
 
   friend class PendingExecutionClosure;
 };
