@@ -48,7 +48,6 @@ set(query_engine_source_files
     ExternalExecutor.cpp
     ExtractFromTime.cpp
     FromTableReordering.cpp
-#    GeoIR.cpp
     Globals.cpp
     GpuInterrupt.cpp
     GpuMemUtils.cpp

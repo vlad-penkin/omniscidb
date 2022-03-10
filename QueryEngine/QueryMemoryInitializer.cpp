@@ -241,6 +241,7 @@ QueryMemoryInitializer::QueryMemoryInitializer(
     const ExecutorDispatchMode dispatch_mode,
     const bool output_columnar,
     const bool sort_on_gpu,
+    const bool use_hash_table_desc,
     const int64_t num_rows,
     const std::vector<std::vector<const int8_t*>>& col_buffers,
     const std::vector<std::vector<uint64_t>>& frag_offsets,
@@ -249,8 +250,7 @@ QueryMemoryInitializer::QueryMemoryInitializer(
     std::shared_ptr<RowSetMemoryOwner> row_set_mem_owner,
     DeviceAllocator* device_allocator,
     const size_t thread_idx,
-    const Executor* executor,
-    bool use_hash_table_desc)
+    const Executor* executor)
     : num_rows_(num_rows)
     , row_set_mem_owner_(row_set_mem_owner)
     , init_agg_vals_(executor->plan_state_->init_agg_vals_)
@@ -372,6 +372,8 @@ QueryMemoryInitializer::QueryMemoryInitializer(
     }
 
     if (use_hash_table_desc_) {
+      //  when Hash Table Descriptors are used, int64_t pointers passed to IR's function
+      //  are casted back correctly to HashTableDesc*.
       auto* desc = new HashTableDesc(reinterpret_cast<int8_t*>(group_by_buffer),
                                      query_mem_desc.getEntryCount());
       group_by_buffers_.push_back(reinterpret_cast<int64_t*>(desc));
@@ -417,13 +419,13 @@ QueryMemoryInitializer::QueryMemoryInitializer(
     const QueryMemoryDescriptor& query_mem_desc,
     const int device_id,
     const ExecutorDeviceType device_type,
+    const bool use_hash_table_desc,
     const int64_t num_rows,
     const std::vector<std::vector<const int8_t*>>& col_buffers,
     const std::vector<std::vector<uint64_t>>& frag_offsets,
     std::shared_ptr<RowSetMemoryOwner> row_set_mem_owner,
     DeviceAllocator* device_allocator,
-    const Executor* executor,
-    bool use_hash_table_desc)
+    const Executor* executor)
     : num_rows_(num_rows)
     , row_set_mem_owner_(row_set_mem_owner)
     , init_agg_vals_(init_agg_val_vec(exe_unit.target_exprs, {}, query_mem_desc))
@@ -468,7 +470,6 @@ QueryMemoryInitializer::QueryMemoryInitializer(
   if (use_hash_table_desc_) {
     auto* desc = new HashTableDesc(reinterpret_cast<int8_t*>(group_by_buffer),
                                    query_mem_desc.getEntryCount());
-    std::cout << "#### " << __PRETTY_FUNCTION__ << ", desc->size: "  << desc->size << std::endl;
     group_by_buffers_.push_back(reinterpret_cast<int64_t*>(desc));
   } else {
     group_by_buffers_.push_back(group_by_buffer);

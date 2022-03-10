@@ -42,6 +42,7 @@ class QueryMemoryInitializer {
                          const ExecutorDispatchMode dispatch_mode,
                          const bool output_columnar,
                          const bool sort_on_gpu,
+                         const bool use_hash_table_desc,
                          const int64_t num_rows,
                          const std::vector<std::vector<const int8_t*>>& col_buffers,
                          const std::vector<std::vector<uint64_t>>& frag_offsets,
@@ -50,21 +51,20 @@ class QueryMemoryInitializer {
                          std::shared_ptr<RowSetMemoryOwner> row_set_mem_owner,
                          DeviceAllocator* gpu_allocator,
                          const size_t thread_idx,
-                         const Executor* executor,
-                         bool use_hash_table_desc = true);
+                         const Executor* executor);
 
   // Table functions execution constructor
   QueryMemoryInitializer(const TableFunctionExecutionUnit& exe_unit,
                          const QueryMemoryDescriptor& query_mem_desc,
                          const int device_id,
                          const ExecutorDeviceType device_type,
+                         const bool use_hash_table_desc,
                          const int64_t num_rows,
                          const std::vector<std::vector<const int8_t*>>& col_buffers,
                          const std::vector<std::vector<uint64_t>>& frag_offsets,
                          std::shared_ptr<RowSetMemoryOwner> row_set_mem_owner,
                          DeviceAllocator* device_allocator,
-                         const Executor* executor,
-                         bool use_hash_table_desc = true);
+                         const Executor* executor);
 
   ~QueryMemoryInitializer();
 
@@ -100,14 +100,6 @@ class QueryMemoryInitializer {
     CHECK_LT(index, init_agg_vals_.size());
     return init_agg_vals_[index];
   }
-
-  // const std::vector <int64_t*> getGroupByHashTableDescPtr() {
-  //   std::vector <int64_t*> rv;
-  //   for (auto *desc: group_by_hash_tabler_descs_) {
-  //     rv.push_back(reinterpret_cast<int64_t*>(desc));
-  //   }
-  //   return rv;
-  // }
 
   const auto getGroupByBuffersPtr() {
     return reinterpret_cast<int64_t**>(group_by_buffers_.data());
@@ -243,7 +235,6 @@ class QueryMemoryInitializer {
 
   size_t num_buffers_;
   std::vector<int64_t*> group_by_buffers_;
-  // std::vector<HashTableDesc*> group_by_hash_table_descs_;
 
   std::shared_ptr<VarlenOutputInfo> varlen_output_info_;
   CUdeviceptr varlen_output_buffer_;

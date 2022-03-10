@@ -18,6 +18,7 @@
 #include "AggregateUtils.h"
 #include "Descriptors/QueryMemoryDescriptor.h"
 #include "Execute.h"
+#include "Globals.h"
 #include "GpuInitGroups.h"
 #include "InPlaceSort.h"
 #include "QueryEngine/Rendering/RenderInfo.h"
@@ -69,6 +70,7 @@ QueryExecutionContext::QueryExecutionContext(
                                                             dispatch_mode,
                                                             output_columnar,
                                                             sort_on_gpu,
+                                                            g_use_groupby_buffer_desc,
                                                             num_rows,
                                                             col_buffers,
                                                             frag_offsets,

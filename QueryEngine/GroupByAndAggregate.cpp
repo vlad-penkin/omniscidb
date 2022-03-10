@@ -37,7 +37,6 @@
 #include "../Utils/ChunkIter.h"
 #include "DataMgr/BufferMgr/BufferMgr.h"
 #include "Execute.h"
-#include "HashTableDesc.h"
 #include "QueryTemplateGenerator.h"
 #include "RuntimeFunctions.h"
 #include "StreamingTopN.h"
