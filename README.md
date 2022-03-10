@@ -91,7 +91,9 @@ The following `cmake`/`ccmake` options can enable/disable different features:
 # Building in conda environment
 
 `conda env create -f scripts/mapd-deps-conda-dev-env.yml --force`
+
 `conda activate omnisci-dev`
+
 `bash scripts/conda/build-install-all.sh`
 
 By default, tests are not included in the build. To include tests use:
