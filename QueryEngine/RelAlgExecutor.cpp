@@ -71,6 +71,10 @@ extern bool g_enable_dynamic_watchdog;
 
 namespace {
 
+bool node_is_group_by(const RelAlgNode* ra) {
+  return dynamic_cast<const RelAggregate*>(ra);
+}
+
 bool node_is_aggregate(const RelAlgNode* ra) {
   const auto compound = dynamic_cast<const RelCompound*>(ra);
   const auto aggregate = dynamic_cast<const RelAggregate*>(ra);
@@ -428,6 +432,13 @@ void RelAlgExecutor::prepareStreamingExecution(const CompilationOptions& co,
   stream_execution_context_ = executor_->compileWorkUnitForStreaming(
       ra_exe_unit, co_hint_applied, eo_hint_applied, table_infos, *column_cache);
 
+  if (node_is_group_by(body)) {
+    const auto estimator_exe_unit =
+        create_ndv_execution_unit(work_unit.exe_unit, 50000000);
+    stream_estimation_context_ = executor_->compileWorkUnitForStreaming(
+        estimator_exe_unit, co, eo, table_infos, *column_cache);
+  }
+
   stream_execution_context_->column_cache = std::move(column_cache);
   stream_execution_context_->is_agg = node_is_aggregate(body);
 }
@@ -459,10 +470,23 @@ RelAlgExecutor::WorkUnit RelAlgExecutor::createWorkUnitForStreaming(
 
 ResultSetPtr RelAlgExecutor::runOnBatch(const FragmentsPerTable& fragments) {
   FragmentsList fl{fragments};
+  if (stream_estimation_context_) {
+    executor_->runStreamingKernel(stream_estimation_context_, fl);
+    auto results = stream_estimation_context_->shared_context->getFragmentResults();
+    for (const auto& [rs, sec] : results) {
+      auto row = rs->getNextRow(false, false);
+      std::cout << boost::get<ScalarTargetValue>(row[0]) << std::endl;
+    }
+  }
   return executor_->runStreamingKernel(stream_execution_context_, fl);
 }
 
 ResultSetPtr RelAlgExecutor::finishStreamingExecution() {
+  if (stream_estimation_context_) {
+    const auto estimator_result =
+        executor_->doStreamingReduction(stream_execution_context_);
+    std::cout << std::max(estimator_result->getNDVEstimator(), size_t(1)) << std::endl;
+  }
   return executor_->doStreamingReduction(stream_execution_context_);
 }
 
