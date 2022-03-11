@@ -463,7 +463,7 @@ ResultSetPtr RelAlgExecutor::runOnBatch(const FragmentsPerTable& fragments) {
 }
 
 ResultSetPtr RelAlgExecutor::finishStreamingExecution() {
-  return executor_->doStreamingReduction(stream_execution_context_);
+  return executor_->finishStreamExecution(stream_execution_context_);
 }
 
 ExecutionResult RelAlgExecutor::executeRelAlgQueryNoRetry(const CompilationOptions& co,

@@ -1542,7 +1542,7 @@ ResultSetPtr Executor::runStreamingKernel(std::shared_ptr<StreamExecutionContext
   return nullptr;
 }
 
-ResultSetPtr Executor::doStreamingReduction(std::shared_ptr<StreamExecutionContext> ctx) {
+ResultSetPtr Executor::finishStreamExecution(std::shared_ptr<StreamExecutionContext> ctx) {
   for (auto& exec_ctx : ctx->shared_context->getTlsExecutionContext()) {
     if (exec_ctx) {
       CHECK(!ctx->ra_exe_unit.estimator);

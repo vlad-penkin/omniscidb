@@ -753,7 +753,7 @@ class Executor {
   ResultSetPtr runStreamingKernel(std::shared_ptr<StreamExecutionContext> ctx,
                                     const FragmentsList& fragments);
 
-  ResultSetPtr doStreamingReduction(std::shared_ptr<StreamExecutionContext> ctx);
+  ResultSetPtr finishStreamExecution(std::shared_ptr<StreamExecutionContext> ctx);
 
   std::vector<llvm::Value*> inlineHoistedLiterals();
 
