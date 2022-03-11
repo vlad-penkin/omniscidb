@@ -1,1 +1,0 @@
-extern bool g_use_groupby_buffer_desc;

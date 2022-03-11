@@ -35,7 +35,6 @@
 #include "gen-cpp/CalciteServer.h"
 
 #include "QueryEngine/ErrorHandling.h"
-#include "QueryEngine/Globals.h"
 #include "QueryEngine/RelAlgExecutor.h"
 
 #include "Catalog/Catalog.h"
@@ -63,6 +62,7 @@
 #include "QueryEngine/TableOptimizer.h"
 #include "QueryEngine/ThriftSerializers.h"
 #include "Shared/ArrowUtil.h"
+#include "Shared/Globals.h"
 #include "Shared/StringTransform.h"
 #include "Shared/import_helpers.h"
 #include "Shared/mapd_shared_mutex.h"

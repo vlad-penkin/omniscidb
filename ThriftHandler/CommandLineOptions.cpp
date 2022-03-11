@@ -26,6 +26,7 @@
 #include "MapDRelease.h"
 #include "QueryEngine/GroupByAndAggregate.h"
 #include "Shared/Compressor.h"
+#include "Shared/Globals.h"
 #include "StringDictionary/StringDictionary.h"
 #include "Utils/DdlUtils.h"
 

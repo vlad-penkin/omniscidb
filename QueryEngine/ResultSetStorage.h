@@ -27,7 +27,6 @@
 
 #include "CardinalityEstimator.h"
 #include "DataMgr/Chunk/Chunk.h"
-#include "HashTableDesc.h"
 #include "ResultSetBufferAccessors.h"
 #include "TargetValue.h"
 
@@ -238,7 +237,6 @@ class ResultSetStorage {
 
   const std::vector<TargetInfo> targets_;
   QueryMemoryDescriptor query_mem_desc_;
-  HashTableDesc hash_table_desc_;
   int8_t* buff_;
   const bool buff_is_provided_;
   std::vector<int64_t> target_init_vals_;

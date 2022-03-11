@@ -19,6 +19,7 @@
 #include "Execute.h"
 #include "GpuInitGroups.h"
 #include "GpuMemUtils.h"
+#include "HashTableDesc.h"
 #include "Logger/Logger.h"
 #include "OutputBufferInitialization.h"
 #include "ResultSet.h"
