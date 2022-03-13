@@ -146,10 +146,6 @@ class QueryFragmentDescriptor {
     if (execution_kernels_per_device_.empty()) {
       return;
     }
-    std::cerr << "execution kernels per device:\n";
-    for (const auto& k : execution_kernels_per_device_) {
-      std::cerr << "id=" << k.first << " num=" << k.second.size() << "\n";
-    }
 
     size_t tuple_count = 0;
 

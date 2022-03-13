@@ -1439,26 +1439,44 @@ TemporaryTable Executor::executeWorkUnit(size_t& max_groups_buffer_entry_guess,
   };
 
   try {
-    std::cerr << "Execute counter = " << execute_counter++ << "\n";
-    std::cerr << "Executor " << executor_id_
-              << " is executing work unit:" << ra_exe_unit_in << "\n";
-    auto result = executeWorkUnitImplHetero(max_groups_buffer_entry_guess,
-                                            is_agg,
-                                            true,
-                                            query_infos,
-                                            ra_exe_unit_in,
-                                            co,
-                                            eo,
-                                            row_set_mem_owner_,
-                                            render_info,
-                                            has_cardinality_estimation,
-                                            column_cache);
-    result.setKernelQueueTime(kernel_queue_time_ms_);
-    result.addCompilationQueueTime(compilation_queue_time_ms_);
-    if (eo.just_validate) {
-      result.setValidationOnlyRes();
+    if (eo.allow_heterogeneous_execution) {
+      auto result = executeWorkUnitImplHetero(max_groups_buffer_entry_guess,
+                                              is_agg,
+                                              true,
+                                              query_infos,
+                                              ra_exe_unit_in,
+                                              co,
+                                              eo,
+                                              row_set_mem_owner_,
+                                              render_info,
+                                              has_cardinality_estimation,
+                                              column_cache);
+      result.setKernelQueueTime(kernel_queue_time_ms_);
+      result.addCompilationQueueTime(compilation_queue_time_ms_);
+      if (eo.just_validate) {
+        result.setValidationOnlyRes();
+      }
+      return result;
+    } else {
+      auto result = executeWorkUnitImpl(max_groups_buffer_entry_guess,
+                                        is_agg,
+                                        true,
+                                        query_infos,
+                                        ra_exe_unit_in,
+                                        co,
+                                        eo,
+                                        row_set_mem_owner_,
+                                        render_info,
+                                        has_cardinality_estimation,
+                                        column_cache);
+      result.setKernelQueueTime(kernel_queue_time_ms_);
+      result.addCompilationQueueTime(compilation_queue_time_ms_);
+      if (eo.just_validate) {
+        result.setValidationOnlyRes();
+      }
+      return result;
     }
-    return result;
+
   } catch (const CompilationRetryNewScanLimit& e) {
     auto result =
         executeWorkUnitImpl(max_groups_buffer_entry_guess,
@@ -1532,7 +1550,6 @@ TemporaryTable Executor::executeWorkUnitImplHetero(
         std::lock_guard<std::mutex> compilation_lock(compilation_mutex_);
         compilation_queue_time_ms_ += timer_stop(clock_begin);
 
-        std::cerr << "Compiling for CPU\n";
         cpu_query_mem_desc_owned =
             cpu_query_comp_desc_owned->compile(max_groups_buffer_entry_guess,
                                                crt_min_byte_width,
@@ -1561,7 +1578,6 @@ TemporaryTable Executor::executeWorkUnitImplHetero(
       try {
         std::lock_guard<std::mutex> compilation_lock(compilation_mutex_);
 
-        std::cerr << "Compiling for GPU\n";
         gpu_query_mem_desc_owned =
             gpu_query_comp_desc_owned->compile(max_groups_buffer_entry_guess,
                                                crt_min_byte_width,
@@ -1605,15 +1621,10 @@ TemporaryTable Executor::executeWorkUnitImplHetero(
       int available_cpus = cpu_threads();
       auto available_gpus = get_available_gpus(data_mgr_);
 
-      std::cerr << cpu_query_comp_desc_owned->getIR();
-      std::cerr << gpu_query_comp_desc_owned->getIR();
-
       const auto gpu_count = get_context_count(
           ExecutorDeviceType::GPU, available_cpus, available_gpus.size());
       const auto cpu_count = get_context_count(
           ExecutorDeviceType::CPU, available_cpus, available_gpus.size());
-      std::cerr << "The platform has " << cpu_count << " CPUs and " << gpu_count
-                << " GPUs available.\n";
       try {
         auto kernels = createHeterogeneousKernels(shared_context,
                                                   ra_exe_unit,
@@ -2398,10 +2409,6 @@ std::vector<std::unique_ptr<ExecutionKernel>> Executor::createHeterogeneousKerne
                                              g_inner_join_fragment_skipping,
                                              true,  // heterogeneous mode
                                              this);
-
-  std::cerr << "Creating one execution kernel per fragment";
-  std::cerr << cpu_query_mem_desc.toString() << "\n";
-  std::cerr << gpu_query_mem_desc.toString() << "\n";
 
   // if (!ra_exe_unit.use_bump_allocator && allow_single_frag_table_opt &&
   //     (query_mem_desc.getQueryDescriptionType() == QueryDescriptionType::Projection) &&

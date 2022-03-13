@@ -2910,9 +2910,6 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
 #endif
   }
 
-  // TODO: remove
-  llvm_ir += serialize_llvm_object(query_func);
-
   LOG(IR) << "\n\n" << query_mem_desc->toString() << "\n";
   LOG(IR) << "IR for the "
           << (co.device_type == ExecutorDeviceType::CPU ? "CPU:\n" : "GPU:\n");

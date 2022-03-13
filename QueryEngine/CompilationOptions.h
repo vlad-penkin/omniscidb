@@ -85,6 +85,7 @@ struct ExecutionOptions {
   const std::vector<size_t> outer_fragment_indices{};
   bool multifrag_result = false;
   bool preserve_order = false;
+  bool allow_heterogeneous_execution = true;  // disable for must-run-on-cpu
 
   static ExecutionOptions defaults() {
     return ExecutionOptions{false,

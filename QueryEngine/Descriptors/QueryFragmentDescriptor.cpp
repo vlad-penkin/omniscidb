@@ -120,17 +120,12 @@ void QueryFragmentDescriptor::buildHeterogeneousKernelMap(
     const unsigned cpu_count,
     const size_t num_bytes_for_row,
     Executor* executor) {
-  std::cerr << "Hello heterogeneity!\nWe have " << cpu_count << " CPUs and " << gpu_count
-            << "GPUs\n";
-
   const auto& outer_table_desc = ra_exe_unit.input_descs.front();
   const int outer_table_id = outer_table_desc.getTableId();
   auto it = selected_tables_fragments_.find(outer_table_id);
   CHECK(it != selected_tables_fragments_.end());
   const auto outer_fragments = it->second;
   outer_fragments_size_ = outer_fragments->size();
-
-  std::cerr << "Got " << outer_fragments_size_ << " fragments " << std::endl;
 
   bool is_temporary_table = false;
   if (outer_table_id > 0) {
@@ -186,8 +181,6 @@ void QueryFragmentDescriptor::buildHeterogeneousKernelMap(
                                   ? Data_Namespace::GPU_LEVEL
                                   : Data_Namespace::CPU_LEVEL;
     const int device_id = fragment.deviceIds[static_cast<int>(memory_level)];
-
-    std::cerr << "Device id = " << device_id << "\n";
 
     if (device_type == ExecutorDeviceType::GPU) {
       checkDeviceMemoryUsage(fragment, device_id, num_bytes_for_row);

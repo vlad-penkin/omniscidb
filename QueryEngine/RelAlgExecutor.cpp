@@ -561,16 +561,21 @@ ExecutionResult RelAlgExecutor::executeRelAlgSeq(const RaExecutionSequence& seq,
       // Do not allow per-step retry if flag is off or in distributed mode
       // TODO(todd): Determine if and when we can relax this restriction
       // for distributed
-      CHECK(co.device_type == ExecutorDeviceType::GPU);
+
+      // Petr: removing the check as for the heterogeneous case device type is currently
+      // ignored
+      // CHECK(co.device_type == ExecutorDeviceType::GPU);
       if (!g_allow_query_step_cpu_retry) {
         throw;
       }
       LOG(INFO) << "Retrying current query step " << i << " on CPU";
       const auto co_cpu = CompilationOptions::makeCpuOnly(co);
+      auto eo_cpu = eo;
+      eo_cpu.allow_heterogeneous_execution = false;
       executeRelAlgStep(seq,
                         i,
                         co_cpu,
-                        eo,
+                        eo_cpu,
                         (i == exec_desc_count - 1) ? render_info : nullptr,
                         queue_time_ms);
     } catch (const NativeExecutionError&) {
