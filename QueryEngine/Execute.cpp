@@ -1523,7 +1523,11 @@ ResultSetPtr Executor::runStreamingKernel(std::shared_ptr<StreamExecutionContext
 
     query_mem_desc.setEntryCount(num_tuples);  // TODO(fexolm) set appropriate entry count
   }
-  query_mem_desc.setEntryCount(10000);  // TODO(fexolm) set appropriate entry count
+
+  uint64_t entry_count_from_estimator = 10000;
+  query_mem_desc.setEntryCount(entry_count_from_estimator);  // 
+  std::cout << "\33[31mTODO(fexolm) \33[32mset appropriate entry count received from estimator\33[0m\n";
+
   auto kernel = std::make_unique<ExecutionKernel>(ctx->ra_exe_unit,
                                                   ctx->co.device_type,
                                                   0,
