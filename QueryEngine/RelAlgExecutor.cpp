@@ -473,10 +473,14 @@ RelAlgExecutor::WorkUnit RelAlgExecutor::createWorkUnitForStreaming(
 
 ResultSetPtr RelAlgExecutor::runOnBatch(const FragmentsPerTable& fragments) {
   FragmentsList fl{fragments};
-  return executor_->runStreamingKernel(stream_execution_context_, fl);
+  streaming_task_group_.run(
+      [this, fl]() { executor_->runStreamingKernel(stream_execution_context_, fl); });
+
+  return nullptr;
 }
 
 ResultSetPtr RelAlgExecutor::finishStreamingExecution() {
+  streaming_task_group_.wait();
   return executor_->doStreamingReduction(stream_execution_context_);
 }
 

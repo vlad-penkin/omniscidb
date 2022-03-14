@@ -281,16 +281,24 @@ TEST_F(NoCatalogSqlTest, StreamingAggregate) {
   TestDataProvider& data_provider = getDataProvider();
 
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {1, 2, 3});
-  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {3, 3, 3});
+
+  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0}});
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {3, 1, 4});
 
-  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0, 1}});
+  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {1}});
 
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {4, 5, 6});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {7, 8, 9});
 
   (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {2}});
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {1, 2, 3});
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {3, 3, 3});
+
+  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {3}});
 
   auto rs = ra_executor.finishStreamingExecution();
 
@@ -299,7 +307,7 @@ TEST_F(NoCatalogSqlTest, StreamingAggregate) {
   auto converter = std::make_unique<ArrowResultSetConverter>(rs, col_names, -1);
   auto at = converter->convertToArrowTable();
 
-  ArrowTestHelpers::compare_arrow_table(at, std::vector<int64_t>{41});
+  ArrowTestHelpers::compare_arrow_table(at, std::vector<int64_t>{50});
 }
 
 TEST_F(NoCatalogSqlTest, StreamingFilter) {
@@ -312,11 +320,14 @@ TEST_F(NoCatalogSqlTest, StreamingFilter) {
   TestDataProvider& data_provider = getDataProvider();
 
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {10, 20, 30});
-  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {3, 30, 3});
+
+  ASSERT_EQ(ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0}}), nullptr);
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {30, 1, 40});
 
-  ASSERT_EQ(ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0, 1}}), nullptr);
+  ASSERT_EQ(ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {1}}), nullptr);
 
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {40, 50, 60});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {70, 8, 90});
@@ -336,11 +347,14 @@ TEST_F(NoCatalogSqlTest, StreamingGroupBy) {
   TestDataProvider& data_provider = getDataProvider();
 
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {1, 2, 1});
-  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {4, 8, 3});
+
+  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0}});
+
+  data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {16, 9, 32});
 
-  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0, 1}});
+  (void)ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {1}});
 
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {5, 2, 9});
