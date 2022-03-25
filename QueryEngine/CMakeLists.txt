@@ -26,6 +26,7 @@ set(query_engine_source_files
     ColumnFetcher.cpp
     ColumnIR.cpp
     CompareIR.cpp
+    CompilationOptions.cpp
     ConstantIR.cpp
     DateTimeIR.cpp
     DateTimePlusRewrite.cpp

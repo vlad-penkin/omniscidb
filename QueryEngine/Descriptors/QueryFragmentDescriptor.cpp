@@ -189,9 +189,9 @@ void QueryFragmentDescriptor::buildFragmentPerKernelForTable(
       }
     }
 
-    auto itr = execution_kernels_per_device_.find(device_id);
-    if (itr == execution_kernels_per_device_.end()) {
-      auto const pair = execution_kernels_per_device_.insert(std::make_pair(
+    auto itr = execution_kernels_per_device_[device_type].find(device_id);
+    if (itr == execution_kernels_per_device_[device_type].end()) {
+      auto const pair = execution_kernels_per_device_[device_type].insert(std::make_pair(
           device_id,
           std::vector<ExecutionKernelDescriptor>{std::move(execution_kernel_desc)}));
       CHECK(pair.second);
@@ -241,17 +241,17 @@ void QueryFragmentDescriptor::buildFragmentPerKernelMapForUnion(
                                    executor);
 
     std::vector<int> table_ids =
-        std::accumulate(execution_kernels_per_device_[0].begin(),
-                        execution_kernels_per_device_[0].end(),
+        std::accumulate(execution_kernels_per_device_[device_type][0].begin(),
+                        execution_kernels_per_device_[device_type][0].end(),
                         std::vector<int>(),
                         [](auto&& vec, auto& exe_kern) {
                           vec.push_back(exe_kern.fragments[0].table_id);
                           return vec;
                         });
-    VLOG(1) << "execution_kernels_per_device_.size()="
-            << execution_kernels_per_device_.size()
-            << " execution_kernels_per_device_[0][*].fragments[0].table_id="
-            << shared::printContainer(table_ids);
+    VLOG(1) << "execution_kernels_per_device_[" << device_type
+            << "].size()=" << execution_kernels_per_device_[device_type].size()
+            << " execution_kernels_per_device_[" << device_type
+            << "][0][*].fragments[0].table_id=" << shared::printContainer(table_ids);
   }
 }
 
@@ -357,19 +357,20 @@ void QueryFragmentDescriptor::buildMultifragKernelMap(
                                             selected_tables_fragments_,
                                             inner_table_id_to_join_condition);
 
-      if (execution_kernels_per_device_.find(device_id) ==
-          execution_kernels_per_device_.end()) {
+      if (execution_kernels_per_device_[device_type].find(device_id) ==
+          execution_kernels_per_device_[device_type].end()) {
         std::vector<ExecutionKernelDescriptor> kernel_descs{
             ExecutionKernelDescriptor{device_id, FragmentsList{}, std::nullopt}};
-        CHECK(
-            execution_kernels_per_device_.insert(std::make_pair(device_id, kernel_descs))
-                .second);
+        CHECK(execution_kernels_per_device_[device_type]
+                  .insert(std::make_pair(device_id, kernel_descs))
+                  .second);
       }
 
       // Multifrag kernels only have one execution kernel per device. Grab the execution
       // kernel object and push back into its fragments list.
-      CHECK_EQ(execution_kernels_per_device_[device_id].size(), size_t(1));
-      auto& execution_kernel = execution_kernels_per_device_[device_id].front();
+      CHECK_EQ(execution_kernels_per_device_[device_type][device_id].size(), size_t(1));
+      auto& execution_kernel =
+          execution_kernels_per_device_[device_type][device_id].front();
 
       auto& kernel_frag_list = execution_kernel.fragments;
       if (kernel_frag_list.size() < j + 1) {
@@ -428,13 +429,13 @@ void QueryFragmentDescriptor::checkDeviceMemoryUsage(
     const int device_id,
     const size_t num_bytes_for_row) {
   CHECK_GE(device_id, 0);
-  tuple_count_per_device_[device_id] += fragment.getNumTuples();
+  tuple_count_per_gpu_device_[device_id] += fragment.getNumTuples();
   const size_t gpu_bytes_limit =
       available_gpu_mem_bytes_[device_id] * gpu_input_mem_limit_percent_;
-  if (tuple_count_per_device_[device_id] * num_bytes_for_row > gpu_bytes_limit) {
+  if (tuple_count_per_gpu_device_[device_id] * num_bytes_for_row > gpu_bytes_limit) {
     LOG(WARNING) << "Not enough memory on device " << device_id
                  << " for input chunks totaling "
-                 << tuple_count_per_device_[device_id] * num_bytes_for_row
+                 << tuple_count_per_gpu_device_[device_id] * num_bytes_for_row
                  << " bytes (available device memory: " << gpu_bytes_limit << " bytes)";
     throw QueryMustRunOnCpu();
   }

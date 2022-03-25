@@ -28,6 +28,8 @@ enum class ExecutorExplainType { Default, Optimized };
 
 enum class ExecutorDispatchMode { KernelPerFragment, MultifragmentKernel };
 
+std::ostream& operator<<(std::ostream& os, const ExecutorDeviceType& dt);
+
 struct CompilationOptions {
   ExecutorDeviceType device_type;
   bool hoist_literals;
