@@ -151,6 +151,8 @@ bool g_enable_automatic_ir_metadata{true};
 extern bool g_cache_string_hash;
 bool g_enable_multifrag_rs{false};
 
+bool g_enable_heterogeneous_execution{false};
+
 int const Executor::max_gpu_count;
 
 const int32_t Executor::ERR_SINGLE_VALUE_FOUND_MULTIPLE_VALUES;
