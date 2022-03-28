@@ -177,7 +177,6 @@ class QueryFragmentDescriptor {
                                  const policy::ExecutionPolicy* policy,
                                  const int device_count,
                                  const size_t num_bytes_for_row,
-                                 const ExecutorDeviceType& device_type,
                                  Executor* executor);
 
   void buildMultifragKernelMap(const RelAlgExecutionUnit& ra_exe_unit,

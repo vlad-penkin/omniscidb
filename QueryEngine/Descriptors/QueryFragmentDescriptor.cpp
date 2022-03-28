@@ -95,13 +95,8 @@ void QueryFragmentDescriptor::buildFragmentKernelMap(
                             enable_inner_join_fragment_skipping,
                             executor);
   } else {
-    buildFragmentPerKernelMap(ra_exe_unit,
-                              frag_offsets,
-                              policy,
-                              device_count,
-                              num_bytes_for_row,
-                              device_type,
-                              executor);
+    buildFragmentPerKernelMap(
+        ra_exe_unit, frag_offsets, policy, device_count, num_bytes_for_row, executor);
   }
 }
 
@@ -272,7 +267,6 @@ void QueryFragmentDescriptor::buildFragmentPerKernelMap(
     const policy::ExecutionPolicy* policy,
     const int device_count,
     const size_t num_bytes_for_row,
-    const ExecutorDeviceType& device_type,
     Executor* executor) {
   const auto& outer_table_desc = ra_exe_unit.input_descs.front();
   const int outer_table_id = outer_table_desc.getTableId();
