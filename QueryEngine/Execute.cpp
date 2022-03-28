@@ -2530,12 +2530,6 @@ std::vector<std::unique_ptr<ExecutionKernel>> Executor::createKernels(
   std::unique_ptr<policy::ExecutionPolicy> policy =
       std::make_unique<policy::DefaultExecutionPolicy>(device_type);
 
-  if (g_enable_heterogeneous_execution) {
-    policy = std::make_unique<policy::RoundRobinExecutionPolicy>();
-  } else {
-    policy = std::make_unique<policy::DefaultExecutionPolicy>(device_type);
-  }
-
   fragment_descriptor.buildFragmentKernelMap(ra_exe_unit,
                                              shared_context.getFragOffsets(),
                                              policy.get(),

@@ -348,8 +348,7 @@ void QueryFragmentDescriptor::buildMultifragKernelMap(
     }
     auto [device_type, device_id] =
         policy->scheduleSingleFragment(fragment, outer_frag_id, outer_fragments_size_);
-    // const int device_id =
-    // fragment.deviceIds[static_cast<int>(Data_Namespace::GPU_LEVEL)];
+
     if (device_type == ExecutorDeviceType::GPU) {
       checkDeviceMemoryUsage(fragment, device_id, num_bytes_for_row);
     }
