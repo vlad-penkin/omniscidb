@@ -37,6 +37,7 @@ set(query_engine_source_files
     Descriptors/QueryFragmentDescriptor.cpp
     Descriptors/QueryMemoryDescriptor.cpp
     Descriptors/RelAlgExecutionDescriptor.cpp
+    Dispatchers/DefaultExecutionPolicy.cpp
     EquiJoinCondition.cpp
     Execute.cpp
     ExecutionKernel.cpp

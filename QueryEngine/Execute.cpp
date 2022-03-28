@@ -35,6 +35,7 @@
 #include "Catalog/DictDescriptor.h"
 #include "CudaMgr/CudaMgr.h"
 #include "DataMgr/BufferMgr/BufferMgr.h"
+#include "Dispatchers/DefaultExecutionPolicy.h"
 #include "Parser/ParserNode.h"
 #include "QueryEngine/AggregateUtils.h"
 #include "QueryEngine/AggregatedColRange.h"
@@ -2292,8 +2293,12 @@ std::vector<std::unique_ptr<ExecutionKernel>> Executor::createKernels(
   const auto device_count = deviceCount(device_type);
   CHECK_GT(device_count, 0);
 
+  std::unique_ptr<policy::ExecutionPolicy> policy =
+      std::make_unique<policy::DefaultExecutionPolicy>(device_type);
+
   fragment_descriptor.buildFragmentKernelMap(ra_exe_unit,
                                              shared_context.getFragOffsets(),
+                                             policy.get(),
                                              device_count,
                                              device_type,
                                              use_multifrag_kernel,

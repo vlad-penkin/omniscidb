@@ -35,6 +35,7 @@
 #include "DataMgr/ChunkMetadata.h"
 #include "Logger/Logger.h"
 #include "QueryEngine/CompilationOptions.h"
+#include "QueryEngine/Dispatchers/ExecutionPolicy.h"
 
 namespace Fragmenter_Namespace {
 class FragmentInfo;
@@ -79,6 +80,7 @@ class QueryFragmentDescriptor {
 
   void buildFragmentKernelMap(const RelAlgExecutionUnit& ra_exe_unit,
                               const std::vector<uint64_t>& frag_offsets,
+                              const policy::ExecutionPolicy* policy,
                               const int device_count,
                               const ExecutorDeviceType& device_type,
                               const bool enable_multifrag_kernels,
@@ -117,10 +119,11 @@ class QueryFragmentDescriptor {
 
     size_t tuple_count = 0;
 
-    std::unordered_map<int, size_t> execution_kernel_index;
+    std::map<ExecutorDeviceType, std::unordered_map<int, size_t>> execution_kernel_index;
     for (const auto& device_type_itr : execution_kernels_per_device_) {
       for (const auto& device_itr : device_type_itr.second) {
-        CHECK(execution_kernel_index.insert(std::make_pair(device_itr.first, size_t(0)))
+        CHECK(execution_kernel_index[device_type_itr.first]
+                  .insert(std::make_pair(device_itr.first, size_t(0)))
                   .second);
       }
     }
@@ -130,7 +133,8 @@ class QueryFragmentDescriptor {
       dispatch_finished = true;
       for (const auto& device_type_itr : execution_kernels_per_device_)
         for (const auto& device_itr : device_type_itr.second) {
-          auto& kernel_idx = execution_kernel_index[device_itr.first];
+          auto& kernel_idx =
+              execution_kernel_index[device_type_itr.first][device_itr.first];
           if (kernel_idx < device_itr.second.size()) {
             dispatch_finished = false;
             const auto& execution_kernel = device_itr.second[kernel_idx++];
@@ -163,13 +167,14 @@ class QueryFragmentDescriptor {
 
   void buildFragmentPerKernelMapForUnion(const RelAlgExecutionUnit& ra_exe_unit,
                                          const std::vector<uint64_t>& frag_offsets,
+                                         const policy::ExecutionPolicy* policy,
                                          const int device_count,
                                          const size_t num_bytes_for_row,
-                                         const ExecutorDeviceType& device_type,
                                          Executor* executor);
 
   void buildFragmentPerKernelMap(const RelAlgExecutionUnit& ra_exe_unit,
                                  const std::vector<uint64_t>& frag_offsets,
+                                 const policy::ExecutionPolicy* policy,
                                  const int device_count,
                                  const size_t num_bytes_for_row,
                                  const ExecutorDeviceType& device_type,
@@ -177,9 +182,9 @@ class QueryFragmentDescriptor {
 
   void buildMultifragKernelMap(const RelAlgExecutionUnit& ra_exe_unit,
                                const std::vector<uint64_t>& frag_offsets,
+                               const policy::ExecutionPolicy* policy,
                                const int device_count,
                                const size_t num_bytes_for_row,
-                               const ExecutorDeviceType& device_type,
                                const bool enable_inner_join_fragment_skipping,
                                Executor* executor);
 
@@ -188,10 +193,10 @@ class QueryFragmentDescriptor {
                                       const InputDescriptor& table_desc,
                                       const bool is_temporary_table,
                                       const std::vector<uint64_t>& frag_offsets,
+                                      const policy::ExecutionPolicy* policy,
                                       const int device_count,
                                       const size_t num_bytes_for_row,
                                       const std::optional<size_t> table_desc_offset,
-                                      const ExecutorDeviceType& device_type,
                                       Executor* executor);
 
   bool terminateDispatchMaybe(size_t& tuple_count,
