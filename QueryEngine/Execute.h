@@ -590,6 +590,27 @@ class Executor {
       int& available_cpus);
 
   /**
+   * @brief Exprimental execution dispatch mode for heterogeneous kernel submission.
+   *
+   */
+  std::vector<std::unique_ptr<ExecutionKernel>> createHeterogeneousKernels(
+      SharedKernelContext& shared_context,
+      const RelAlgExecutionUnit& ra_exe_unit,
+      ColumnFetcher& column_fetcher,
+      const std::vector<InputTableInfo>& table_infos,
+      const ExecutionOptions& eo,
+      const bool is_agg,
+      const bool allow_single_frag_table_opt,
+      const size_t context_count,
+      const QueryCompilationDescriptor& cpu_query_comp_desc,
+      const QueryMemoryDescriptor& cpu_query_mem_desc,
+      const QueryCompilationDescriptor& gpu_query_comp_desc,
+      const QueryMemoryDescriptor& gpu_query_mem_desc,
+      RenderInfo* render_info,
+      std::unordered_set<int>& available_gpus,
+      int& available_cpus);
+
+  /**
    * Launches execution kernels created by `createKernels` asynchronously using a thread
    * pool.
    */
@@ -754,6 +775,18 @@ class Executor {
                                      const bool has_cardinality_estimation,
                                      DataProvider* data_provider,
                                      ColumnCacheMap& column_cache);
+  TemporaryTable executeHeterogeneousWorkUnitImpl(size_t& max_groups_buffer_entry_guess,
+                                                  const bool is_agg,
+                                                  const bool allow_single_frag_table_opt,
+                                                  const std::vector<InputTableInfo>&,
+                                                  const RelAlgExecutionUnit&,
+                                                  const CompilationOptions&,
+                                                  const ExecutionOptions& options,
+                                                  std::shared_ptr<RowSetMemoryOwner>,
+                                                  RenderInfo* render_info,
+                                                  const bool has_cardinality_estimation,
+                                                  DataProvider* data_provider,
+                                                  ColumnCacheMap& column_cache);
 
   std::shared_ptr<StreamExecutionContext> prepareStreamingExecution(
       const RelAlgExecutionUnit& ra_exe_unit,

@@ -73,6 +73,7 @@ extern bool g_enable_calcite_view_optimize;
 extern bool g_enable_bump_allocator;
 extern bool g_enable_interop;
 extern bool g_enable_union;
+extern bool g_enable_heterogeneous_execution;
 
 extern bool g_is_test_env;
 
@@ -17000,8 +17001,8 @@ TEST(Select, FilterNodeCoalesce) {
           "FIRST, t ASC NULLS FIRST;";
       c(query, query, dt);
     }
-    const auto buffer_pool_stats =
-        getBufferPoolStats(QR::get()->getDataMgr().get(), Data_Namespace::MemoryLevel::CPU_LEVEL);
+    const auto buffer_pool_stats = getBufferPoolStats(
+        QR::get()->getDataMgr().get(), Data_Namespace::MemoryLevel::CPU_LEVEL);
     ASSERT_GE(buffer_pool_stats.num_buffers, static_cast<size_t>(2));
     ASSERT_EQ(buffer_pool_stats.num_tables, static_cast<size_t>(1));
     ASSERT_EQ(buffer_pool_stats.num_columns, static_cast<size_t>(2));
@@ -17021,8 +17022,8 @@ TEST(Select, FilterNodeCoalesce) {
       c(query, query, dt);
     }
 
-    const auto buffer_pool_stats =
-        getBufferPoolStats(QR::get()->getDataMgr().get(), Data_Namespace::MemoryLevel::CPU_LEVEL);
+    const auto buffer_pool_stats = getBufferPoolStats(
+        QR::get()->getDataMgr().get(), Data_Namespace::MemoryLevel::CPU_LEVEL);
     ASSERT_GE(buffer_pool_stats.num_buffers, static_cast<size_t>(3));
     ASSERT_EQ(buffer_pool_stats.num_tables, static_cast<size_t>(1));
     ASSERT_EQ(buffer_pool_stats.num_columns, static_cast<size_t>(3));
@@ -17043,8 +17044,8 @@ TEST(Select, FilterNodeCoalesce) {
       c(query, query, dt);
     }
 
-    const auto buffer_pool_stats =
-        getBufferPoolStats(QR::get()->getDataMgr().get(), Data_Namespace::MemoryLevel::CPU_LEVEL);
+    const auto buffer_pool_stats = getBufferPoolStats(
+        QR::get()->getDataMgr().get(), Data_Namespace::MemoryLevel::CPU_LEVEL);
     ASSERT_GE(buffer_pool_stats.num_buffers, static_cast<size_t>(3));
     ASSERT_EQ(buffer_pool_stats.num_tables, static_cast<size_t>(1));
     ASSERT_EQ(buffer_pool_stats.num_columns, static_cast<size_t>(3));
@@ -17064,8 +17065,8 @@ TEST(Select, FilterNodeCoalesce) {
       c(query, query, dt);
     }
 
-    const auto buffer_pool_stats =
-        getBufferPoolStats(QR::get()->getDataMgr().get(), Data_Namespace::MemoryLevel::CPU_LEVEL);
+    const auto buffer_pool_stats = getBufferPoolStats(
+        QR::get()->getDataMgr().get(), Data_Namespace::MemoryLevel::CPU_LEVEL);
     ASSERT_GE(buffer_pool_stats.num_buffers, static_cast<size_t>(30));
     ASSERT_EQ(buffer_pool_stats.num_tables, static_cast<size_t>(1));
     ASSERT_EQ(buffer_pool_stats.num_columns, static_cast<size_t>(3));
@@ -17082,8 +17083,8 @@ TEST(Select, FilterNodeCoalesce) {
           "FROM test_x ORDER BY x ASC NULLS FIRST, y ASC NULLS FIRST, d ASC NULLS FIRST;";
       c(query, query, dt);
     }
-    const auto buffer_pool_stats =
-        getBufferPoolStats(QR::get()->getDataMgr().get(), Data_Namespace::MemoryLevel::CPU_LEVEL);
+    const auto buffer_pool_stats = getBufferPoolStats(
+        QR::get()->getDataMgr().get(), Data_Namespace::MemoryLevel::CPU_LEVEL);
     ASSERT_GE(buffer_pool_stats.num_buffers, static_cast<size_t>(30));
     ASSERT_EQ(buffer_pool_stats.num_tables, static_cast<size_t>(1));
     ASSERT_EQ(buffer_pool_stats.num_columns, static_cast<size_t>(3));
@@ -17915,6 +17916,13 @@ TEST(Select, ParseIntegerExceptions) {
   }
 }
 
+TEST(Heterogeneous, Simplest) {
+  if (!g_enable_heterogeneous_execution) {
+    GTEST_SKIP();
+  }
+  c("SELECT count(x) from test_heterogen;", ExecutorDeviceType::GPU);
+}
+
 class SubqueryTestEnv : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -17985,14 +17993,13 @@ TEST_F(SubqueryTestEnv, SubqueryTest) {
 }
 
 namespace {
-int create_and_populate_window_func_table(const bool multi_frag) {
+int create_and_populate_table(const bool multi_frag, const std::string& name) {
   std::string create_table_suffix = " WITH (FRAGMENT_SIZE=";
   const std::string fragment_size = (multi_frag ? "2" : "32000000");
   create_table_suffix += fragment_size;
   create_table_suffix += ");";
 
-  const std::string table_name =
-      multi_frag ? "test_window_func_multi_frag" : "test_window_func";
+  const std::string table_name = multi_frag ? name + "_multi_frag" : name;
 
   try {
     const std::string drop_test_table{"DROP TABLE IF EXISTS " + table_name + ";"};
@@ -18075,6 +18082,14 @@ int create_and_populate_window_func_table(const bool multi_frag) {
     return -EEXIST;
   }
   return 0;
+}
+
+int create_and_populate_window_func_table(const bool multi_frag) {
+  return create_and_populate_table(multi_frag, "test_window_func");
+}
+
+int create_and_populate_multifrag_table() {
+  return create_and_populate_table(true, "multifrag_test");
 }
 
 int create_and_populate_rounding_table() {
@@ -19322,6 +19337,11 @@ int main(int argc, char** argv) {
                          ->default_value(g_enable_bump_allocator)
                          ->implicit_value(true),
                      "Enable the bump allocator for projection queries on GPU.");
+  desc.add_options()("enable-heterogeneous",
+                     po::value<bool>(&g_enable_heterogeneous_execution)
+                         ->default_value(g_enable_heterogeneous_execution)
+                         ->implicit_value(true),
+                     "Allow heterogeneous execution.");
   desc.add_options()("keep-data", "Don't drop tables at the end of the tests");
   desc.add_options()("use-existing-data",
                      "Don't create and drop tables and only run select tests (it "

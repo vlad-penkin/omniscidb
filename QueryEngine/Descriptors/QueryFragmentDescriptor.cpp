@@ -68,7 +68,6 @@ void QueryFragmentDescriptor::buildFragmentKernelMap(
     const std::vector<uint64_t>& frag_offsets,
     const policy::ExecutionPolicy* policy,
     const int device_count,
-    const ExecutorDeviceType& device_type,
     const bool enable_multifrag_kernels,
     const bool enable_inner_join_fragment_skipping,
     Executor* executor) {

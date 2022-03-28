@@ -82,7 +82,6 @@ class QueryFragmentDescriptor {
                               const std::vector<uint64_t>& frag_offsets,
                               const policy::ExecutionPolicy* policy,
                               const int device_count,
-                              const ExecutorDeviceType& device_type,
                               const bool enable_multifrag_kernels,
                               const bool enable_inner_join_fragment_skipping,
                               Executor* executor);
@@ -138,7 +137,10 @@ class QueryFragmentDescriptor {
           if (kernel_idx < device_itr.second.size()) {
             dispatch_finished = false;
             const auto& execution_kernel = device_itr.second[kernel_idx++];
-            f(device_itr.first, execution_kernel.fragments, rowid_lookup_key_);
+            f(device_itr.first,
+              execution_kernel.fragments,
+              rowid_lookup_key_,
+              device_type_itr.first);
             if (terminateDispatchMaybe(tuple_count, ra_exe_unit, execution_kernel)) {
               return;
             }
