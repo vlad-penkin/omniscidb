@@ -10,9 +10,8 @@ jobs:
       - run: mkdir build
       - name: Build
         run: |
-          $CONDA/bin/conda init
-          $CONDA/bin/conda env create -f scripts/mapd-deps-conda-dev-env.yml 
-          $CONDA/bin/conda activate omnisci-dev
+          $CONDA/bin/conda env create -f scripts/mapd-deps-conda-dev-env.yml
+          conda activate omnisci-dev
           bash scripts/conda/build-install-all.sh
       - name: Upload packages
         uses: actions/upload-artifact@v2
