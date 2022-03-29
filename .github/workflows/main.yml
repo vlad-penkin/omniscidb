@@ -6,7 +6,6 @@ on:
       #      - master
 
 jobs:
-  build:
   linux_build:
     runs-on: [self-hosted]
     env:
