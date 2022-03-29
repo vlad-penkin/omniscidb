@@ -1,4 +1,4 @@
-name: "Build package and docs, push docs to Pages"
+name: Build docs and push to Pages
 on: push
 jobs:
   build:
@@ -35,7 +35,8 @@ jobs:
         uses: JamesIves/github-pages-deploy-action@releases/v4
         env:
           ACCESS_TOKEN: ${{ secrets.GITHUB_WRITE_TOKEN }}
-          BASE_BRANCH: master # The branch the action should deploy from.
+          # The branch the action should deploy from.
+          BASE_BRANCH: $GITHUB_BASE_REF
           BRANCH: gh-pages # The branch the action should deploy to.
           FOLDER: docs/build/html # The folder the action should deploy.
           BUILD_SCRIPT: touch build/html/.nojekyll
