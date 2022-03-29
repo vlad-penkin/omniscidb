@@ -1,8 +1,0 @@
-{
-  "statementType": "DDL",
-  "payload": {
-    "command": "DROP_SERVER",
-    "ifExists": false,
-    "serverName": "test_server"
-  }
-}

@@ -1,7 +1,0 @@
-{
-  "statementType": "DDL",
-  "payload": {
-    "command": "KILL_QUERY",
-    "querySession": "123-a1b2"
-  }
-}

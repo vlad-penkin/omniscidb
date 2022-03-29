@@ -1,8 +1,0 @@
-{
-    "statementType": "DDL",
-    "payload": {
-	"command": "DROP_FOREIGN_TABLE",
-	"ifExists": true,
-	"tableName": "test_table"
-    }
-}

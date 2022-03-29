@@ -1,7 +1,0 @@
-{
-  "statementType": "DDL",
-  "payload": {
-    "command": "SHOW_USER_DETAILS",
-    "userNames": ["test_user1", "test_user2"]
-  }
-}
