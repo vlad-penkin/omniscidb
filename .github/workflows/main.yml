@@ -15,7 +15,7 @@ jobs:
       - run: mkdir build
       - name: Build
         run: |
-          $CONDA/bin/conda create -f scripts/mapd-deps-conda-dev-env.yml
+          $CONDA/bin/conda create -f scripts/mapd-deps-conda-dev-env.yml --force
           $CONDA/bin/conda activate omnisci-dev
           bash scripts/conda/build-install-all.sh
       - name: Upload packages
