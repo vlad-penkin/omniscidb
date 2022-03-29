@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       cuda_compiler_version: None
+      RUN_TESTS: 2
     steps:
       - uses: actions/checkout@v2
       - name: Build
@@ -18,4 +19,5 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: result_packages
-          path: $CONDA/conda-bld/linux-64/*
+          path:
+            - build/lib.linux-x86_64-3.9
