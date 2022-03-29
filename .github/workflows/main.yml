@@ -4,9 +4,8 @@ on:
     branches:
       - afedotov/actiontest
       #      - master
-
 jobs:
-  linux_build:
+  build:
     runs-on: ubuntu-latest
     env:
       build_channel: main
@@ -14,21 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - run: mkdir build
-      - name: Install conda-build
-        run: $CONDA/bin/conda install conda-build -y
-      - name: Clean build artefacts
-        run: rm -rf $CONDA/conda-bld/*
       - name: Build
         run: |
-          source $CONDA/bin/activate
-          $CONDA/bin/conda -c $build_channel --override-channels .
+          $CONDA/bin/conda create -f scripts/mapd-deps-conda-dev-env.yml
+          $CONDA/bin/conda activate omnisci-dev
+          bash scripts/conda/build-install-all.sh
       - name: Upload packages
-        # for now - we will just upload packages to GH artifacts
-        # in future we will use local conda channel
         uses: actions/upload-artifact@v2
         with:
           name: result_packages
-          path: /build-runner/miniconda3/conda-bld/linux-64/*
+          path: $CONDA/conda-bld/linux-64/*
       - name: Install doxygen deps
         run: sudo apt install -y doxygen graphviz plantuml
       - name: Make Doxygen docs
