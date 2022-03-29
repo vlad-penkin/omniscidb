@@ -1,20 +1,16 @@
 name: "Build package and docs, push docs to Pages"
-on:
-  push:
-    branches:
-      - afedotov/actiontest
-      #      - master
+on: push
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      build_channel: main
       cuda_compiler_version: None
     steps:
       - uses: actions/checkout@v2
       - run: mkdir build
       - name: Build
         run: |
+          $CONDA/bin/conda init
           $CONDA/bin/conda env create -f scripts/mapd-deps-conda-dev-env.yml 
           $CONDA/bin/conda activate omnisci-dev
           bash scripts/conda/build-install-all.sh
