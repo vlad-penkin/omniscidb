@@ -322,17 +322,17 @@ TEST_F(NoCatalogSqlTest, StreamingFilter) {
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {10, 20, 30});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {3, 30, 3});
 
-  ASSERT_EQ(ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0}}), nullptr);
+  ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {0}});
 
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {2, 1, 2});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {30, 1, 40});
 
-  ASSERT_EQ(ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {1}}), nullptr);
+  ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {1}});
 
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 1, {40, 50, 60});
   data_provider.addTableColumn<int32_t>(TEST_STREAMING_TABLE_ID, 2, {70, 8, 90});
 
-  ASSERT_EQ(ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {2}}), nullptr);
+  ra_executor.runOnBatch({TEST_STREAMING_TABLE_ID, {2}});
 
   auto rs = ra_executor.finishStreamingExecution();
 

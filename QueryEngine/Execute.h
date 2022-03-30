@@ -764,7 +764,8 @@ class Executor {
       ColumnCacheMap& column_cache);
 
   ResultSetPtr runStreamingKernel(std::shared_ptr<StreamExecutionContext> ctx,
-                                    const FragmentsList& fragments);
+                                  const FragmentsList& fragments,
+                                  int64_t estimation);
 
   ResultSetPtr doStreamingReduction(std::shared_ptr<StreamExecutionContext> ctx);
 

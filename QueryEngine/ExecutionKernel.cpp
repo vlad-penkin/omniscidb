@@ -107,7 +107,7 @@ const std::vector<uint64_t>& SharedKernelContext::getFragOffsets() {
   return all_frag_row_offsets_;
 }
 
-void SharedKernelContext::addDeviceResults(ResultSetPtr&& device_results,
+void SharedKernelContext::addDeviceResults(ResultSetPtr device_results,
                                            int outer_table_id,
                                            std::vector<size_t> outer_table_fragment_ids) {
   std::lock_guard<std::mutex> lock(reduce_mutex_);
@@ -123,9 +123,9 @@ SharedKernelContext::getFragmentResults() {
   return all_fragment_results_;
 }
 
-void ExecutionKernel::run(Executor* executor,
-                          const size_t thread_idx,
-                          SharedKernelContext& shared_context) {
+ResultSetPtr ExecutionKernel::run(Executor* executor,
+                                  const size_t thread_idx,
+                                  SharedKernelContext& shared_context) {
   DEBUG_TIMER("ExecutionKernel::run");
   INJECT_TIMER(kernel_run);
   std::optional<logger::QidScopeGuard> qid_scope_guard;
@@ -133,7 +133,7 @@ void ExecutionKernel::run(Executor* executor,
     qid_scope_guard.emplace(ra_exe_unit_.query_state->setThreadLocalQueryId());
   }
   try {
-    runImpl(executor, thread_idx, shared_context);
+    return runImpl(executor, thread_idx, shared_context);
   } catch (const OutOfHostMemory& e) {
     throw QueryExecutionError(Executor::ERR_OUT_OF_CPU_MEM, e.what());
   } catch (const std::bad_alloc& e) {
@@ -158,9 +158,9 @@ void ExecutionKernel::run(Executor* executor,
   }
 }
 
-void ExecutionKernel::runImpl(Executor* executor,
-                              const size_t thread_idx,
-                              SharedKernelContext& shared_context) {
+ResultSetPtr ExecutionKernel::runImpl(Executor* executor,
+                                      const size_t thread_idx,
+                                      SharedKernelContext& shared_context) {
   CHECK(executor);
   const auto memory_level = chosen_device_type == ExecutorDeviceType::GPU
                                 ? Data_Namespace::GPU_LEVEL
@@ -231,7 +231,7 @@ void ExecutionKernel::runImpl(Executor* executor,
                                                 thread_idx,
                                                 eo.allow_runtime_query_interrupt);
     if (fetch_result->num_rows.empty()) {
-      return;
+      return nullptr;  // TODO: replace with empty result set
     }
     if (eo.with_dynamic_watchdog &&
         !shared_context.dynamic_watchdog_set.test_and_set(std::memory_order_acquire)) {
@@ -248,7 +248,7 @@ void ExecutionKernel::runImpl(Executor* executor,
         QueryExecutionProperties{
             query_mem_desc.getQueryDescriptionType(),
             kernel_dispatch_mode == ExecutorDispatchMode::MultifragmentKernel});
-    return;
+    return nullptr;
   }
 
   if (eo.executor_type == ExecutorType::Extern) {
@@ -273,9 +273,8 @@ void ExecutionKernel::runImpl(Executor* executor,
             *query_mem_desc,
             target_exprs_to_infos(ra_exe_unit_.target_exprs, *query_mem_desc),
             executor});
-    shared_context.addDeviceResults(
-        std::move(device_results_), outer_table_id, outer_tab_frag_ids);
-    return;
+    shared_context.addDeviceResults(device_results_, outer_table_id, outer_tab_frag_ids);
+    return device_results_;
   }
   const CompilationResult& compilation_result = query_comp_desc.getCompilationResult();
   std::unique_ptr<QueryExecutionContext> query_exe_context_owned;
@@ -297,7 +296,7 @@ void ExecutionKernel::runImpl(Executor* executor,
     // likely to see this query pattern on the kernel per fragment path (e.g. with HAVING
     // 0=1)
     if (total_num_input_rows == 0) {
-      return;
+      return nullptr;  // TODO: replace with empty result set;
     }
 
     if (query_has_inner_join(ra_exe_unit_)) {
@@ -356,7 +355,7 @@ void ExecutionKernel::runImpl(Executor* executor,
           [subtask, executor] { subtask->run(executor); });
     }
 
-    return;
+    return nullptr;  // TODO: support subtasks;
   }
 #endif  // HAVE_TBB
   if (eo.executor_type == ExecutorType::Native) {
@@ -442,8 +441,8 @@ void ExecutionKernel::runImpl(Executor* executor,
   if (err) {
     throw QueryExecutionError(err);
   }
-  shared_context.addDeviceResults(
-      std::move(device_results_), outer_table_id, outer_tab_frag_ids);
+  shared_context.addDeviceResults(device_results_, outer_table_id, outer_tab_frag_ids);
+  return device_results_;
 }
 
 #ifdef HAVE_TBB

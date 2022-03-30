@@ -33,7 +33,9 @@
 #include "ThriftHandler/QueryState.h"
 
 #include <ctime>
+#include <future>
 #include <sstream>
+#include <vector>
 
 extern bool g_skip_intermediate_count;
 
@@ -93,7 +95,7 @@ class RelAlgExecutor {
                                  const ExecutionOptions& eo);
 
   // process batch
-  ResultSetPtr runOnBatch(const FragmentsPerTable& fragments);
+  std::shared_future<ResultSetPtr> runOnBatch(const FragmentsPerTable& fragments);
 
   // when the last batch has been send, invoke this function.
   ResultSetPtr finishStreamingExecution();
@@ -400,7 +402,7 @@ class RelAlgExecutor {
   std::vector<std::shared_ptr<Analyzer::Expr>> target_exprs_owned_;  // TODO(alex): remove
   std::unordered_map<unsigned, AggregatedResult> leaf_results_;
   int64_t queue_time_ms_;
-  threading::task_group streaming_task_group_;
+  std::vector<std::shared_future<ResultSetPtr>> streaming_tasks;
   static SpeculativeTopNBlacklist speculative_topn_blacklist_;
 
   std::optional<std::function<void()>> post_execution_callback_;

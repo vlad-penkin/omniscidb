@@ -1517,7 +1517,8 @@ std::shared_ptr<StreamExecutionContext> Executor::compileWorkUnitForStreaming(
 }
 
 ResultSetPtr Executor::runStreamingKernel(std::shared_ptr<StreamExecutionContext> ctx,
-                                          const FragmentsList& fragments) {
+                                          const FragmentsList& fragments,
+                                          int64_t estimation) {
   // TODO: get rid of multifragment case
   CHECK(fragments.size() == 1);
   auto query_mem_desc = *ctx->query_mem_desc;
@@ -1534,6 +1535,14 @@ ResultSetPtr Executor::runStreamingKernel(std::shared_ptr<StreamExecutionContext
 
     query_mem_desc.setEntryCount(num_tuples);  // TODO(fexolm) set appropriate entry count
   }
+  if (query_mem_desc.getQueryDescriptionType() ==
+      QueryDescriptionType::GroupByBaselineHash) {
+    query_mem_desc.setEntryCount(estimation);
+  }
+
+  if (query_mem_desc.getQueryDescriptionType() == QueryDescriptionType::Estimator) {
+    query_mem_desc.setEntryCount(1);
+  }
   auto kernel = std::make_unique<ExecutionKernel>(ctx->ra_exe_unit,
                                                   ctx->co.device_type,
                                                   0,
@@ -1547,9 +1556,7 @@ ResultSetPtr Executor::runStreamingKernel(std::shared_ptr<StreamExecutionContext
                                                   -1  // TODO: rowid_lookup_key ???
   );
 
-  kernel->run(this, 0, *ctx->shared_context);
-
-  return nullptr;
+  return kernel->run(this, 0, *ctx->shared_context);
 }
 
 ResultSetPtr Executor::doStreamingReduction(std::shared_ptr<StreamExecutionContext> ctx) {

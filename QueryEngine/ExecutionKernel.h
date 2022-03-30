@@ -38,7 +38,7 @@ class SharedKernelContext {
 
   const std::vector<uint64_t>& getFragOffsets();
 
-  void addDeviceResults(ResultSetPtr&& device_results,
+  void addDeviceResults(ResultSetPtr device_results,
                         int outer_table_id,
                         std::vector<size_t> outer_table_fragment_ids);
 
@@ -95,9 +95,9 @@ class ExecutionKernel {
       , render_info_(render_info)
       , rowid_lookup_key(rowid_lookup_key) {}
 
-  void run(Executor* executor,
-           const size_t thread_idx,
-           SharedKernelContext& shared_context);
+  ResultSetPtr run(Executor* executor,
+                   const size_t thread_idx,
+                   SharedKernelContext& shared_context);
 
   const RelAlgExecutionUnit& ra_exe_unit_;
 
@@ -115,9 +115,9 @@ class ExecutionKernel {
 
   ResultSetPtr device_results_;
 
-  void runImpl(Executor* executor,
-               const size_t thread_idx,
-               SharedKernelContext& shared_context);
+  ResultSetPtr runImpl(Executor* executor,
+                       const size_t thread_idx,
+                       SharedKernelContext& shared_context);
 
   friend class KernelSubtask;
 };

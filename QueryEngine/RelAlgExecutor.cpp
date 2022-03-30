@@ -50,6 +50,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <future>
 #include <numeric>
 
 bool g_skip_intermediate_count{true};
@@ -72,7 +73,11 @@ extern bool g_enable_dynamic_watchdog;
 namespace {
 
 bool node_is_group_by(const RelAlgNode* ra) {
-  return dynamic_cast<const RelAggregate*>(ra);
+  const auto compound = dynamic_cast<const RelCompound*>(ra);
+  const auto aggregate = dynamic_cast<const RelAggregate*>(ra);
+
+  return (compound && compound->getGroupByCount() > 0) ||
+         (aggregate && aggregate->getGroupByCount() > 0);
 }
 
 bool node_is_aggregate(const RelAlgNode* ra) {
@@ -449,8 +454,13 @@ void RelAlgExecutor::prepareStreamingExecution(const CompilationOptions& co,
   if (node_is_group_by(body)) {
     const auto estimator_exe_unit =
         create_ndv_execution_unit(work_unit.exe_unit, 50000000);
-    stream_estimation_context_ = executor_->compileWorkUnitForStreaming(
-        estimator_exe_unit, co, eo, table_infos, *column_cache);
+    stream_estimation_context_ =
+        executor_->compileWorkUnitForStreaming(estimator_exe_unit,
+                                               co_hint_applied,
+                                               eo_hint_applied,
+                                               table_infos,
+                                               data_provider_,
+                                               *column_cache);
   }
 
   stream_execution_context_->column_cache = std::move(column_cache);
@@ -482,31 +492,28 @@ RelAlgExecutor::WorkUnit RelAlgExecutor::createWorkUnitForStreaming(
   throw std::runtime_error("that query type is not supported in streaming mode");
 }
 
-ResultSetPtr RelAlgExecutor::runOnBatch(const FragmentsPerTable& fragments) {
+std::shared_future<ResultSetPtr> RelAlgExecutor::runOnBatch(
+    const FragmentsPerTable& fragments) {
   FragmentsList fl{fragments};
-  streaming_task_group_.run([this, fl]() {
+  std::shared_future<ResultSetPtr> res = std::async(std::launch::async, [this, fl]() {
+    int64_t estimation = 0;
     if (stream_estimation_context_) {
-      executor_->runStreamingKernel(stream_estimation_context_, fl);
-      auto results = stream_estimation_context_->shared_context->getFragmentResults();
-      for (const auto& [rs, sec] : results) {
-        auto row = rs->getNextRow(false, false);
-        std::cout << boost::get<ScalarTargetValue>(row[0]) << std::endl;
-      }
+      auto rs = executor_->runStreamingKernel(stream_estimation_context_, fl, 0);
+      estimation = rs->getNDVEstimator();
     }
-    executor_->runStreamingKernel(stream_execution_context_, fl);
+    return executor_->runStreamingKernel(stream_execution_context_, fl, 3);
   });
 
-  return nullptr;
+  streaming_tasks.emplace_back(res);
+
+  return res;
 }
 
 ResultSetPtr RelAlgExecutor::finishStreamingExecution() {
-  streaming_task_group_.wait();
-
-  if (stream_estimation_context_) {
-    const auto estimator_result =
-        executor_->doStreamingReduction(stream_execution_context_);
-    std::cout << std::max(estimator_result->getNDVEstimator(), size_t(1)) << std::endl;
+  for (auto& t : streaming_tasks) {
+    t.wait();
   }
+
   return executor_->doStreamingReduction(stream_execution_context_);
 }
 
@@ -713,7 +720,6 @@ RelAlgExecutor::getJoinInfo(const RelAlgNode* root_node) {
 }
 
 namespace {
-
 inline void check_sort_node_source_constraint(const RelSort* sort) {
   CHECK_EQ(size_t(1), sort->inputCount());
   const auto source = sort->getInput(0);
@@ -1110,7 +1116,6 @@ void RelAlgExecutor::handleNop(RaExecutionDesc& ed) {
 }
 
 namespace {
-
 class RexUsedInputsVisitor : public RexVisitor<std::unordered_set<const RexInput*>> {
  public:
   RexUsedInputsVisitor() : RexVisitor() {}
@@ -1290,9 +1295,10 @@ std::unordered_map<const RelAlgNode*, int> get_input_nest_levels(
     const auto input_node_idx =
         input_permutation.empty() ? input_idx : input_permutation[input_idx];
     const auto input_ra = data_sink_node->getInput(input_node_idx);
-    // Having a non-zero mapped value (input_idx) results in the query being interpretted
-    // as a JOIN within CodeGenerator::codegenColVar() due to rte_idx being set to the
-    // mapped value (input_idx) which originates here. This would be incorrect for UNION.
+    // Having a non-zero mapped value (input_idx) results in the query being
+    // interpretted as a JOIN within CodeGenerator::codegenColVar() due to rte_idx
+    // being set to the mapped value (input_idx) which originates here. This would be
+    // incorrect for UNION.
     size_t const idx = dynamic_cast<const RelLogicalUnion*>(ra_node) ? 0 : input_idx;
     const auto it_ok = input_to_nest_level.emplace(input_ra, idx);
     CHECK(it_ok.second);
@@ -1739,7 +1745,6 @@ ExecutionResult RelAlgExecutor::executeAggregate(const RelAggregate* aggregate,
 }
 
 namespace {
-
 // Returns true iff the execution unit contains window functions.
 bool is_window_execution_unit(const RelAlgExecutionUnit& ra_exe_unit) {
   return std::any_of(ra_exe_unit.target_exprs.begin(),
@@ -1829,9 +1834,8 @@ ExecutionResult RelAlgExecutor::executeTableFunction(const RelTableFunction* tab
 }
 
 namespace {
-
-// Creates a new expression which has the range table index set to 1. This is needed to
-// reuse the hash join construction helpers to generate a hash table for the window
+// Creates a new expression which has the range table index set to 1. This is needed
+// to reuse the hash join construction helpers to generate a hash table for the window
 // function partition: create an equals expression with left and right sides identical
 // except for the range table index.
 std::shared_ptr<Analyzer::Expr> transform_to_inner(const Analyzer::Expr* expr) {
@@ -2080,7 +2084,6 @@ ExecutionResult RelAlgExecutor::executeLogicalValues(
 }
 
 namespace {
-
 template <class T>
 int64_t insert_one_dict_str(T* col_data,
                             const std::string& columnName,
@@ -2130,8 +2133,8 @@ int64_t insert_one_dict_str(T* col_data,
 ExecutionResult RelAlgExecutor::executeSimpleInsert(const Analyzer::Query& query) {
   // Note: We currently obtain an executor for this method, but we do not need it.
   // Therefore, we skip the executor state setup in the regular execution path. In the
-  // future, we will likely want to use the executor to evaluate expressions in the insert
-  // statement.
+  // future, we will likely want to use the executor to evaluate expressions in the
+  // insert statement.
 
   const auto& targets = query.get_targetlist();
   const int table_id = query.get_result_table_id();
@@ -2174,8 +2177,9 @@ ExecutionResult RelAlgExecutor::executeSimpleInsert(const Analyzer::Query& query
       const auto it_ok = col_buffers.emplace(
           col_id,
           std::unique_ptr<uint8_t[]>(
-              new uint8_t[cd->columnType.get_logical_size()]()));  // changed to zero-init
-                                                                   // the buffer
+              new uint8_t[cd->columnType.get_logical_size()]()));  // changed to
+                                                                   // zero-init the
+                                                                   // buffer
       CHECK(it_ok.second);
     }
     col_descriptors.push_back(cd);
@@ -2398,7 +2402,6 @@ ExecutionResult RelAlgExecutor::executeSimpleInsert(const Analyzer::Query& query
 }
 
 namespace {
-
 // TODO(alex): Once we're fully migrated to the relational algebra model, change
 // the executor interface to use the collation directly and remove this conversion.
 std::list<Analyzer::OrderEntry> get_order_entries(const RelSort* sort) {
@@ -2609,12 +2612,11 @@ RelAlgExecutor::WorkUnit RelAlgExecutor::createSortInputWorkUnit(
 }
 
 namespace {
-
 /**
- *  Upper bound estimation for the number of groups. Not strictly correct and not tight,
- * but if the tables involved are really small we shouldn't waste time doing the NDV
- * estimation. We don't account for cross-joins and / or group by unnested array, which
- * is the reason this estimation isn't entirely reliable.
+ *  Upper bound estimation for the number of groups. Not strictly correct and not
+ * tight, but if the tables involved are really small we shouldn't waste time doing
+ * the NDV estimation. We don't account for cross-joins and / or group by unnested
+ * array, which is the reason this estimation isn't entirely reliable.
  */
 size_t groups_approx_upper_bound(const std::vector<InputTableInfo>& table_infos) {
   CHECK(!table_infos.empty());
@@ -2630,9 +2632,9 @@ size_t groups_approx_upper_bound(const std::vector<InputTableInfo>& table_infos)
 
 /**
  * Determines whether a query needs to compute the size of its output buffer. Returns
- * true for projection queries with no LIMIT or a LIMIT that exceeds the high scan limit
- * threshold (meaning it would be cheaper to compute the number of rows passing or use
- * the bump allocator than allocate the current scan limit per GPU)
+ * true for projection queries with no LIMIT or a LIMIT that exceeds the high scan
+ * limit threshold (meaning it would be cheaper to compute the number of rows passing
+ * or use the bump allocator than allocate the current scan limit per GPU)
  */
 bool compute_output_buffer_size(const RelAlgExecutionUnit& ra_exe_unit) {
   for (const auto target_expr : ra_exe_unit.target_exprs) {
@@ -3264,7 +3266,6 @@ RelAlgExecutor::WorkUnit RelAlgExecutor::createWorkUnit(const RelAlgNode* node,
 }
 
 namespace {
-
 JoinType get_join_type(const RelAlgNode* ra) {
   auto sink = get_data_sink(ra);
   if (auto join = dynamic_cast<const RelJoin*>(sink)) {
@@ -3525,7 +3526,6 @@ std::shared_ptr<RelAlgTranslator> RelAlgExecutor::getRelAlgTranslator(
 }
 
 namespace {
-
 std::vector<const RexScalar*> rex_to_conjunctive_form(const RexScalar* qual_expr) {
   CHECK(qual_expr);
   const auto bin_oper = dynamic_cast<const RexOperator*>(qual_expr);
@@ -3573,8 +3573,9 @@ std::shared_ptr<Analyzer::Expr> reverse_logical_distribution(
   const auto& first_term = expr_terms.front();
   const auto first_term_factors = qual_to_conjunctive_form(first_term);
   std::vector<std::shared_ptr<Analyzer::Expr>> common_factors;
-  // First, collect the conjunctive components common to all the disjunctive components.
-  // Don't do it for simple qualifiers, we only care about expensive or join qualifiers.
+  // First, collect the conjunctive components common to all the disjunctive
+  // components. Don't do it for simple qualifiers, we only care about expensive or
+  // join qualifiers.
   for (const auto& first_term_factor : first_term_factors.quals) {
     bool is_common =
         expr_terms.size() > 1;  // Only report common factors for disjunction.
@@ -3688,7 +3689,6 @@ JoinQualsPerNestingLevel RelAlgExecutor::translateLeftDeepJoinFilter(
 }
 
 namespace {
-
 std::vector<std::shared_ptr<Analyzer::Expr>> synthesize_inputs(
     const RelAlgNode* ra_node,
     const size_t nest_level,
@@ -3880,7 +3880,6 @@ RelAlgExecutor::WorkUnit RelAlgExecutor::createProjectWorkUnit(
 }
 
 namespace {
-
 std::vector<std::shared_ptr<Analyzer::Expr>> target_exprs_for_union(
     RelAlgNode const* input_node) {
   std::vector<TargetMetaInfo> const& tmis = input_node->getOutputMetainfo();
@@ -4161,7 +4160,6 @@ RelAlgExecutor::TableFunctionWorkUnit RelAlgExecutor::createTableFunctionWorkUni
 }
 
 namespace {
-
 std::pair<std::vector<TargetMetaInfo>, std::vector<std::shared_ptr<Analyzer::Expr>>>
 get_inputs_meta(const RelFilter* filter,
                 const RelAlgTranslator& translator,
