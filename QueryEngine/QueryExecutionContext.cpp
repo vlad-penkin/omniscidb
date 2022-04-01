@@ -227,6 +227,7 @@ std::vector<int64_t*> QueryExecutionContext::launchGpuCode(
     const bool allow_runtime_interrupt,
     const std::vector<int64_t>& join_hash_tables,
     RenderAllocatorMap* render_allocator_map) {
+  std::cerr << "Running on GPU\n";
   auto timer = DEBUG_TIMER(__func__);
   INJECT_TIMER(lauchGpuCode);
 #ifdef HAVE_CUDA
@@ -620,6 +621,7 @@ std::vector<int64_t*> QueryExecutionContext::launchCpuCode(
     const uint32_t num_tables,
     const std::vector<int64_t>& join_hash_tables,
     const int64_t num_rows_to_process) {
+  std::cerr << "Running on CPU\n";
   auto timer = DEBUG_TIMER(__func__);
   INJECT_TIMER(lauchCpuCode);
 

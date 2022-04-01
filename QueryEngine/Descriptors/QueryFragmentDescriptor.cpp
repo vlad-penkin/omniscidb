@@ -352,45 +352,100 @@ void QueryFragmentDescriptor::buildMultifragKernelMap(
     if (device_type == ExecutorDeviceType::GPU) {
       checkDeviceMemoryUsage(fragment, device_id, num_bytes_for_row);
     }
-    for (size_t j = 0; j < ra_exe_unit.input_descs.size(); ++j) {
-      const auto table_id = ra_exe_unit.input_descs[j].getTableId();
-      auto table_frags_it = selected_tables_fragments_.find(table_id);
-      CHECK(table_frags_it != selected_tables_fragments_.end());
-      const auto frag_ids =
-          executor->getTableFragmentIndices(ra_exe_unit,
-                                            device_type,
-                                            j,
-                                            outer_frag_id,
-                                            selected_tables_fragments_,
-                                            inner_table_id_to_join_condition);
+    if (device_type == ExecutorDeviceType::GPU) {
+      for (size_t j = 0; j < ra_exe_unit.input_descs.size(); ++j) {
+        const auto table_id = ra_exe_unit.input_descs[j].getTableId();
+        auto table_frags_it = selected_tables_fragments_.find(table_id);
+        CHECK(table_frags_it != selected_tables_fragments_.end());
+        const auto frag_ids =
+            executor->getTableFragmentIndices(ra_exe_unit,
+                                              device_type,
+                                              j,
+                                              outer_frag_id,
+                                              selected_tables_fragments_,
+                                              inner_table_id_to_join_condition);
 
-      if (execution_kernels_per_device_[device_type].find(device_id) ==
-          execution_kernels_per_device_[device_type].end()) {
-        std::vector<ExecutionKernelDescriptor> kernel_descs{
-            ExecutionKernelDescriptor{device_id, FragmentsList{}, std::nullopt}};
-        CHECK(execution_kernels_per_device_[device_type]
-                  .insert(std::make_pair(device_id, kernel_descs))
-                  .second);
-      }
+        if (execution_kernels_per_device_[device_type].find(device_id) ==
+            execution_kernels_per_device_[device_type].end()) {
+          std::vector<ExecutionKernelDescriptor> kernel_descs{
+              ExecutionKernelDescriptor{device_id, FragmentsList{}, std::nullopt}};
+          CHECK(execution_kernels_per_device_[device_type]
+                    .insert(std::make_pair(device_id, kernel_descs))
+                    .second);
+        }
 
-      // Multifrag kernels only have one execution kernel per device. Grab the execution
-      // kernel object and push back into its fragments list.
-      CHECK_EQ(execution_kernels_per_device_[device_type][device_id].size(), size_t(1));
-      auto& execution_kernel =
-          execution_kernels_per_device_[device_type][device_id].front();
+        // Multifrag kernels only have one execution kernel per device. Grab the execution
+        // kernel object and push back into its fragments list.
+        CHECK_EQ(execution_kernels_per_device_[device_type][device_id].size(), size_t(1));
+        auto& execution_kernel =
+            execution_kernels_per_device_[device_type][device_id].front();
 
-      auto& kernel_frag_list = execution_kernel.fragments;
-      if (kernel_frag_list.size() < j + 1) {
-        kernel_frag_list.emplace_back(FragmentsPerTable{table_id, frag_ids});
-      } else {
-        CHECK_EQ(kernel_frag_list[j].table_id, table_id);
-        auto& curr_frag_ids = kernel_frag_list[j].fragment_ids;
-        for (const int frag_id : frag_ids) {
-          if (std::find(curr_frag_ids.begin(), curr_frag_ids.end(), frag_id) ==
-              curr_frag_ids.end()) {
-            curr_frag_ids.push_back(frag_id);
+        auto& kernel_frag_list = execution_kernel.fragments;
+        if (kernel_frag_list.size() < j + 1) {
+          kernel_frag_list.emplace_back(FragmentsPerTable{table_id, frag_ids});
+        } else {
+          CHECK_EQ(kernel_frag_list[j].table_id, table_id);
+          auto& curr_frag_ids = kernel_frag_list[j].fragment_ids;
+          for (const int frag_id : frag_ids) {
+            if (std::find(curr_frag_ids.begin(), curr_frag_ids.end(), frag_id) ==
+                curr_frag_ids.end()) {
+              curr_frag_ids.push_back(frag_id);
+            }
           }
         }
+      }
+    } else {
+      // CPU case, single kernel per fragment
+      bool is_temporary_table = false;
+      if (outer_table_id > 0) {
+        auto schema_provider = executor->getSchemaProvider();
+        auto table_info =
+            schema_provider->getTableInfo(executor->getDatabaseId(), outer_table_id);
+        CHECK(table_info);
+        // Temporary tables will not have a table descriptor and not have deleted rows.
+        if (table_info->isTemporary()) {
+          // for temporary tables, we won't have delete column metadata available.
+          // However, we know the table fits in memory as it is a temporary table, so
+          // signal to the lower layers that we can disregard the early out select *
+          // optimization
+          is_temporary_table = true;
+        }
+      }
+
+      auto get_fragment_tuple_count =
+          [&is_temporary_table](const auto& fragment) -> std::optional<size_t> {
+        if (is_temporary_table)
+          return std::nullopt;
+        return fragment.getNumTuples();
+      };
+
+      ExecutionKernelDescriptor execution_kernel_desc{
+          device_id, {}, get_fragment_tuple_count(fragment)};
+
+      for (size_t j = 0; j < ra_exe_unit.input_descs.size(); ++j) {
+        const auto frag_ids =
+            executor->getTableFragmentIndices(ra_exe_unit,
+                                              device_type,
+                                              j,
+                                              outer_frag_id,
+                                              selected_tables_fragments_,
+                                              executor->getInnerTabIdToJoinCond());
+        const auto table_id = ra_exe_unit.input_descs[j].getTableId();
+        auto table_frags_it = selected_tables_fragments_.find(table_id);
+        CHECK(table_frags_it != selected_tables_fragments_.end());
+
+        execution_kernel_desc.fragments.emplace_back(
+            FragmentsPerTable{table_id, frag_ids});
+      }
+      auto itr = execution_kernels_per_device_[device_type].find(device_id);
+      if (itr == execution_kernels_per_device_[device_type].end()) {
+        auto const pair = execution_kernels_per_device_[device_type].insert(
+            std::make_pair(device_id,
+                           std::vector<ExecutionKernelDescriptor>{
+                               std::move(execution_kernel_desc)}));
+        CHECK(pair.second);
+      } else {
+        itr->second.emplace_back(std::move(execution_kernel_desc));
       }
     }
     rowid_lookup_key_ = std::max(rowid_lookup_key_, skip_frag.second);
