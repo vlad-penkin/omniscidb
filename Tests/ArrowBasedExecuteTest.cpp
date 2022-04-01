@@ -1074,6 +1074,38 @@ class ExecuteTestBase {
         "INSERT INTO big_decimal_range_test VALUES(-999999999999.99, 1.3);");
   }
 
+  static void createStreamingTestTable() {
+    const size_t n_cols = 10;
+    const size_t n_rows = 1;
+    const size_t fragment_size = 1;
+    const std::string table_name("test_streaming");
+
+    std::string create_query("CREATE TABLE " + table_name + "(");
+    std::vector<ArrowStorage::ColumnDescription> cols;
+    std::string csv;
+    sqlite_comparator_.query("DROP TABLE IF EXISTS " + table_name + ";");
+
+    for (size_t i = 0; i < n_cols; ++i) {
+      cols.push_back({"x" + std::to_string(i), SQLTypeInfo(kBIGINT)});
+      create_query +=
+          ("x" + std::to_string(i) + " BIGINT" + (i + 1 == n_cols ? ");" : ", "));
+    }
+
+    createTable(table_name, cols, {fragment_size});
+    sqlite_comparator_.query(create_query);
+
+    for (size_t i = 0; i < n_rows; ++i) {
+      std::string insert_query("INSERT INTO " + table_name + " VALUES(");
+      for (size_t j = 0; j < n_cols; ++j) {
+        insert_query += std::to_string(i + j) + (j + 1 == n_cols ? ");" : ", ");
+        csv += std::to_string(i + j) + (j + 1 == n_cols ? "\n" : ",");
+      }
+      sqlite_comparator_.query(insert_query);
+    }
+
+    insertCsvValues(table_name, csv);
+  }
+
   static void createAndPopulateTestTables() {
     createTestInnerTable();
     createTestTable();
@@ -1091,6 +1123,7 @@ class ExecuteTestBase {
     createEmpTable();
     createTestDateTimeTable();
     createBigDecimalRangeTestTable();
+    createStreamingTestTable();
   }
 
   static void reset() {
@@ -1196,6 +1229,20 @@ class ExecuteTestBase {
                                      ExecutorDeviceType device_type,
                                      bool allow_loop_joins) {
     return runSqlQuery(sql, device_type, getExecutionOptions(allow_loop_joins));
+  }
+
+  RelAlgExecutor getExecutor(const std::string& sql) {
+    auto schema_json = schema_to_json(storage_);
+    auto query_ra =
+        calcite_->process("admin", "test_db", pg_shim(sql), schema_json, "", {}, true)
+            .plan_result;
+    auto dag =
+        std::make_unique<RelAlgDagBuilder>(query_ra, TEST_DB_ID, storage_, nullptr);
+    return RelAlgExecutor(executor_.get(),
+                          TEST_DB_ID,
+                          storage_,
+                          data_mgr_->getDataProvider(),
+                          std::move(dag));
   }
 
   static ExecutionOptions getExecutionOptions(bool allow_loop_joins,
@@ -2226,6 +2273,28 @@ TEST_F(Select, AggregateOnEmptyTable) {
     c("SELECT COUNT(x), COUNT(y), COUNT(z), COUNT(t), COUNT(f), COUNT(d), COUNT(b) FROM "
       "empty_test_table WHERE id > 5;",
       dt);
+  }
+}
+
+TEST_F(Select, StreamingAggregate) {
+  std::string table_name("test_streaming");
+  std::string query("SELECT SUM(x1) from test_streaming;");
+  auto table_id = storage_->getTableInfo(TEST_DB_ID, table_name)->table_id;
+
+  for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
+    SKIP_NO_GPU();
+
+    auto ra_executor = getExecutor(query);
+    ra_executor.prepareStreamingExecution(CompilationOptions(), ExecutionOptions());
+
+    insertCsvValues(table_name, "6,7,8,9,10,11,12,13,14,15");
+
+    (void)ra_executor.runOnBatch({table_id, {0}});
+
+    auto result = ra_executor.finishStreamingExecution();
+    const auto row = result->getNextRow(true, true);
+    ASSERT_EQ(size_t(1), row.size());
+    ASSERT_EQ(int64_t(1), v<int64_t>(row[0]));
   }
 }
 
