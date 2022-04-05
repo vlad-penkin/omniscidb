@@ -363,16 +363,6 @@ if(ENABLE_ASAN OR ENABLE_TSAN OR ENABLE_UBSAN)
   set(ENABLE_STANDALONE_CALCITE ON)
 endif()
 
-# Embedded database
-option(ENABLE_DBE "Enable embedded database" OFF)
-if(ENABLE_DBE)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
-  set(ENABLE_STANDALONE_CALCITE ON)
-  add_definitions("-DENABLE_EMBEDDED_DATABASE")
-  add_definitions("-DDBEngine_LIBNAME=\"${CMAKE_SHARED_LIBRARY_PREFIX}DBEngine${CMAKE_SHARED_LIBRARY_SUFFIX}\"")
-endif()
-
 # Code coverage
 option(ENABLE_CODE_COVERAGE "Enable compile time code coverage" OFF)
 if(ENABLE_CODE_COVERAGE)
@@ -727,10 +717,6 @@ add_subdirectory(TableArchiver)
 add_subdirectory(ThriftHandler)
 add_subdirectory(Distributed)
 add_subdirectory(UdfCompiler)
-
-if(ENABLE_DBE)
-  add_subdirectory(Embedded)
-endif()
 
 option(ENABLE_ODBC "Build ODBC driver" OFF)
 if(ENABLE_ODBC)
