@@ -154,6 +154,7 @@ extern bool g_cache_string_hash;
 bool g_enable_multifrag_rs{false};
 
 bool g_enable_heterogeneous_execution{false};
+bool g_enable_multifrag_heterogeneous_execution{false};
 
 int const Executor::max_gpu_count;
 
@@ -2660,7 +2661,8 @@ std::vector<std::unique_ptr<ExecutionKernel>> Executor::createHeterogeneousKerne
   CHECK(!ra_exe_unit.input_descs.empty());
 
   const bool uses_lazy_fetch_ = false;
-  const bool use_multifrag_kernel = eo.allow_multifrag && (!uses_lazy_fetch_ || is_agg);
+  const bool use_multifrag_kernel = g_enable_multifrag_heterogeneous_execution &&
+                                    eo.allow_multifrag && (!uses_lazy_fetch_ || is_agg);
 
   std::unique_ptr<policy::ExecutionPolicy> policy =
       std::make_unique<policy::RoundRobinExecutionPolicy>();
