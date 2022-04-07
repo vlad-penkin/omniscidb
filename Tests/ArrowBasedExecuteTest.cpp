@@ -17823,6 +17823,72 @@ TEST_F(SubqueryTestEnv, SubqueryTest) {
   }
 }
 
+// Schema:
+// const char* reduced_trips_table_ddl = R"(
+// CREATE TEMPORARY TABLE trips_reduced (
+// pickup_datetime TIMESTAMP,
+// passenger_count SMALLINT,
+// trip_distance DECIMAL(14,2),
+// total_amount DECIMAL(14,2),
+// cab_type VARCHAR(6) ENCODING DICT);)";
+
+class NycTaxiReducedTest : public ExecuteTestBase, public ::testing::Test {
+ protected:
+  const std::string table_name = "trips_reduced";
+  void SetUp() override {
+    createTable(table_name,
+                {{"pickup_datetime", SQLTypeInfo(kTIMESTAMP, 0, 0)},
+                 {"passenger_count", SQLTypeInfo(kSMALLINT)},
+                 {"trip_distance", SQLTypeInfo(kDECIMAL, 14, 2)},
+                 {"total_amount", SQLTypeInfo(kDECIMAL, 14, 2)},
+                 {"cab_type", SQLTypeInfo(kVARCHAR, true, kENCODING_DICT)}});
+    const std::string path = "/data/taxi/tmp/test.csv";
+    std::ifstream in(path);
+
+    sqlite_comparator_.query("DROP TABLE IF EXISTS " + table_name + ";");
+    sqlite_comparator_.query(
+        "CREATE TABLE " + table_name +
+        " (pickup_datetime TIMESTAMP, passenger_count SMALLINT, trip_distance "
+        "DECIMAL(14,2), total_amount DECIMAL(14,2), cab_type VARCHAR(6));");
+    std::string line;
+    while (std::getline(in, line)) {
+      insertCsvValues(table_name, line);
+      // form a valid sqlite values str
+      std::stringstream ss(line);
+      std::vector<std::string> values;
+      unsigned idx = 0;
+      while (ss.good()) {
+        std::string val;
+        std::getline(ss, val, ',');
+        // depends on value type
+        values.push_back((idx == 0 || idx == 4) ? "'" + val + "'" : val);
+        idx++;
+      }
+      std::string result = boost::algorithm::join(values, ",");
+      sqlite_comparator_.query("INSERT INTO " + table_name + " VALUES (" + result + ");");
+    }
+  }
+
+  void TearDown() override {
+    dropTable(table_name);
+    sqlite_comparator_.query("DROP TABLE IF EXISTS " + table_name + ";");
+  }
+};
+
+TEST_F(NycTaxiReducedTest, Q1) {
+  c("select cab_type, count(*) from trips_reduced group by cab_type",
+    "select cab_type, count(*) from trips_reduced group by cab_type",
+    ExecutorDeviceType::GPU);
+}
+
+TEST_F(NycTaxiReducedTest, Q2) {
+  c("SELECT passenger_count, avg(total_amount) FROM trips_reduced GROUP BY "
+    "passenger_count",
+    "SELECT passenger_count, avg(total_amount) FROM trips_reduced GROUP BY "
+    "passenger_count",
+    ExecutorDeviceType::GPU);
+}
+
 int main(int argc, char** argv) {
   g_is_test_env = true;
 
