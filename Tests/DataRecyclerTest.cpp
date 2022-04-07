@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
+#include "ArrowSQLRunner.h"
 #include "TestHelpers.h"
 
 #include "DataMgr/DataMgrBufferProvider.h"
 #include "Logger/Logger.h"
 #include "QueryEngine/CompilationOptions.h"
 #include "QueryEngine/Execute.h"
+#include "QueryEngine/JoinHashTable/BaselineJoinHashTable.h"
 #include "QueryEngine/JoinHashTable/PerfectJoinHashTable.h"
 #include "QueryEngine/QueryPlanDagCache.h"
 #include "QueryEngine/QueryPlanDagExtractor.h"
-#include "QueryRunner/QueryRunner.h"
 
 #include <gtest/gtest.h>
 #include <boost/algorithm/string/join.hpp>
@@ -37,12 +38,8 @@ extern unsigned g_trivial_loop_join_threshold;
 extern bool g_enable_overlaps_hashjoin;
 extern bool g_enable_hashjoin_many_to_many;
 
-using QR = QueryRunner::QueryRunner;
 using namespace TestHelpers;
-
-#ifndef BASE_PATH
-#define BASE_PATH "./tmp"
-#endif
+using namespace TestHelpers::ArrowSQLRunner;
 
 bool g_cpu_only{false};
 
@@ -56,98 +53,135 @@ bool skip_tests(const ExecutorDeviceType device_type) {
 
 namespace {
 
-inline void run_ddl_statement(const std::string& create_table_stmt) {
-  QR::get()->runDDLStatement(create_table_stmt);
+void drop_table() {
+  dropTable("t1");
+  dropTable("t2");
+  dropTable("t3");
+  dropTable("t4");
 }
 
-TargetValue run_simple_query(const std::string& query_str,
-                             const ExecutorDeviceType device_type,
-                             const bool allow_loop_joins = true) {
-  auto rows = QR::get()->runSQL(query_str, device_type, allow_loop_joins);
-  auto crt_row = rows->getNextRow(true, true);
-  CHECK_EQ(size_t(1), crt_row.size()) << query_str;
-  return crt_row[0];
+void create_and_populate_table() {
+  createTable("t1",
+              {{"x", SQLTypeInfo(kINT)}, {"y", SQLTypeInfo(kINT)}, {"z", dictType()}});
+  createTable("t2",
+              {{"x", SQLTypeInfo(kINT)}, {"y", SQLTypeInfo(kINT)}, {"z", dictType()}});
+  createTable("t3",
+              {{"x", SQLTypeInfo(kINT)}, {"y", SQLTypeInfo(kINT)}, {"z", dictType()}});
+  createTable("t4",
+              {{"x", SQLTypeInfo(kINT)}, {"y", SQLTypeInfo(kINT)}, {"z", dictType()}});
+
+  insertCsvValues("t1", "1,1,1\n2,1,2\n3,1,3");
+  insertCsvValues("t2", "1,1,1\n2,1,2\n3,1,3\n4,2,4");
+  insertCsvValues("t3", "1,1,1\n2,1,2\n3,1,3\n4,2,4\n5,2,5");
+  insertCsvValues("t4", "1,1,1\n2,1,2\n3,1,3\n4,2,4\n5,2,5\n6,2,6");
 }
 
-int drop_table() {
-  try {
-    run_ddl_statement("DROP TABLE IF EXISTS T1;");
-    run_ddl_statement("DROP TABLE IF EXISTS T2;");
-    run_ddl_statement("DROP TABLE IF EXISTS T3;");
-    run_ddl_statement("DROP TABLE IF EXISTS T4;");
-  } catch (...) {
-    LOG(ERROR) << "Failed to drop table";
-    return -1;
+std::tuple<QueryPlanHash,
+           std::shared_ptr<HashTable>,
+           std::optional<HashtableCacheMetaInfo>>
+getCachedHashtableWithoutCacheKey(std::set<size_t>& visited,
+                                  CacheItemType hash_table_type,
+                                  DeviceIdentifier device_identifier) {
+  HashtableRecycler* hash_table_cache{nullptr};
+  switch (hash_table_type) {
+    case CacheItemType::PERFECT_HT: {
+      hash_table_cache = PerfectJoinHashTable::getHashTableCache();
+      break;
+    }
+    case CacheItemType::BASELINE_HT: {
+      hash_table_cache = BaselineJoinHashTable::getHashTableCache();
+      break;
+    }
+    default: {
+      UNREACHABLE();
+      break;
+    }
   }
-  return 0;
+  CHECK(hash_table_cache);
+  return hash_table_cache->getCachedHashtableWithoutCacheKey(
+      visited, hash_table_type, device_identifier);
 }
 
-int create_and_populate_table() {
-  try {
-    drop_table();
-    const auto table_ddl = "(x int, y int, z text encoding dict);";
-    auto create_table_ddl = [&table_ddl](const std::string& tbl_name) {
-      return "CREATE TABLE " + tbl_name + table_ddl;
-    };
-    run_ddl_statement(create_table_ddl("T1"));
-    run_ddl_statement(create_table_ddl("T2"));
-    run_ddl_statement(create_table_ddl("T3"));
-    run_ddl_statement(create_table_ddl("T4"));
-    const auto data_insertion = [](const std::string& tbl_name) {
-      auto insert_dml = "INSERT INTO " + tbl_name + " VALUES(";
-      std::vector<std::string> value_vec = {"1, 1, '1'", "2, 1, '2'", "3, 1, '3'"};
-      for (auto& v : value_vec) {
-        QR::get()->runSQL(insert_dml + v + ");", ExecutorDeviceType::CPU);
-      }
-    };
-    data_insertion("T1");
-    data_insertion("T2");
-    QR::get()->runSQL("INSERT INTO T2 VALUES(4,2,'4');", ExecutorDeviceType::CPU);
-    data_insertion("T3");
-    QR::get()->runSQL("INSERT INTO T3 VALUES(4,2,'4');", ExecutorDeviceType::CPU);
-    QR::get()->runSQL("INSERT INTO T3 VALUES(5,2,'5');", ExecutorDeviceType::CPU);
-    data_insertion("T4");
-    QR::get()->runSQL("INSERT INTO T4 VALUES(4,2,'4');", ExecutorDeviceType::CPU);
-    QR::get()->runSQL("INSERT INTO T4 VALUES(5,2,'5');", ExecutorDeviceType::CPU);
-    QR::get()->runSQL("INSERT INTO T4 VALUES(6,2,'6');", ExecutorDeviceType::CPU);
-  } catch (...) {
-    LOG(ERROR) << "Failed to (re-)create table";
-    return -1;
+std::shared_ptr<CacheItemMetric> getCacheItemMetric(QueryPlanHash cache_key,
+                                                    CacheItemType hash_table_type,
+                                                    DeviceIdentifier device_identifier) {
+  HashtableRecycler* hash_table_cache{nullptr};
+  switch (hash_table_type) {
+    case CacheItemType::PERFECT_HT: {
+      hash_table_cache = PerfectJoinHashTable::getHashTableCache();
+      break;
+    }
+    case CacheItemType::BASELINE_HT: {
+      hash_table_cache = BaselineJoinHashTable::getHashTableCache();
+      break;
+    }
+    default: {
+      UNREACHABLE();
+      break;
+    }
   }
-  return 0;
+  CHECK(hash_table_cache);
+  return hash_table_cache->getCachedItemMetric(
+      hash_table_type, device_identifier, cache_key);
 }
 
 std::shared_ptr<CacheItemMetric> getCachedHashTableMetric(
     std::set<QueryPlanHash>& already_visited,
     CacheItemType cache_item_type) {
-  auto cached_ht = QR::get()->getCachedHashtableWithoutCacheKey(
+  auto cached_ht = getCachedHashtableWithoutCacheKey(
       already_visited, cache_item_type, DataRecyclerUtil::CPU_DEVICE_IDENTIFIER);
   auto cache_key = std::get<0>(cached_ht);
   already_visited.insert(cache_key);
-  return QR::get()->getCacheItemMetric(
+  return getCacheItemMetric(
       cache_key, cache_item_type, DataRecyclerUtil::CPU_DEVICE_IDENTIFIER);
 }
 
-struct OverlapsCachedHTAndMetaInfo {
-  QueryPlanHash key;
-  std::shared_ptr<HashTable> cached_ht;
-  std::optional<HashtableCacheMetaInfo> cached_ht_metainfo;
-  std::shared_ptr<CacheItemMetric> cached_metric;
-  std::optional<AutoTunerMetaInfo> cached_tuning_info;
+struct QueryPlanDagInfo {
+  std::shared_ptr<const RelAlgNode> root_node;
+  std::vector<unsigned> left_deep_trees_id;
+  std::unordered_map<unsigned, JoinQualsPerNestingLevel> left_deep_trees_info;
+  std::shared_ptr<RelAlgTranslator> rel_alg_translator;
 };
+
+QueryPlanDagInfo getQueryInfoForDataRecyclerTest(const std::string& query_str) {
+  auto ra_executor = makeRelAlgExecutor(query_str);
+  // note that we assume the test for data recycler that needs to have join_info
+  // does not contain any ORDER BY clause; this is necessary to create work_unit
+  // without actually performing the query
+  auto root_node_shared_ptr = ra_executor->getRootRelAlgNodeShPtr();
+  auto join_info = ra_executor->getJoinInfo(root_node_shared_ptr.get());
+  auto relAlgTranslator = ra_executor->getRelAlgTranslator(root_node_shared_ptr.get());
+  return {root_node_shared_ptr, join_info.first, join_info.second, relAlgTranslator};
+}
+
+std::shared_ptr<RelAlgTranslator> getRelAlgTranslator(const std::string& query) {
+  auto ra_executor = makeRelAlgExecutor(query);
+  auto root_node = ra_executor->getRootRelAlgNodeShPtr();
+  return ra_executor->getRelAlgTranslator(root_node.get());
+}
+
+size_t getNumberOfCachedPerfectHashTables() {
+  auto hash_table_cache = PerfectJoinHashTable::getHashTableCache();
+  CHECK(hash_table_cache);
+  return hash_table_cache->getCurrentNumCachedItems(
+      CacheItemType::PERFECT_HT, DataRecyclerUtil::CPU_DEVICE_IDENTIFIER);
+};
+
+size_t getNumberOfCachedBaselineJoinHashTables() {
+  auto hash_table_cache = BaselineJoinHashTable::getHashTableCache();
+  CHECK(hash_table_cache);
+  return hash_table_cache->getCurrentNumCachedItems(
+      CacheItemType::BASELINE_HT, DataRecyclerUtil::CPU_DEVICE_IDENTIFIER);
+}
 
 }  // namespace
 
 TEST(DataRecycler, QueryPlanDagExtractor_Simple_Project_Query) {
-  auto executor =
-      Executor::getExecutor(Executor::UNITARY_EXECUTOR_ID,
-                            &QR::get()->getCatalog()->getDataMgr(),
-                            QR::get()->getCatalog()->getDataMgr().getBufferProvider())
-          .get();
-  auto q1_str = "SELECT x FROM T1 ORDER BY x;";
-  auto q1_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q1_str);
+  auto executor = getExecutor();
+  auto q1_str = "SELECT x FROM t1 ORDER BY x;";
+  auto q1_query_info = getQueryInfoForDataRecyclerTest(q1_str);
   ASSERT_TRUE(q1_query_info.left_deep_trees_id.empty());
-  auto q1_rel_alg_translator = QR::get()->getRelAlgTranslator(q1_str, executor);
+  auto q1_rel_alg_translator = getRelAlgTranslator(q1_str);
   auto q1_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q1_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -161,10 +195,10 @@ TEST(DataRecycler, QueryPlanDagExtractor_Simple_Project_Query) {
   // 3. a scan node (the leaf of the query plan) becomes a child of the project node
   ASSERT_TRUE(q1_plan_dag.extracted_dag.compare("0|1|2|") == 0);
 
-  auto q2_str = "SELECT x FROM T1;";
-  auto q2_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q2_str);
+  auto q2_str = "SELECT x FROM t1;";
+  auto q2_query_info = getQueryInfoForDataRecyclerTest(q2_str);
   ASSERT_TRUE(q2_query_info.left_deep_trees_id.empty());
-  auto q2_rel_alg_translator = QR::get()->getRelAlgTranslator(q2_str, executor);
+  auto q2_rel_alg_translator = getRelAlgTranslator(q2_str);
   auto q2_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q2_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -176,10 +210,10 @@ TEST(DataRecycler, QueryPlanDagExtractor_Simple_Project_Query) {
   // q2 is the same as q1 except sort node
   ASSERT_TRUE(q2_plan_dag.extracted_dag.compare("1|2|") == 0);
 
-  auto q3_str = "SELECT x FROM T1 GROUP BY x;";
-  auto q3_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q3_str);
+  auto q3_str = "SELECT x FROM t1 GROUP BY x;";
+  auto q3_query_info = getQueryInfoForDataRecyclerTest(q3_str);
   ASSERT_TRUE(q3_query_info.left_deep_trees_id.empty());
-  auto q3_rel_alg_translator = QR::get()->getRelAlgTranslator(q3_str, executor);
+  auto q3_rel_alg_translator = getRelAlgTranslator(q3_str);
   auto q3_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q3_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -192,10 +226,10 @@ TEST(DataRecycler, QueryPlanDagExtractor_Simple_Project_Query) {
   // (that is the same node as both q1 and q2) is the leaf of the query plan
   ASSERT_TRUE(q3_plan_dag.extracted_dag.compare("3|2|") == 0);
 
-  auto q4_str = "SELECT x FROM T1 GROUP BY x ORDER BY x;";
-  auto q4_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q4_str);
+  auto q4_str = "SELECT x FROM t1 GROUP BY x ORDER BY x;";
+  auto q4_query_info = getQueryInfoForDataRecyclerTest(q4_str);
   ASSERT_TRUE(q4_query_info.left_deep_trees_id.empty());
-  auto q4_rel_alg_translator = QR::get()->getRelAlgTranslator(q4_str, executor);
+  auto q4_rel_alg_translator = getRelAlgTranslator(q4_str);
   auto q4_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q4_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -232,12 +266,7 @@ TEST(DataRecycler, QueryPlanDagExtractor_Simple_Project_Query) {
 TEST(DataRecycler, QueryPlanDagExtractor_Heavy_IN_clause) {
   // we do not extract query plan dag where at least one rel node
   // containing a heavy IN-expr w.r.t its value list, i.e., |value list| > 20
-  auto executor =
-      Executor::getExecutor(Executor::UNITARY_EXECUTOR_ID,
-                            &QR::get()->getCatalog()->getDataMgr(),
-                            QR::get()->getCatalog()->getDataMgr().getBufferProvider())
-          .get();
-
+  auto executor = getExecutor();
   auto create_query_having_IN_expr = [](const std::string tbl_name,
                                         const std::string agg_col_name,
                                         const int value_list_size) {
@@ -251,10 +280,10 @@ TEST(DataRecycler, QueryPlanDagExtractor_Heavy_IN_clause) {
   };
 
   // so we can extract q1's dag
-  auto q1_str = create_query_having_IN_expr("T1", "x", 20);
-  auto q1_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q1_str);
+  auto q1_str = create_query_having_IN_expr("t1", "x", 20);
+  auto q1_query_info = getQueryInfoForDataRecyclerTest(q1_str);
   ASSERT_TRUE(q1_query_info.left_deep_trees_id.empty());
-  auto rel_alg_translator_for_q1 = QR::get()->getRelAlgTranslator(q1_str, executor);
+  auto rel_alg_translator_for_q1 = getRelAlgTranslator(q1_str);
   auto q1_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q1_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -267,10 +296,10 @@ TEST(DataRecycler, QueryPlanDagExtractor_Heavy_IN_clause) {
   // but we skip to extract a DAG for q2 since it contains IN-expr having 21 elems in its
   // value list
 
-  auto q2_str = create_query_having_IN_expr("T1", "x", 21);
-  auto q2_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q2_str);
+  auto q2_str = create_query_having_IN_expr("t1", "x", 21);
+  auto q2_query_info = getQueryInfoForDataRecyclerTest(q2_str);
   ASSERT_TRUE(q2_query_info.left_deep_trees_id.empty());
-  auto rel_alg_translator_for_q2 = QR::get()->getRelAlgTranslator(q2_str, executor);
+  auto rel_alg_translator_for_q2 = getRelAlgTranslator(q2_str);
   auto q2_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q2_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -283,16 +312,11 @@ TEST(DataRecycler, QueryPlanDagExtractor_Heavy_IN_clause) {
 }
 
 TEST(DataRecycler, QueryPlanDagExtractor_Join_Query) {
-  auto executor =
-      Executor::getExecutor(Executor::UNITARY_EXECUTOR_ID,
-                            &QR::get()->getCatalog()->getDataMgr(),
-                            QR::get()->getCatalog()->getDataMgr().getBufferProvider())
-          .get();
-
-  auto q1_str = "SELECT T1.x FROM T1, T2 WHERE T1.x = T2.x;";
-  auto q1_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q1_str);
+  auto executor = getExecutor();
+  auto q1_str = "SELECT t1.x FROM t1, t2 WHERE t1.x = t2.x;";
+  auto q1_query_info = getQueryInfoForDataRecyclerTest(q1_str);
   ASSERT_TRUE(q1_query_info.left_deep_trees_id.size() == 1);
-  auto q1_rel_alg_translator = QR::get()->getRelAlgTranslator(q1_str, executor);
+  auto q1_rel_alg_translator = getRelAlgTranslator(q1_str);
   auto q1_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q1_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -302,10 +326,10 @@ TEST(DataRecycler, QueryPlanDagExtractor_Join_Query) {
                                                  executor,
                                                  *q1_rel_alg_translator);
 
-  auto q2_str = "SELECT T1.x FROM T1 JOIN T2 ON T1.x = T2.x;";
-  auto q2_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q2_str);
+  auto q2_str = "SELECT t1.x FROM t1 JOIN t2 ON t1.x = t2.x;";
+  auto q2_query_info = getQueryInfoForDataRecyclerTest(q2_str);
   ASSERT_TRUE(q2_query_info.left_deep_trees_id.size() == 1);
-  auto q2_rel_alg_translator = QR::get()->getRelAlgTranslator(q2_str, executor);
+  auto q2_rel_alg_translator = getRelAlgTranslator(q2_str);
   auto q2_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q2_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -317,10 +341,10 @@ TEST(DataRecycler, QueryPlanDagExtractor_Join_Query) {
 
   ASSERT_TRUE(q1_plan_dag.extracted_dag.compare(q2_plan_dag.extracted_dag) == 0);
 
-  auto q3_str = "SELECT T1.x FROM T1, T2 WHERE T1.x = T2.x and T2.y = T1.y;";
-  auto q3_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q3_str);
+  auto q3_str = "SELECT t1.x FROM t1, t2 WHERE t1.x = t2.x and t2.y = t1.y;";
+  auto q3_query_info = getQueryInfoForDataRecyclerTest(q3_str);
   ASSERT_TRUE(q3_query_info.left_deep_trees_id.size() == 1);
-  auto q3_rel_alg_translator = QR::get()->getRelAlgTranslator(q3_str, executor);
+  auto q3_rel_alg_translator = getRelAlgTranslator(q3_str);
   auto q3_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q3_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -330,10 +354,10 @@ TEST(DataRecycler, QueryPlanDagExtractor_Join_Query) {
                                                  executor,
                                                  *q3_rel_alg_translator);
 
-  auto q4_str = "SELECT T1.x FROM T1 JOIN T2 ON T1.x = T2.x and T1.y = T2.y;";
-  auto q4_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q4_str);
+  auto q4_str = "SELECT t1.x FROM t1 JOIN t2 ON t1.x = t2.x and t1.y = t2.y;";
+  auto q4_query_info = getQueryInfoForDataRecyclerTest(q4_str);
   ASSERT_TRUE(q4_query_info.left_deep_trees_id.size() == 1);
-  auto q4_rel_alg_translator = QR::get()->getRelAlgTranslator(q4_str, executor);
+  auto q4_rel_alg_translator = getRelAlgTranslator(q4_str);
   auto q4_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q4_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -345,10 +369,10 @@ TEST(DataRecycler, QueryPlanDagExtractor_Join_Query) {
 
   ASSERT_TRUE(q3_plan_dag.extracted_dag.compare(q4_plan_dag.extracted_dag) != 0);
 
-  auto q5_str = "SELECT T1.x FROM T1 JOIN T2 ON T1.y = T2.y and T1.x = T2.x;";
-  auto q5_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q5_str);
+  auto q5_str = "SELECT t1.x FROM t1 JOIN t2 ON t1.y = t2.y and t1.x = t2.x;";
+  auto q5_query_info = getQueryInfoForDataRecyclerTest(q5_str);
   ASSERT_TRUE(q5_query_info.left_deep_trees_id.size() == 1);
-  auto q5_rel_alg_translator = QR::get()->getRelAlgTranslator(q5_str, executor);
+  auto q5_rel_alg_translator = getRelAlgTranslator(q5_str);
   auto q5_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q5_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -362,11 +386,7 @@ TEST(DataRecycler, QueryPlanDagExtractor_Join_Query) {
 
 TEST(DataRecycler, DAG_Cache_Size_Management) {
   // test if DAG cache becomes full
-  auto executor =
-      Executor::getExecutor(Executor::UNITARY_EXECUTOR_ID,
-                            &QR::get()->getCatalog()->getDataMgr(),
-                            QR::get()->getCatalog()->getDataMgr().getBufferProvider())
-          .get();
+  auto executor = getExecutor();
   // get query info for DAG cache test in advance
   auto& DAG_CACHE = executor->getQueryPlanDagCache();
 
@@ -375,20 +395,20 @@ TEST(DataRecycler, DAG_Cache_Size_Management) {
     DAG_CACHE.setNodeMapMaxSize(original_DAG_cache_max_size);
   };
 
-  auto q1_str = "SELECT x FROM T1 ORDER BY x;";
-  auto q2_str = "SELECT y FROM T1;";
+  auto q1_str = "SELECT x FROM t1 ORDER BY x;";
+  auto q2_str = "SELECT y FROM t1;";
   auto q3_str =
-      "SELECT T2.y, COUNT(T1.x) FROM T1, T2 WHERE T1.y = T2.y and T1.x = T2.x GROUP BY "
-      "T2.y;";
-  auto q1_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q1_str);
-  auto q2_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q2_str);
-  auto q3_query_info = QR::get()->getQueryInfoForDataRecyclerTest(q3_str);
+      "SELECT t2.y, COUNT(t1.x) FROM t1, t2 WHERE t1.y = t2.y and t1.x = t2.x GROUP BY "
+      "t2.y;";
+  auto q1_query_info = getQueryInfoForDataRecyclerTest(q1_str);
+  auto q2_query_info = getQueryInfoForDataRecyclerTest(q2_str);
+  auto q3_query_info = getQueryInfoForDataRecyclerTest(q3_str);
   DAG_CACHE.clearQueryPlanCache();
 
   // test: when DAG cache becomes full, it should skip the following query and clear the
   // cached plan
   DAG_CACHE.setNodeMapMaxSize(48);
-  auto q1_rel_alg_translator = QR::get()->getRelAlgTranslator(q1_str, executor);
+  auto q1_rel_alg_translator = getRelAlgTranslator(q1_str);
   auto q1_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q1_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -403,7 +423,7 @@ TEST(DataRecycler, DAG_Cache_Size_Management) {
   ASSERT_TRUE(q1_plan_dag.extracted_dag.compare("0|1|2|") == 0);
   // 3 unique REL nodes in the cache --> 3 * 2 * 8 = 48
   ASSERT_EQ(DAG_CACHE.getCurrentNodeMapSize(), 48u);
-  auto q2_rel_alg_translator = QR::get()->getRelAlgTranslator(q2_str, executor);
+  auto q2_rel_alg_translator = getRelAlgTranslator(q2_str);
   auto q2_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q2_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -420,7 +440,7 @@ TEST(DataRecycler, DAG_Cache_Size_Management) {
   DAG_CACHE.clearQueryPlanCache();
 
   // test: when a query size is too large, we skip caching the query
-  auto q3_rel_alg_translator = QR::get()->getRelAlgTranslator(q3_str, executor);
+  auto q3_rel_alg_translator = getRelAlgTranslator(q3_str);
   auto q3_plan_dag =
       QueryPlanDagExtractor::extractQueryPlanDag(q3_query_info.root_node.get(),
                                                  executor->getSchemaProvider(),
@@ -457,14 +477,10 @@ TEST(DataRecycler, DAG_Cache_Size_Management) {
 }
 
 TEST(DataRecycler, Perfect_Hashtable_Cache_Maintanence) {
-  auto data_mgr = &QR::get()->getCatalog()->getDataMgr();
-  auto executor =
-      Executor::getExecutor(
-          Executor::UNITARY_EXECUTOR_ID, data_mgr, data_mgr->getBufferProvider())
-          .get();
+  auto executor = getExecutor();
   std::set<QueryPlanHash> visited_hashtable_key;
-  auto clearCaches = [&executor, data_mgr, &visited_hashtable_key] {
-    Executor::clearMemory(MemoryLevel::CPU_LEVEL, data_mgr);
+  auto clearCaches = [&executor, &visited_hashtable_key] {
+    Executor::clearMemory(MemoryLevel::CPU_LEVEL, getDataMgr());
     executor->getQueryPlanDagCache().clearQueryPlanCache();
     visited_hashtable_key.clear();
   };
@@ -485,20 +501,20 @@ TEST(DataRecycler, Perfect_Hashtable_Cache_Maintanence) {
       // test1. cache hashtable of t1.x and then reuse it correctly?
       clearCaches();
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
       auto q1_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       auto ht1_ref_count_v1 = q1_perfect_ht_metrics->getRefCount();
       ASSERT_EQ(static_cast<size_t>(1), ht1_ref_count_v1);
       ASSERT_EQ(static_cast<size_t>(12), q1_perfect_ht_metrics->getMemSize());
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
       auto ht1_ref_count_v2 = q1_perfect_ht_metrics->getRefCount();
       ASSERT_LT(ht1_ref_count_v1, ht1_ref_count_v2);
       auto q2 = "SELECT count(*) from t1, t3 where t1.x = t3.x;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
       auto ht1_ref_count_v3 = q1_perfect_ht_metrics->getRefCount();
       ASSERT_LT(ht1_ref_count_v2, ht1_ref_count_v3);
     }
@@ -508,18 +524,18 @@ TEST(DataRecycler, Perfect_Hashtable_Cache_Maintanence) {
       clearCaches();
 
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
       auto q1_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       ASSERT_EQ(static_cast<size_t>(1), q1_perfect_ht_metrics->getRefCount());
       ASSERT_EQ(static_cast<size_t>(12), q1_perfect_ht_metrics->getMemSize());
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
 
       auto q2 = "SELECT count(*) from t1, t2 where t1.y = t2.y;";
-      ASSERT_EQ(static_cast<int64_t>(9), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(2), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(9), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedPerfectHashTables());
       auto q2_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       ASSERT_EQ(static_cast<size_t>(1), q2_perfect_ht_metrics->getRefCount());
@@ -540,16 +556,16 @@ TEST(DataRecycler, Perfect_Hashtable_Cache_Maintanence) {
       clearCaches();
 
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
       auto q1_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       ASSERT_EQ(static_cast<size_t>(1), q1_perfect_ht_metrics->getRefCount());
       ASSERT_EQ(static_cast<size_t>(12), q1_perfect_ht_metrics->getMemSize());
 
       auto q2 = "SELECT count(*) from t4 a, t4 b where a.x = b.x;";
-      ASSERT_EQ(static_cast<int64_t>(6), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(6), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
       auto q2_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       ASSERT_EQ(static_cast<size_t>(1), q2_perfect_ht_metrics->getRefCount());
@@ -575,22 +591,22 @@ TEST(DataRecycler, Perfect_Hashtable_Cache_Maintanence) {
       clearCaches();
 
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
       auto q1_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       ASSERT_EQ(static_cast<size_t>(1), q1_perfect_ht_metrics->getRefCount());
       ASSERT_EQ(static_cast<size_t>(12), q1_perfect_ht_metrics->getMemSize());
 
       auto q2 = "SELECT count(*) from t2 a, t2 b where a.x = b.x;";
-      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(2), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedPerfectHashTables());
       auto q2_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
 
       auto q3 = "SELECT count(*) from t4 a, t4 b where a.x = b.x;";
-      ASSERT_EQ(static_cast<int64_t>(6), v<int64_t>(run_simple_query(q3, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(6), v<int64_t>(run_simple_agg(q3, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
       auto q3_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       ASSERT_EQ(static_cast<size_t>(24), q3_perfect_ht_metrics->getMemSize());
@@ -618,23 +634,23 @@ TEST(DataRecycler, Perfect_Hashtable_Cache_Maintanence) {
       clearCaches();
 
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
       auto q1_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       ASSERT_EQ(static_cast<size_t>(1), q1_perfect_ht_metrics->getRefCount());
       ASSERT_EQ(static_cast<size_t>(12), q1_perfect_ht_metrics->getMemSize());
 
       auto q2 = "SELECT count(*) from t2 a, t2 b where a.x = b.x;";
-      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(2), QR::get()->getNumberOfCachedPerfectHashTables());
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
+      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
 
       auto q3 = "SELECT count(*) from t3 a, t3 b where a.x = b.x;";
-      ASSERT_EQ(static_cast<int64_t>(5), v<int64_t>(run_simple_query(q3, dt)));
-      ASSERT_EQ(static_cast<size_t>(2), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(5), v<int64_t>(run_simple_agg(q3, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedPerfectHashTables());
       auto q3_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       ASSERT_EQ(q1_perfect_ht_metrics->getMemSize(), static_cast<size_t>(12));
@@ -661,22 +677,22 @@ TEST(DataRecycler, Perfect_Hashtable_Cache_Maintanence) {
       clearCaches();
 
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
       auto q1_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
 
       auto q2 = "SELECT count(*) from t2 a, t2 b where a.x = b.x;";
-      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(2), QR::get()->getNumberOfCachedPerfectHashTables());
-      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_query(q2, dt)));
+      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_agg(q2, dt)));
       auto q2_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
 
       auto q3 = "SELECT count(*) from t3 a, t3 b where a.x = b.x;";
-      ASSERT_EQ(static_cast<int64_t>(5), v<int64_t>(run_simple_query(q3, dt)));
-      ASSERT_EQ(static_cast<size_t>(2), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(5), v<int64_t>(run_simple_agg(q3, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedPerfectHashTables());
       auto q3_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       auto current_cache_size =
@@ -691,14 +707,10 @@ TEST(DataRecycler, Perfect_Hashtable_Cache_Maintanence) {
 }
 
 TEST(DataRecycler, Baseline_Hashtable_Cache_Maintanence) {
-  auto data_mgr = &QR::get()->getCatalog()->getDataMgr();
-  auto executor =
-      Executor::getExecutor(
-          Executor::UNITARY_EXECUTOR_ID, data_mgr, data_mgr->getBufferProvider())
-          .get();
+  auto executor = getExecutor();
   std::set<QueryPlanHash> visited_hashtable_key;
-  auto clearCaches = [&executor, data_mgr, &visited_hashtable_key] {
-    Executor::clearMemory(MemoryLevel::CPU_LEVEL, data_mgr);
+  auto clearCaches = [&executor, &visited_hashtable_key] {
+    Executor::clearMemory(MemoryLevel::CPU_LEVEL, getDataMgr());
     executor->getQueryPlanDagCache().clearQueryPlanCache();
     visited_hashtable_key.clear();
   };
@@ -719,23 +731,20 @@ TEST(DataRecycler, Baseline_Hashtable_Cache_Maintanence) {
       // test1. cache hashtable of t1 and then reuse it correctly?
       clearCaches();
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x and t1.y = t2.y;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
       auto q1_baseline_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::BASELINE_HT);
       auto ht1_ref_count_v1 = q1_baseline_ht_metrics->getRefCount();
       ASSERT_EQ(static_cast<size_t>(1), ht1_ref_count_v1);
       ASSERT_EQ(static_cast<size_t>(72), q1_baseline_ht_metrics->getMemSize());
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
       auto ht1_ref_count_v2 = q1_baseline_ht_metrics->getRefCount();
       ASSERT_LT(ht1_ref_count_v1, ht1_ref_count_v2);
       auto q2 = "SELECT count(*) from t1, t3 where t1.x = t3.x and t1.y = t3.y;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
       auto ht1_ref_count_v3 = q1_baseline_ht_metrics->getRefCount();
       ASSERT_LT(ht1_ref_count_v2, ht1_ref_count_v3);
     }
@@ -744,9 +753,8 @@ TEST(DataRecycler, Baseline_Hashtable_Cache_Maintanence) {
       // test2. cache t1 and t2
       clearCaches();
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x and t1.y = t2.y;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
       auto q1_baseline_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::BASELINE_HT);
       auto ht1_ref_count_v1 = q1_baseline_ht_metrics->getRefCount();
@@ -754,9 +762,8 @@ TEST(DataRecycler, Baseline_Hashtable_Cache_Maintanence) {
       ASSERT_EQ(static_cast<size_t>(72), q1_baseline_ht_metrics->getMemSize());
 
       auto q2 = "SELECT count(*) from t2, t3 where t2.x = t3.x and t2.y = t3.y;";
-      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(2),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedBaselineJoinHashTables());
     }
 
     {
@@ -773,9 +780,8 @@ TEST(DataRecycler, Baseline_Hashtable_Cache_Maintanence) {
       clearCaches();
 
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x and t1.y = t2.y;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
       auto q1_baseline_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::BASELINE_HT);
       auto ht1_ref_count = q1_baseline_ht_metrics->getRefCount();
@@ -783,9 +789,8 @@ TEST(DataRecycler, Baseline_Hashtable_Cache_Maintanence) {
       ASSERT_EQ(static_cast<size_t>(72), q1_baseline_ht_metrics->getMemSize());
 
       auto q2 = "SELECT count(*) from t4 a, t4 b where a.x = b.x and a.y = b.y;";
-      ASSERT_EQ(static_cast<int64_t>(6), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(6), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
       auto q4_baseline_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::BASELINE_HT);
       auto ht4_ref_count = q4_baseline_ht_metrics->getRefCount();
@@ -812,9 +817,8 @@ TEST(DataRecycler, Baseline_Hashtable_Cache_Maintanence) {
       clearCaches();
 
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x and t1.y = t2.y;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
       auto q1_baseline_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::BASELINE_HT);
       auto ht1_ref_count = q1_baseline_ht_metrics->getRefCount();
@@ -822,14 +826,12 @@ TEST(DataRecycler, Baseline_Hashtable_Cache_Maintanence) {
       ASSERT_EQ(static_cast<size_t>(72), q1_baseline_ht_metrics->getMemSize());
 
       auto q2 = "SELECT count(*) from t2 a, t2 b where a.x = b.x and a.y = b.y;";
-      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(2),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedBaselineJoinHashTables());
 
       auto q3 = "SELECT count(*) from t4 a, t4 b where a.x = b.x and a.y = b.y;";
-      ASSERT_EQ(static_cast<int64_t>(6), v<int64_t>(run_simple_query(q3, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(6), v<int64_t>(run_simple_agg(q3, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
       auto q3_baseline_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::BASELINE_HT);
       auto ht4_ref_count = q3_baseline_ht_metrics->getRefCount();
@@ -859,25 +861,22 @@ TEST(DataRecycler, Baseline_Hashtable_Cache_Maintanence) {
       clearCaches();
 
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x and t1.y = t2.y;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
       auto q1_baseline_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::BASELINE_HT);
       ASSERT_EQ(static_cast<size_t>(1), q1_baseline_ht_metrics->getRefCount());
       ASSERT_EQ(static_cast<size_t>(72), q1_baseline_ht_metrics->getMemSize());
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
 
       auto q2 = "SELECT count(*) from t2 a, t2 b where a.x = b.x and a.y = b.y;";
-      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(2),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedBaselineJoinHashTables());
 
       auto q3 = "SELECT count(*) from t3 a, t3 b where a.x = b.x and a.y = b.y;";
-      ASSERT_EQ(static_cast<int64_t>(5), v<int64_t>(run_simple_query(q3, dt)));
-      ASSERT_EQ(static_cast<size_t>(2),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(5), v<int64_t>(run_simple_agg(q3, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedBaselineJoinHashTables());
       auto q3_baseline_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::BASELINE_HT);
       ASSERT_EQ(q3_baseline_ht_metrics->getMemSize(), static_cast<size_t>(120));
@@ -901,19 +900,16 @@ TEST(DataRecycler, Baseline_Hashtable_Cache_Maintanence) {
       clearCaches();
 
       auto q1 = "SELECT count(*) from t1, t2 where t1.x = t2.x and t1.y = t2.y;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
 
       auto q2 = "SELECT count(*) from t2 a, t2 b where a.x = b.x and a.y = b.y;";
-      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(2),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(4), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedBaselineJoinHashTables());
 
       auto q3 = "SELECT count(*) from t3 a, t3 b where a.x = b.x and a.y = b.y;";
-      ASSERT_EQ(static_cast<int64_t>(5), v<int64_t>(run_simple_query(q3, dt)));
-      ASSERT_EQ(static_cast<size_t>(2),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(5), v<int64_t>(run_simple_agg(q3, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedBaselineJoinHashTables());
       auto current_cache_size =
           BaselineJoinHashTable::getHashTableCache()->getCurrentCacheSizeForDevice(
               CacheItemType::BASELINE_HT, DataRecyclerUtil::CPU_DEVICE_IDENTIFIER);
@@ -925,14 +921,10 @@ TEST(DataRecycler, Baseline_Hashtable_Cache_Maintanence) {
 TEST(DataRecycler, Hashtable_From_Subqueries) {
   // todo (yoonmin): revisit here if we support skipping hashtable building based on
   // consideration of filter quals
-  auto data_mgr = &QR::get()->getCatalog()->getDataMgr();
-  auto executor =
-      Executor::getExecutor(
-          Executor::UNITARY_EXECUTOR_ID, data_mgr, data_mgr->getBufferProvider())
-          .get();
+  auto executor = getExecutor();
   std::set<QueryPlanHash> visited_hashtable_key;
-  auto clearCaches = [&executor, data_mgr, &visited_hashtable_key] {
-    Executor::clearMemory(MemoryLevel::CPU_LEVEL, data_mgr);
+  auto clearCaches = [&executor, &visited_hashtable_key] {
+    Executor::clearMemory(MemoryLevel::CPU_LEVEL, getDataMgr());
     executor->getQueryPlanDagCache().clearQueryPlanCache();
     visited_hashtable_key.clear();
   };
@@ -945,22 +937,22 @@ TEST(DataRecycler, Hashtable_From_Subqueries) {
       auto q1 =
           "SELECT count(*) from t1, (select x from t2 where x < 3) tt2 where t1.x = "
           "tt2.x;";
-      ASSERT_EQ(static_cast<int64_t>(2), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(2), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
       auto q1_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       auto ht1_ref_count_v1 = q1_perfect_ht_metrics->getRefCount();
       ASSERT_EQ(static_cast<size_t>(1), ht1_ref_count_v1);
-      ASSERT_EQ(static_cast<int64_t>(2), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(2), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedPerfectHashTables());
       auto ht1_ref_count_v2 = q1_perfect_ht_metrics->getRefCount();
       ASSERT_LT(ht1_ref_count_v1, ht1_ref_count_v2);
 
       auto q2 =
           "SELECT count(*) from t1, (select x from t2 where x < 2) tt2 where t1.x = "
           "tt2.x;";
-      ASSERT_EQ(static_cast<int64_t>(1), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(2), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(1), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedPerfectHashTables());
       auto q2_perfect_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::PERFECT_HT);
       auto ht1_ref_count_v3 = q2_perfect_ht_metrics->getRefCount();
@@ -969,8 +961,8 @@ TEST(DataRecycler, Hashtable_From_Subqueries) {
       auto q3 =
           "SELECT count(*) from (select x from t1) tt1, (select x from t2 where x < 2) "
           "tt2 where tt1.x = tt2.x;";
-      ASSERT_EQ(static_cast<int64_t>(1), v<int64_t>(run_simple_query(q3, dt)));
-      ASSERT_EQ(static_cast<size_t>(2), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<int64_t>(1), v<int64_t>(run_simple_agg(q3, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedPerfectHashTables());
       auto ht1_ref_count_v4 = q2_perfect_ht_metrics->getRefCount();
       ASSERT_LT(ht1_ref_count_v3, ht1_ref_count_v4);
     }
@@ -981,25 +973,22 @@ TEST(DataRecycler, Hashtable_From_Subqueries) {
       auto q1 =
           "SELECT count(*) from t1, (select x,y from t2 where x < 4) tt2 where t1.x = "
           "tt2.x and t1.y = tt2.y;";
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
       auto q1_baseline_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::BASELINE_HT);
       auto ht1_ref_count_v1 = q1_baseline_ht_metrics->getRefCount();
       ASSERT_EQ(static_cast<size_t>(1), ht1_ref_count_v1);
-      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_query(q1, dt)));
-      ASSERT_EQ(static_cast<size_t>(1),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(3), v<int64_t>(run_simple_agg(q1, dt)));
+      ASSERT_EQ(static_cast<size_t>(1), getNumberOfCachedBaselineJoinHashTables());
       auto ht1_ref_count_v2 = q1_baseline_ht_metrics->getRefCount();
       ASSERT_LT(ht1_ref_count_v1, ht1_ref_count_v2);
 
       auto q2 =
           "SELECT count(*) from t1, (select x, y from t3 where x < 3) tt3 where t1.x = "
           "tt3.x and t1.y = tt3.y;";
-      ASSERT_EQ(static_cast<int64_t>(2), v<int64_t>(run_simple_query(q2, dt)));
-      ASSERT_EQ(static_cast<size_t>(2),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(2), v<int64_t>(run_simple_agg(q2, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedBaselineJoinHashTables());
       auto q2_baseline_ht_metrics =
           getCachedHashTableMetric(visited_hashtable_key, CacheItemType::BASELINE_HT);
       auto ht1_ref_count_v3 = q2_baseline_ht_metrics->getRefCount();
@@ -1008,9 +997,8 @@ TEST(DataRecycler, Hashtable_From_Subqueries) {
       auto q3 =
           "SELECT count(*) from (select x, y from t1 where x < 3) tt1, (select x, y from "
           "t3 where x < 3) tt3 where tt1.x = tt3.x and tt1.y = tt3.y;";
-      ASSERT_EQ(static_cast<int64_t>(2), v<int64_t>(run_simple_query(q3, dt)));
-      ASSERT_EQ(static_cast<size_t>(2),
-                QR::get()->getNumberOfCachedBaselineJoinHashTables());
+      ASSERT_EQ(static_cast<int64_t>(2), v<int64_t>(run_simple_agg(q3, dt)));
+      ASSERT_EQ(static_cast<size_t>(2), getNumberOfCachedBaselineJoinHashTables());
       auto ht1_ref_count_v4 = q2_baseline_ht_metrics->getRefCount();
       ASSERT_LT(ht1_ref_count_v3, ht1_ref_count_v4);
     }
@@ -1025,56 +1013,52 @@ TEST(DataRecycler, Hashtable_From_Subqueries) {
           "WITH tt2 AS (SELECT z, x FROM t2 limit 2) SELECT tt2.z, tt2.x FROM t4, tt2 "
           "WHERE (t4.z = tt2.z) ORDER BY tt2.z;";
       for (int i = 0; i < 5; ++i) {
-        QR::get()->runSQL(q1, dt);
-        QR::get()->runSQL(q2, dt);
+        run_multiple_agg(q1, dt);
+        run_multiple_agg(q2, dt);
       }
       // we have to skip hashtable caching for the above query
-      ASSERT_EQ(static_cast<size_t>(0), QR::get()->getNumberOfCachedPerfectHashTables());
+      ASSERT_EQ(static_cast<size_t>(0), getNumberOfCachedPerfectHashTables());
     }
   }
 }
 
 TEST(DataRecycler, Empty_Hashtable) {
-  run_ddl_statement("DROP TABLE IF EXISTS T5;");
-  run_ddl_statement("DROP TABLE IF EXISTS T6;");
-  run_ddl_statement("CREATE TABLE T5 (c1 INT, c2 INT);");
-  run_ddl_statement("CREATE TABLE T6 (c1 INT, c2 INT);");
-  auto data_mgr = &QR::get()->getCatalog()->getDataMgr();
-  auto executor =
-      Executor::getExecutor(
-          Executor::UNITARY_EXECUTOR_ID, data_mgr, data_mgr->getBufferProvider())
-          .get();
-  auto clearCaches = [&executor, data_mgr](ExecutorDeviceType dt) {
+  createTable("t5", {{"c1", SQLTypeInfo(kINT)}, {"c2", SQLTypeInfo(kINT)}});
+  createTable("t6", {{"c1", SQLTypeInfo(kINT)}, {"c2", SQLTypeInfo(kINT)}});
+  auto executor = getExecutor();
+  auto clearCaches = [&executor](ExecutorDeviceType dt) {
     auto memory_level =
         dt == ExecutorDeviceType::CPU ? MemoryLevel::CPU_LEVEL : MemoryLevel::GPU_LEVEL;
-    executor->clearMemory(memory_level, data_mgr);
+    executor->clearMemory(memory_level, getDataMgr());
     executor->getQueryPlanDagCache().clearQueryPlanCache();
   };
   for (auto dt : {ExecutorDeviceType::CPU, ExecutorDeviceType::GPU}) {
-    QR::get()->runSQL("SELECT COUNT(1) FROM T5 INNER JOIN T6 ON (T5.c1 = T6.c1);", dt);
+    run_multiple_agg("SELECT COUNT(1) FROM t5 INNER JOIN t6 ON (t5.c1 = t6.c1);", dt);
     clearCaches(dt);
-    QR::get()->runSQL(
-        "SELECT COUNT(1) FROM T5 INNER JOIN T6 ON (T5.c1 = T6.c1 AND T5.c2 = T6.c2);",
+    run_multiple_agg(
+        "SELECT COUNT(1) FROM t5 INNER JOIN t6 ON (t5.c1 = t6.c1 AND t5.c2 = t6.c2);",
         dt);
     clearCaches(dt);
   }
+  dropTable("t5");
+  dropTable("t6");
 }
 
 int main(int argc, char* argv[]) {
   testing::InitGoogleTest(&argc, argv);
   TestHelpers::init_logger_stderr_only(argc, argv);
 
-  QR::init(BASE_PATH);
+  init();
   g_is_test_env = true;
   int err{0};
   try {
-    err = create_and_populate_table();
+    create_and_populate_table();
     err = RUN_ALL_TESTS();
-    err = drop_table();
+    drop_table();
   } catch (const std::exception& e) {
     LOG(ERROR) << e.what();
   }
   g_is_test_env = false;
-  QR::reset();
+  reset();
   return err;
 }
