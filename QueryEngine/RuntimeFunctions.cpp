@@ -227,8 +227,8 @@ scale_decimal_down_not_nullable(const int64_t operand,
 
 // Return floor(dividend / divisor).
 // Assumes 0 < divisor.
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t floor_div_lhs(const int64_t dividend,
-                                                              const int64_t divisor) {
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE int64_t
+floor_div_lhs(const int64_t dividend, const int64_t divisor) {
   return (dividend < 0 ? dividend - (divisor - 1) : dividend) / divisor;
 }
 
@@ -360,10 +360,20 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE uint64_t agg_count(uint64_t* agg, const 
   return (*agg)++;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE void
-agg_count_distinct_bitmap(int64_t* agg, const int64_t val, const int64_t min_val) {
+namespace {
+
+inline ALWAYS_INLINE void agg_count_distinct_bitmap_impl(int64_t* agg,
+                                                         const int64_t val,
+                                                         const int64_t min_val) {
   const uint64_t bitmap_idx = val - min_val;
   reinterpret_cast<int8_t*>(*agg)[bitmap_idx >> 3] |= (1 << (bitmap_idx & 7));
+}
+
+}  // namespace
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE void
+agg_count_distinct_bitmap(int64_t* agg, const int64_t val, const int64_t min_val) {
+  agg_count_distinct_bitmap_impl(agg, val, min_val);
 }
 
 #ifdef _MSC_VER
@@ -417,19 +427,31 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE int8_t bit_is_set(const int64_t bitset,
              : 0;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t agg_sum(int64_t* agg, const int64_t val) {
+namespace {
+
+inline ALWAYS_INLINE int64_t agg_sum_impl(int64_t* agg, const int64_t val) {
   const auto old = *agg;
   *agg += val;
   return old;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_max(int64_t* agg, const int64_t val) {
+}  // namespace
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t agg_sum(int64_t* agg, const int64_t val) {
+  return agg_sum_impl(agg, val);
+}
+
+namespace {
+
+inline ALWAYS_INLINE void agg_max_impl(int64_t* agg, const int64_t val) {
   *agg = std::max(*agg, val);
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_min(int64_t* agg, const int64_t val) {
+inline ALWAYS_INLINE void agg_min_impl(int64_t* agg, const int64_t val) {
   *agg = std::min(*agg, val);
 }
+
+}  // namespace
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_id(int64_t* agg, const int64_t val) {
   *agg = val;
@@ -468,7 +490,7 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_count_distinct_bitmap_skip_val(
     const int64_t min_val,
     const int64_t skip_val) {
   if (val != skip_val) {
-    agg_count_distinct_bitmap(agg, val, min_val);
+    agg_count_distinct_bitmap_impl(agg, val, min_val);
   }
 }
 
@@ -486,17 +508,25 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE uint32_t agg_count_int32(uint32_t* agg,
   return (*agg)++;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int32_t agg_sum_int32(int32_t* agg,
-                                                              const int32_t val) {
+namespace {
+
+inline ALWAYS_INLINE int32_t agg_sum_int32_impl(int32_t* agg, const int32_t val) {
   const auto old = *agg;
   *agg += val;
   return old;
 }
 
-#define DEF_AGG_MAX_INT(n)                                                            \
-  extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_max_int##n(int##n##_t* agg,        \
-                                                              const int##n##_t val) { \
-    *agg = std::max(*agg, val);                                                       \
+}  // namespace
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE int32_t agg_sum_int32(int32_t* agg,
+                                                              const int32_t val) {
+  return agg_sum_int32_impl(agg, val);
+}
+
+#define DEF_AGG_MAX_INT(n)                                                \
+  inline ALWAYS_INLINE void agg_max_int##n##_impl(int##n##_t* agg,        \
+                                                  const int##n##_t val) { \
+    *agg = std::max(*agg, val);                                           \
   }
 
 DEF_AGG_MAX_INT(32)
@@ -504,10 +534,10 @@ DEF_AGG_MAX_INT(16)
 DEF_AGG_MAX_INT(8)
 #undef DEF_AGG_MAX_INT
 
-#define DEF_AGG_MIN_INT(n)                                                            \
-  extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_min_int##n(int##n##_t* agg,        \
-                                                              const int##n##_t val) { \
-    *agg = std::min(*agg, val);                                                       \
+#define DEF_AGG_MIN_INT(n)                                                \
+  inline ALWAYS_INLINE void agg_min_int##n##_impl(int##n##_t* agg,        \
+                                                  const int##n##_t val) { \
+    *agg = std::min(*agg, val);                                           \
   }
 
 DEF_AGG_MIN_INT(32)
@@ -567,7 +597,7 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t agg_sum_skip_val(int64_t* agg,
   const auto old = *agg;
   if (val != skip_val) {
     if (old != skip_val) {
-      return agg_sum(agg, val);
+      return agg_sum_impl(agg, val);
     } else {
       *agg = val;
     }
@@ -580,7 +610,7 @@ agg_sum_int32_skip_val(int32_t* agg, const int32_t val, const int32_t skip_val) 
   const auto old = *agg;
   if (val != skip_val) {
     if (old != skip_val) {
-      return agg_sum_int32(agg, val);
+      return agg_sum_int32_impl(agg, val);
     } else {
       *agg = val;
     }
@@ -591,7 +621,7 @@ agg_sum_int32_skip_val(int32_t* agg, const int32_t val, const int32_t skip_val) 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE uint64_t
 agg_count_skip_val(uint64_t* agg, const int64_t val, const int64_t skip_val) {
   if (val != skip_val) {
-    return agg_count(agg, val);
+    return (*agg)++;
   }
   return *agg;
 }
@@ -599,16 +629,22 @@ agg_count_skip_val(uint64_t* agg, const int64_t val, const int64_t skip_val) {
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE uint32_t
 agg_count_int32_skip_val(uint32_t* agg, const int32_t val, const int32_t skip_val) {
   if (val != skip_val) {
-    return agg_count_int32(agg, val);
+    return (*agg)++;
   }
   return *agg;
 }
+
+#define DEF_AGG(base_agg_func)                                                   \
+  extern "C" RUNTIME_EXPORT ALWAYS_INLINE void base_agg_func(DATA_T* agg,        \
+                                                             const DATA_T val) { \
+    base_agg_func##_impl(agg, val);                                              \
+  }
 
 #define DEF_SKIP_AGG_ADD(base_agg_func)                                  \
   extern "C" RUNTIME_EXPORT ALWAYS_INLINE void base_agg_func##_skip_val( \
       DATA_T* agg, const DATA_T val, const DATA_T skip_val) {            \
     if (val != skip_val) {                                               \
-      base_agg_func(agg, val);                                           \
+      base_agg_func##_impl(agg, val);                                    \
     }                                                                    \
   }
 
@@ -618,7 +654,7 @@ agg_count_int32_skip_val(uint32_t* agg, const int32_t val, const int32_t skip_va
     if (val != skip_val) {                                               \
       const DATA_T old_agg = *agg;                                       \
       if (old_agg != skip_val) {                                         \
-        base_agg_func(agg, val);                                         \
+        base_agg_func##_impl(agg, val);                                  \
       } else {                                                           \
         *agg = val;                                                      \
       }                                                                  \
@@ -626,25 +662,34 @@ agg_count_int32_skip_val(uint32_t* agg, const int32_t val, const int32_t skip_va
   }
 
 #define DATA_T int64_t
+DEF_AGG(agg_max)
 DEF_SKIP_AGG(agg_max)
+DEF_AGG(agg_min)
 DEF_SKIP_AGG(agg_min)
 #undef DATA_T
 
 #define DATA_T int32_t
+DEF_AGG(agg_max_int32)
 DEF_SKIP_AGG(agg_max_int32)
+DEF_AGG(agg_min_int32)
 DEF_SKIP_AGG(agg_min_int32)
 #undef DATA_T
 
 #define DATA_T int16_t
+DEF_AGG(agg_max_int16)
 DEF_SKIP_AGG(agg_max_int16)
+DEF_AGG(agg_min_int16)
 DEF_SKIP_AGG(agg_min_int16)
 #undef DATA_T
 
 #define DATA_T int8_t
+DEF_AGG(agg_max_int8)
 DEF_SKIP_AGG(agg_max_int8)
+DEF_AGG(agg_min_int8)
 DEF_SKIP_AGG(agg_min_int8)
 #undef DATA_T
 
+#undef DEF_AGG
 #undef DEF_SKIP_AGG_ADD
 #undef DEF_SKIP_AGG
 
@@ -655,23 +700,24 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE uint64_t agg_count_double(uint64_t* agg,
   return (*agg)++;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_sum_double(int64_t* agg,
-                                                            const double val) {
+namespace {
+
+inline ALWAYS_INLINE void agg_sum_double_impl(int64_t* agg, const double val) {
   const auto r = *reinterpret_cast<const double*>(agg) + val;
   *agg = *reinterpret_cast<const int64_t*>(may_alias_ptr(&r));
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_max_double(int64_t* agg,
-                                                            const double val) {
+inline ALWAYS_INLINE void agg_max_double_impl(int64_t* agg, const double val) {
   const auto r = std::max(*reinterpret_cast<const double*>(agg), val);
   *agg = *(reinterpret_cast<const int64_t*>(may_alias_ptr(&r)));
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_min_double(int64_t* agg,
-                                                            const double val) {
+inline ALWAYS_INLINE void agg_min_double_impl(int64_t* agg, const double val) {
   const auto r = std::min(*reinterpret_cast<const double*>(agg), val);
   *agg = *(reinterpret_cast<const int64_t*>(may_alias_ptr(&r)));
 }
+
+}  // namespace
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_id_double(int64_t* agg,
                                                            const double val) {
@@ -700,23 +746,24 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE uint32_t agg_count_float(uint32_t* agg,
   return (*agg)++;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_sum_float(int32_t* agg,
-                                                           const float val) {
+namespace {
+
+inline ALWAYS_INLINE void agg_sum_float_impl(int32_t* agg, const float val) {
   const auto r = *reinterpret_cast<const float*>(agg) + val;
   *agg = *reinterpret_cast<const int32_t*>(may_alias_ptr(&r));
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_max_float(int32_t* agg,
-                                                           const float val) {
+inline ALWAYS_INLINE void agg_max_float_impl(int32_t* agg, const float val) {
   const auto r = std::max(*reinterpret_cast<const float*>(agg), val);
   *agg = *(reinterpret_cast<const int32_t*>(may_alias_ptr(&r)));
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_min_float(int32_t* agg,
-                                                           const float val) {
+inline ALWAYS_INLINE void agg_min_float_impl(int32_t* agg, const float val) {
   const auto r = std::min(*reinterpret_cast<const float*>(agg), val);
   *agg = *(reinterpret_cast<const int32_t*>(may_alias_ptr(&r)));
 }
+
+}  // namespace
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE void agg_id_float(int32_t* agg, const float val) {
   *agg = *(reinterpret_cast<const int32_t*>(may_alias_ptr(&val)));
@@ -742,7 +789,7 @@ checked_single_agg_id_float(int32_t* agg, const float val, const float null_val)
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE uint64_t
 agg_count_double_skip_val(uint64_t* agg, const double val, const double skip_val) {
   if (val != skip_val) {
-    return agg_count_double(agg, val);
+    return (*agg)++;
   }
   return *agg;
 }
@@ -750,7 +797,7 @@ agg_count_double_skip_val(uint64_t* agg, const double val, const double skip_val
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE uint32_t
 agg_count_float_skip_val(uint32_t* agg, const float val, const float skip_val) {
   if (val != skip_val) {
-    return agg_count_float(agg, val);
+    return (*agg)++;
   }
   return *agg;
 }
@@ -763,13 +810,19 @@ agg_count_float_skip_val(uint32_t* agg, const float val, const float skip_val) {
     }                                                                    \
   }
 
+#define DEF_AGG(base_agg_func)                                                   \
+  extern "C" RUNTIME_EXPORT ALWAYS_INLINE void base_agg_func(ADDR_T* agg,        \
+                                                             const DATA_T val) { \
+    base_agg_func##_impl(agg, val);                                              \
+  }
+
 #define DEF_SKIP_AGG(base_agg_func)                                                \
   extern "C" RUNTIME_EXPORT ALWAYS_INLINE void base_agg_func##_skip_val(           \
       ADDR_T* agg, const DATA_T val, const DATA_T skip_val) {                      \
     if (val != skip_val) {                                                         \
       const ADDR_T old_agg = *agg;                                                 \
       if (old_agg != *reinterpret_cast<const ADDR_T*>(may_alias_ptr(&skip_val))) { \
-        base_agg_func(agg, val);                                                   \
+        base_agg_func##_impl(agg, val);                                            \
       } else {                                                                     \
         *agg = *reinterpret_cast<const ADDR_T*>(may_alias_ptr(&val));              \
       }                                                                            \
@@ -778,25 +831,33 @@ agg_count_float_skip_val(uint32_t* agg, const float val, const float skip_val) {
 
 #define DATA_T double
 #define ADDR_T int64_t
+DEF_AGG(agg_sum_double)
 DEF_SKIP_AGG(agg_sum_double)
+DEF_AGG(agg_max_double)
 DEF_SKIP_AGG(agg_max_double)
+DEF_AGG(agg_min_double)
 DEF_SKIP_AGG(agg_min_double)
 #undef ADDR_T
 #undef DATA_T
 
 #define DATA_T float
 #define ADDR_T int32_t
+DEF_AGG(agg_sum_float)
 DEF_SKIP_AGG(agg_sum_float)
+DEF_AGG(agg_max_float)
 DEF_SKIP_AGG(agg_max_float)
+DEF_AGG(agg_min_float)
 DEF_SKIP_AGG(agg_min_float)
 #undef ADDR_T
 #undef DATA_T
 
+#undef DEF_AGG
 #undef DEF_SKIP_AGG_ADD
 #undef DEF_SKIP_AGG
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t decimal_floor(const int64_t x,
-                                                              const int64_t scale) {
+namespace {
+
+inline ALWAYS_INLINE int64_t decimal_floor_impl(const int64_t x, const int64_t scale) {
   if (x >= 0) {
     return x / scale * scale;
   }
@@ -806,9 +867,16 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t decimal_floor(const int64_t x,
   return x / scale * scale - scale;
 }
 
+}  // namespace
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t decimal_floor(const int64_t x,
+                                                              const int64_t scale) {
+  return decimal_floor_impl(x, scale);
+}
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t decimal_ceil(const int64_t x,
                                                              const int64_t scale) {
-  return decimal_floor(x, scale) + (x % scale ? scale : 0);
+  return decimal_floor_impl(x, scale) + (x % scale ? scale : 0);
 }
 
 // Shared memory aggregators. Should never be called,
@@ -1123,7 +1191,7 @@ ALWAYS_INLINE int64_t* get_matching_group_value(int64_t* groups_buffer,
   return nullptr;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t* get_matching_group_value(
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE int64_t* get_matching_group_value(
     int64_t* groups_buffer,
     const uint32_t h,
     const int64_t* key,
@@ -1169,7 +1237,7 @@ ALWAYS_INLINE int32_t get_matching_group_value_columnar_slot(int64_t* groups_buf
   return h;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int32_t
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE int32_t
 get_matching_group_value_columnar_slot(int64_t* groups_buffer,
                                        const uint32_t entry_count,
                                        const uint32_t h,
@@ -1192,7 +1260,8 @@ get_matching_group_value_columnar_slot(int64_t* groups_buffer,
   return -1;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t* get_matching_group_value_columnar(
+// TODO(adb): this addition of inline may break GPU
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE int64_t* get_matching_group_value_columnar(
     int64_t* groups_buffer,
     const uint32_t h,
     const int64_t* key,
@@ -1295,24 +1364,36 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t* get_group_value_fast_keyless_se
   return groups_buffer + row_size_quad * (warp_size * (key - min_key) + thread_warp_idx);
 }
 
+namespace {
+
+inline ALWAYS_INLINE int8_t* extract_str_ptr_impl(const uint64_t str_and_len) {
+  return reinterpret_cast<int8_t*>(str_and_len & 0xffffffffffff);
+}
+
+inline ALWAYS_INLINE int32_t extract_str_len_impl(const uint64_t str_and_len) {
+  return static_cast<int64_t>(str_and_len) >> 48;
+}
+
+}  // namespace
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE int8_t* extract_str_ptr(
     const uint64_t str_and_len) {
-  return reinterpret_cast<int8_t*>(str_and_len & 0xffffffffffff);
+  return extract_str_ptr_impl(str_and_len);
 }
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE int32_t
 extract_str_len(const uint64_t str_and_len) {
-  return static_cast<int64_t>(str_and_len) >> 48;
+  return extract_str_len_impl(str_and_len);
 }
 
 extern "C" RUNTIME_EXPORT NEVER_INLINE int8_t* extract_str_ptr_noinline(
     const uint64_t str_and_len) {
-  return extract_str_ptr(str_and_len);
+  return extract_str_ptr_impl(str_and_len);
 }
 
 extern "C" RUNTIME_EXPORT NEVER_INLINE int32_t
 extract_str_len_noinline(const uint64_t str_and_len) {
-  return extract_str_len(str_and_len);
+  return extract_str_len_impl(str_and_len);
 }
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE uint64_t string_pack(const int8_t* ptr,
@@ -1354,12 +1435,13 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE bool sample_ratio(
   return (row_offset * 2654435761) % 4294967296 < threshold;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket(
-    const double target_value,
-    const double lower_bound,
-    const double upper_bound,
-    const double scale_factor,
-    const int32_t partition_count) {
+namespace {
+
+inline ALWAYS_INLINE DEVICE double width_bucket_impl(const double target_value,
+                                                     const double lower_bound,
+                                                     const double upper_bound,
+                                                     const double scale_factor,
+                                                     const int32_t partition_count) {
   if (target_value < lower_bound) {
     return 0;
   } else if (target_value >= upper_bound) {
@@ -1368,7 +1450,21 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket(
   return ((target_value - lower_bound) * scale_factor) + 1;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_reversed(
+}  // namespace
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket(
+    const double target_value,
+    const double lower_bound,
+    const double upper_bound,
+    const double scale_factor,
+    const int32_t partition_count) {
+  return width_bucket_impl(
+      target_value, lower_bound, upper_bound, scale_factor, partition_count);
+}
+
+namespace {
+
+inline ALWAYS_INLINE DEVICE double width_bucket_reversed_impl(
     const double target_value,
     const double lower_bound,
     const double upper_bound,
@@ -1382,6 +1478,18 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_reversed(
   return ((lower_bound - target_value) * scale_factor) + 1;
 }
 
+}  // namespace
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_reversed(
+    const double target_value,
+    const double lower_bound,
+    const double upper_bound,
+    const double scale_factor,
+    const int32_t partition_count) {
+  return width_bucket_reversed_impl(
+      target_value, lower_bound, upper_bound, scale_factor, partition_count);
+}
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE double width_bucket_nullable(
     const double target_value,
     const double lower_bound,
@@ -1392,7 +1500,7 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE double width_bucket_nullable(
   if (target_value == null_val) {
     return INT32_MIN;
   }
-  return width_bucket(
+  return width_bucket_impl(
       target_value, lower_bound, upper_bound, scale_factor, partition_count);
 }
 
@@ -1406,25 +1514,43 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE double width_bucket_reversed_nullable(
   if (target_value == null_val) {
     return INT32_MIN;
   }
-  return width_bucket_reversed(
+  return width_bucket_reversed_impl(
       target_value, lower_bound, upper_bound, scale_factor, partition_count);
 }
+
+namespace {
 
 // width_bucket with no out-of-bound check version which can be called
 // if we can assure the input target_value expr always resides in the valid range
 // (so we can also avoid null checking)
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_no_oob_check(
+inline ALWAYS_INLINE DEVICE double width_bucket_no_oob_check_impl(
     const double target_value,
     const double lower_bound,
     const double scale_factor) {
   return ((target_value - lower_bound) * scale_factor) + 1;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_reversed_no_oob_check(
+inline ALWAYS_INLINE DEVICE double width_bucket_reversed_no_oob_check_impl(
     const double target_value,
     const double lower_bound,
     const double scale_factor) {
   return ((lower_bound - target_value) * scale_factor) + 1;
+}
+
+}  // namespace
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_no_oob_check(
+    const double target_value,
+    const double lower_bound,
+    const double scale_factor) {
+  return width_bucket_no_oob_check_impl(target_value, lower_bound, scale_factor);
+}
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_reversed_no_oob_check(
+    const double target_value,
+    const double lower_bound,
+    const double scale_factor) {
+  return width_bucket_reversed_no_oob_check_impl(target_value, lower_bound, scale_factor);
 }
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_expr(
@@ -1434,17 +1560,17 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_expr(
     const double upper_bound,
     const int32_t partition_count) {
   if (reversed) {
-    return width_bucket_reversed(target_value,
-                                 lower_bound,
-                                 upper_bound,
-                                 partition_count / (lower_bound - upper_bound),
-                                 partition_count);
+    return width_bucket_reversed_impl(target_value,
+                                      lower_bound,
+                                      upper_bound,
+                                      partition_count / (lower_bound - upper_bound),
+                                      partition_count);
   }
-  return width_bucket(target_value,
-                      lower_bound,
-                      upper_bound,
-                      partition_count / (upper_bound - lower_bound),
-                      partition_count);
+  return width_bucket_impl(target_value,
+                           lower_bound,
+                           upper_bound,
+                           partition_count / (upper_bound - lower_bound),
+                           partition_count);
 }
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_expr_nullable(
@@ -1457,8 +1583,18 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_expr_nullable
   if (target_value == null_val) {
     return INT32_MIN;
   }
-  return width_bucket_expr(
-      target_value, reversed, lower_bound, upper_bound, partition_count);
+  if (reversed) {
+    return width_bucket_reversed_impl(target_value,
+                                      lower_bound,
+                                      upper_bound,
+                                      partition_count / (lower_bound - upper_bound),
+                                      partition_count);
+  }
+  return width_bucket_impl(target_value,
+                           lower_bound,
+                           upper_bound,
+                           partition_count / (upper_bound - lower_bound),
+                           partition_count);
 }
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_expr_no_oob_check(
@@ -1468,10 +1604,10 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE double width_bucket_expr_no_oob_c
     const double upper_bound,
     const int32_t partition_count) {
   if (reversed) {
-    return width_bucket_reversed_no_oob_check(
+    return width_bucket_reversed_no_oob_check_impl(
         target_value, lower_bound, partition_count / (lower_bound - upper_bound));
   }
-  return width_bucket_no_oob_check(
+  return width_bucket_no_oob_check_impl(
       target_value, lower_bound, partition_count / (upper_bound - lower_bound));
 }
 

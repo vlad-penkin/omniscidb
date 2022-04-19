@@ -43,48 +43,108 @@ DEVICE unsigned week_start_from_yoe(unsigned const yoe) {
   return jan4 - jan4dow;
 }
 
+inline DEVICE int64_t extract_hour_impl(const int64_t lcltime) {
+  return unsigned_mod(lcltime, kSecsPerDay) / kSecsPerHour;
+}
+
 }  // namespace
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_hour(const int64_t lcltime) {
-  return unsigned_mod(lcltime, kSecsPerDay) / kSecsPerHour;
+  return extract_hour_impl(lcltime);
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_minute(const int64_t lcltime) {
+namespace {
+
+inline DEVICE int64_t extract_minute_impl(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerHour) / kSecsPerMin;
 }
 
+}  // namespace
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_second(const int64_t lcltime) {
+extract_minute(const int64_t lcltime) {
+  return extract_minute_impl(lcltime);
+}
+
+namespace {
+
+inline DEVICE int64_t extract_second_impl(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerMin);
 }
 
+}  // namespace
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_millisecond(const int64_t lcltime) {
+extract_second(const int64_t lcltime) {
+  return extract_second_impl(lcltime);
+}
+
+namespace {
+
+inline DEVICE int64_t extract_millisecond_impl(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerMin * kMilliSecsPerSec);
 }
 
+}  // namespace
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_microsecond(const int64_t lcltime) {
+extract_millisecond(const int64_t lcltime) {
+  return extract_millisecond_impl(lcltime);
+}
+
+namespace {
+
+inline DEVICE int64_t extract_microsecond_impl(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerMin * kMicroSecsPerSec);
 }
 
+}  // namespace
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_nanosecond(const int64_t lcltime) {
+extract_microsecond(const int64_t lcltime) {
+  return extract_microsecond_impl(lcltime);
+}
+
+namespace {
+
+inline DEVICE int64_t extract_nanosecond_impl(const int64_t lcltime) {
   return unsigned_mod(lcltime, kSecsPerMin * kNanoSecsPerSec);
 }
 
-// First day of epoch is Thursday, so + 4 to have Sunday=0.
+}  // namespace
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_dow(const int64_t lcltime) {
+extract_nanosecond(const int64_t lcltime) {
+  return extract_nanosecond_impl(lcltime);
+}
+
+namespace {
+
+// First day of epoch is Thursday, so + 4 to have Sunday=0.
+inline DEVICE int64_t extract_dow_impl(const int64_t lcltime) {
   int64_t const days_past_epoch = floor_div(lcltime, kSecsPerDay);
   return unsigned_mod(days_past_epoch + 4, kDaysPerWeek);
 }
 
+}  // namespace
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+extract_dow(const int64_t lcltime) {
+  return extract_dow_impl(lcltime);
+}
+
+namespace {
+
+inline DEVICE int64_t extract_quarterday_impl(const int64_t lcltime) {
+  return unsigned_mod(lcltime, kSecsPerDay) / kSecsPerQuarterDay + 1;
+}
+
+}  // namespace
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
 extract_quarterday(const int64_t lcltime) {
-  return unsigned_mod(lcltime, kSecsPerDay) / kSecsPerQuarterDay + 1;
+  return extract_quarterday_impl(lcltime);
 }
 
 DEVICE int32_t extract_month_fast(const int64_t lcltime) {
@@ -157,20 +217,38 @@ extract_epoch(const int64_t timeval) {
   return timeval;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_dateepoch(const int64_t timeval) {
+namespace {
+
+inline ALWAYS_INLINE DEVICE int64_t extract_dateepoch_impl(const int64_t timeval) {
   return timeval - unsigned_mod(timeval, kSecsPerDay);
 }
 
-// First day of epoch is Thursday, so + 3 to have Monday=0, then + 1 at the end.
+}  // namespace
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_isodow(const int64_t timeval) {
+extract_dateepoch(const int64_t timeval) {
+  return extract_dateepoch_impl(timeval);
+}
+
+namespace {
+
+// First day of epoch is Thursday, so + 3 to have Monday=0, then + 1 at the end.
+inline DEVICE int64_t extract_isodow_impl(const int64_t timeval) {
   int64_t const days_past_epoch = floor_div(timeval, kSecsPerDay);
   return unsigned_mod(days_past_epoch + 3, kDaysPerWeek) + 1;
 }
 
+}  // namespace
+
+// First day of epoch is Thursday, so + 3 to have Monday=0, then + 1 at the end.
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_day(const int64_t timeval) {
+extract_isodow(const int64_t timeval) {
+  return extract_isodow_impl(timeval);
+}
+
+namespace {
+
+inline DEVICE int64_t extract_day_impl(const int64_t timeval) {
   int64_t const day = floor_div(timeval, kSecsPerDay);
   unsigned const doe = unsigned_mod(day - kEpochAdjustedDays, kDaysPer400Years);
   unsigned const yoe = (doe - doe / 1460 + doe / 36524 - (doe == 146096)) / 365;
@@ -179,14 +257,29 @@ extract_day(const int64_t timeval) {
   return doy - (153 * moy + 2) / 5 + 1;
 }
 
+}  // namespace
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_day_of_year(const int64_t timeval) {
+extract_day(const int64_t timeval) {
+  return extract_day_impl(timeval);
+}
+
+namespace {
+
+inline DEVICE int64_t extract_day_of_year_impl(const int64_t timeval) {
   int64_t const day = floor_div(timeval, kSecsPerDay);
   unsigned const doe = unsigned_mod(day - kEpochAdjustedDays, kDaysPer400Years);
   unsigned const yoe = (doe - doe / 1460 + doe / 36524 - (doe == 146096)) / 365;
   unsigned const doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
   return doy + (doy < MARJAN ? 1 + JANMAR + (yoe % 4 == 0 && (yoe % 100 != 0 || yoe == 0))
                              : 1 - MARJAN);
+}
+
+}  // namespace
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+extract_day_of_year(const int64_t timeval) {
+  return extract_day_of_year_impl(timeval);
 }
 
 template <unsigned OFFSET>
@@ -221,8 +314,9 @@ extract_week_saturday(const int64_t timeval) {
   return extract_week<SATURDAY>(timeval);
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_month(const int64_t timeval) {
+namespace {
+
+inline DEVICE int64_t extract_month_impl(const int64_t timeval) {
   if (timeval >= 0LL && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
     return extract_month_fast(timeval);
   }
@@ -234,8 +328,16 @@ extract_month(const int64_t timeval) {
   return moy + (moy < 10 ? 3 : -9);
 }
 
+}  // namespace
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_quarter(const int64_t timeval) {
+extract_month(const int64_t timeval) {
+  return extract_month_impl(timeval);
+}
+
+namespace {
+
+inline DEVICE int64_t extract_quarter_impl(const int64_t timeval) {
   if (timeval >= 0LL && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
     return extract_quarter_fast(timeval);
   }
@@ -248,8 +350,16 @@ extract_quarter(const int64_t timeval) {
   return quarter[moy];
 }
 
+}  // namespace
+
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-extract_year(const int64_t timeval) {
+extract_quarter(const int64_t timeval) {
+  return extract_quarter_impl(timeval);
+}
+
+namespace {
+
+inline DEVICE int64_t extract_year_impl(const int64_t timeval) {
   if (timeval >= 0LL && timeval <= UINT32_MAX - kEpochOffsetYear1900) {
     return extract_year_fast(timeval);
   }
@@ -261,49 +371,56 @@ extract_year(const int64_t timeval) {
   return 2000 + era * 400 + yoe + (MARJAN <= doy);
 }
 
+}  // namespace
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+extract_year(const int64_t timeval) {
+  return extract_year_impl(timeval);
+}
+
 /*
  * @brief support the SQL EXTRACT function
  */
 DEVICE int64_t ExtractFromTime(ExtractField field, const int64_t timeval) {
   switch (field) {
     case kEPOCH:
-      return extract_epoch(timeval);
+      return timeval;
     case kDATEEPOCH:
-      return extract_dateepoch(timeval);
+      return extract_dateepoch_impl(timeval);
     case kQUARTERDAY:
-      return extract_quarterday(timeval);
+      return extract_quarterday_impl(timeval);
     case kHOUR:
-      return extract_hour(timeval);
+      return extract_hour_impl(timeval);
     case kMINUTE:
-      return extract_minute(timeval);
+      return extract_minute_impl(timeval);
     case kSECOND:
-      return extract_second(timeval);
+      return extract_second_impl(timeval);
     case kMILLISECOND:
-      return extract_millisecond(timeval);
+      return extract_millisecond_impl(timeval);
     case kMICROSECOND:
-      return extract_microsecond(timeval);
+      return extract_microsecond_impl(timeval);
     case kNANOSECOND:
-      return extract_nanosecond(timeval);
+      return extract_nanosecond_impl(timeval);
     case kDOW:
-      return extract_dow(timeval);
+      return extract_dow_impl(timeval);
     case kISODOW:
-      return extract_isodow(timeval);
+      return extract_isodow_impl(timeval);
     case kDAY:
-      return extract_day(timeval);
+      return extract_day_impl(timeval);
     case kWEEK:
-      return extract_week_monday(timeval);
+      return extract_week<MONDAY>(timeval);
     case kWEEK_SUNDAY:
-      return extract_week_sunday(timeval);
+      return extract_week<SUNDAY>(timeval);
     case kWEEK_SATURDAY:
-      return extract_week_saturday(timeval);
+      return extract_week<SATURDAY>(timeval);
     case kDOY:
-      return extract_day_of_year(timeval);
+      return extract_day_of_year_impl(timeval);
     case kMONTH:
-      return extract_month(timeval);
+      return extract_month_impl(timeval);
     case kQUARTER:
-      return extract_quarter(timeval);
+      return extract_quarter_impl(timeval);
     case kYEAR:
-      return extract_year(timeval);
+      return extract_year_impl(timeval);
   }
 
 #ifdef __CUDACC__

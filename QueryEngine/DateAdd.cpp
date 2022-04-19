@@ -75,9 +75,10 @@ class MonthDaySecond {
 
 }  // namespace
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t DateAdd(DateaddField field,
-                                                               const int64_t number,
-                                                               const int64_t timeval) {
+namespace {
+
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE DEVICE int64_t
+date_add_impl(DateaddField field, const int64_t number, const int64_t timeval) {
   switch (field) {
     case daSECOND:
       return timeval + number;
@@ -112,12 +113,21 @@ extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t DateAdd(DateaddField fiel
   }
 }
 
+}  // namespace
+
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t DateAdd(DateaddField field,
+                                                               const int64_t number,
+                                                               const int64_t timeval) {
+  return date_add_impl(field, number, timeval);
+}
+
+namespace {
+
 // The dimension of the return value is always equal to the timeval dimension.
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
-DateAddHighPrecision(DateaddField field,
-                     const int64_t number,
-                     const int64_t timeval,
-                     const int32_t dim) {
+inline ALWAYS_INLINE DEVICE int64_t date_add_high_precision_impl(DateaddField field,
+                                                                 const int64_t number,
+                                                                 const int64_t timeval,
+                                                                 const int32_t dim) {
   // Valid only for i=0, 3, 6, 9.
   constexpr unsigned pow10[10]{
       1, 0, 0, 1000, 0, 0, 1000 * 1000, 0, 0, 1000 * 1000 * 1000};
@@ -137,9 +147,20 @@ DateAddHighPrecision(DateaddField field,
     }
     default:
       unsigned const scale = pow10[dim];
-      return DateAdd(field, number, floor_div(timeval, scale)) * scale +
+      return date_add_impl(field, number, floor_div(timeval, scale)) * scale +
              unsigned_mod(timeval, scale);
   }
+}
+
+}  // namespace
+
+// The dimension of the return value is always equal to the timeval dimension.
+extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+DateAddHighPrecision(DateaddField field,
+                     const int64_t number,
+                     const int64_t timeval,
+                     const int32_t dim) {
+  return date_add_high_precision_impl(field, number, timeval, dim);
 }
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
@@ -150,7 +171,7 @@ DateAddNullable(const DateaddField field,
   if (timeval == null_val) {
     return null_val;
   }
-  return DateAdd(field, number, timeval);
+  return date_add_impl(field, number, timeval);
 }
 
 extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
@@ -162,7 +183,7 @@ DateAddHighPrecisionNullable(const DateaddField field,
   if (timeval == null_val) {
     return null_val;
   }
-  return DateAddHighPrecision(field, number, timeval, dim);
+  return date_add_high_precision_impl(field, number, timeval, dim);
 }
 
 #endif  // EXECUTE_INCLUDE

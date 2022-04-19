@@ -59,9 +59,9 @@ TEMPLATE_INLINE int32_t mandelbrot_pixel(const T cx,
   return num_iterations;
 }
 
-ALWAYS_INLINE DEVICE double get_scale(const double domain_min,
-                                      const double domain_max,
-                                      const int32_t num_bins) {
+DEVICE double get_scale(const double domain_min,
+                        const double domain_max,
+                        const int32_t num_bins) {
   return (domain_max - domain_min) / num_bins;
 }
 

@@ -190,7 +190,7 @@ extern "C" RUNTIME_EXPORT NEVER_INLINE DEVICE int32_t insert_sorted(int32_t* arr
   return 1;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE DEVICE int64_t
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE DEVICE int64_t
 overlaps_hash_join_idx(int64_t hash_buff,
                        const int64_t key,
                        const int64_t min_key,
@@ -206,7 +206,7 @@ struct BufferRange {
   const int64_t element_count = 0;
 };
 
-ALWAYS_INLINE DEVICE BufferRange
+inline ALWAYS_INLINE DEVICE BufferRange
 get_row_id_buffer_ptr(int64_t* hash_table_ptr,
                       const int64_t* key,
                       const int64_t key_component_count,

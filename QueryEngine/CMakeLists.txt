@@ -255,8 +255,8 @@ target_precompile_headers(QueryEngine PRIVATE
         )
 
 set(QUERY_ENGINE_LIBS
-        OSDependent
         Analyzer
+        OSDependent
         StringDictionary
         Utils
         Logger

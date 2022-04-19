@@ -294,28 +294,34 @@ extern "C" DEVICE RUNTIME_EXPORT int8_t* array_buff(int8_t* chunk_iter_,
 
 #include <set>
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t elem_bitcast_int8_t(const int8_t val) {
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE int64_t
+elem_bitcast_int8_t(const int8_t val) {
   return val;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t elem_bitcast_int16_t(const int16_t val) {
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE int64_t
+elem_bitcast_int16_t(const int16_t val) {
   return val;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t elem_bitcast_int32_t(const int32_t val) {
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE int64_t
+elem_bitcast_int32_t(const int32_t val) {
   return val;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t elem_bitcast_int64_t(const int64_t val) {
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE int64_t
+elem_bitcast_int64_t(const int64_t val) {
   return val;
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t elem_bitcast_float(const float val) {
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE int64_t
+elem_bitcast_float(const float val) {
   const double dval{val};
   return *reinterpret_cast<const int64_t*>(may_alias_ptr(&dval));
 }
 
-extern "C" RUNTIME_EXPORT ALWAYS_INLINE int64_t elem_bitcast_double(const double val) {
+extern "C" RUNTIME_EXPORT inline ALWAYS_INLINE int64_t
+elem_bitcast_double(const double val) {
   return *reinterpret_cast<const int64_t*>(may_alias_ptr(&val));
 }
 

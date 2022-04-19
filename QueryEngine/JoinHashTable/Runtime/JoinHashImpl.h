@@ -63,7 +63,7 @@ extern "C" ALWAYS_INLINE DEVICE int SUFFIX(fill_hashtable_for_semi_join)(
 
 #undef insert_key_cas
 
-extern "C" ALWAYS_INLINE DEVICE int32_t* SUFFIX(get_bucketized_hash_slot)(
+inline ALWAYS_INLINE DEVICE int32_t* get_bucketized_hash_slot_impl(
     int32_t* buff,
     const int64_t key,
     const int64_t min_key,
@@ -71,10 +71,24 @@ extern "C" ALWAYS_INLINE DEVICE int32_t* SUFFIX(get_bucketized_hash_slot)(
   return buff + (key - min_key) / bucket_normalization;
 }
 
+extern "C" ALWAYS_INLINE DEVICE int32_t* SUFFIX(get_bucketized_hash_slot)(
+    int32_t* buff,
+    const int64_t key,
+    const int64_t min_key,
+    const int64_t bucket_normalization) {
+  return get_bucketized_hash_slot_impl(buff, key, min_key, bucket_normalization);
+}
+
+inline ALWAYS_INLINE DEVICE int32_t* get_hash_slot_impl(int32_t* buff,
+                                                        const int64_t key,
+                                                        const int64_t min_key) {
+  return buff + (key - min_key);
+}
+
 extern "C" ALWAYS_INLINE DEVICE int32_t* SUFFIX(get_hash_slot)(int32_t* buff,
                                                                const int64_t key,
                                                                const int64_t min_key) {
-  return buff + (key - min_key);
+  return get_hash_slot_impl(buff, key, min_key);
 }
 
 #endif  // QUERYENGINE_GROUPBYFASTIMPL_H
