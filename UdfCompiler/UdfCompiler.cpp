@@ -241,7 +241,7 @@ UdfClangDriver::UdfClangDriver(
     , clang_version(get_clang_version(clang_path)) {
   the_driver.CCPrintOptions = 0;
 
-  if (!boost::filesystem::exists(the_driver.ResourceDir)) {
+  if (!std::filesystem::exists(the_driver.ResourceDir)) {
     LOG(WARNING) << "clang driver ResourceDir=" << the_driver.ResourceDir
                  << " does not exist";
   }
@@ -274,12 +274,12 @@ std::string get_clang_path(const std::string& clang_path_override) {
     }
     return clang_path;
   } else {
-    if (!boost::filesystem::exists(clang_path_override)) {
+    if (!std::filesystem::exists(clang_path_override)) {
       throw std::runtime_error("Path provided for udf compiler " + clang_path_override +
                                " does not exist.");
     }
 
-    if (boost::filesystem::is_directory(clang_path_override)) {
+    if (std::filesystem::is_directory(clang_path_override)) {
       throw std::runtime_error("Path provided for udf compiler " + clang_path_override +
                                " is not to the clang++ executable.");
     }
@@ -312,7 +312,7 @@ UdfCompiler::UdfCompiler(CudaMgr_Namespace::NvidiaDeviceArch target_arch,
 std::pair<std::string, std::string> UdfCompiler::compileUdf(
     const std::string& udf_file_name) const {
   LOG(INFO) << "UDFCompiler filename to compile: " << udf_file_name;
-  if (!boost::filesystem::exists(udf_file_name)) {
+  if (!std::filesystem::exists(udf_file_name)) {
     throw std::runtime_error("User defined function file " + udf_file_name +
                              " does not exist.");
   }
@@ -563,11 +563,11 @@ std::string UdfCompiler::compileToNVVMIR(const std::string& udf_file_name) const
   command_line.emplace_back(udf_file_name);
 
   // clean up from previous runs
-  boost::filesystem::remove(gpu_out_filename);
+  std::filesystem::remove(gpu_out_filename);
   auto status = compileFromCommandLine(command_line);
   // make sure that compilation actually succeeded by checking the
   // output file:
-  if (!status && !boost::filesystem::exists(gpu_out_filename)) {
+  if (!status && !std::filesystem::exists(gpu_out_filename)) {
     throw std::runtime_error(
         "Failed to generate GPU UDF IR in CUDA mode with error code " +
         std::to_string(status));
@@ -593,7 +593,7 @@ std::string UdfCompiler::compileToLLVMIR(const std::string& udf_file_name) const
     throw std::runtime_error("Failed to compile CPU UDF (status code " +
                              std::to_string(res) + ")");
   }
-  if (!boost::filesystem::exists(cpu_out_filename)) {
+  if (!std::filesystem::exists(cpu_out_filename)) {
     throw std::runtime_error("udf compile did not produce output file " +
                              cpu_out_filename);
   }

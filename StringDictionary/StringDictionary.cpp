@@ -117,10 +117,10 @@ StringDictionary::StringDictionary(const std::string& folder,
   // initial capacity must be a power of two for efficient bucket computation
   CHECK_EQ(size_t(0), (initial_capacity & (initial_capacity - 1)));
   if (!isTemp_) {
-    boost::filesystem::path storage_path(folder);
-    offsets_path_ = (storage_path / boost::filesystem::path("DictOffsets")).string();
+    std::filesystem::path storage_path(folder);
+    offsets_path_ = (storage_path / std::filesystem::path("DictOffsets")).string();
     const auto payload_path =
-        (storage_path / boost::filesystem::path("DictPayload")).string();
+        (storage_path / std::filesystem::path("DictPayload")).string();
     payload_fd_ = checked_open(payload_path.c_str(), recover);
     offset_fd_ = checked_open(offsets_path_.c_str(), recover);
     payload_file_size_ = omnisci::file_size(payload_fd_);

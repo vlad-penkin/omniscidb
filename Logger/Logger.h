@@ -48,6 +48,7 @@
 #endif
 
 #include <array>
+#include <filesystem>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -63,9 +64,9 @@ namespace boost {
 namespace program_options {
 class options_description;
 }
-namespace filesystem {
-class path;
-}
+// namespace filesystem {
+// class path;
+// }
 }  // namespace boost
 
 extern bool g_enable_debug_timer;
@@ -127,7 +128,7 @@ class LogOptions {
 
  public:
   // Initialize to default values
-  std::unique_ptr<boost::filesystem::path> log_dir_;
+  std::unique_ptr<std::filesystem::path> log_dir_;
   // file_name_pattern and symlink are prepended with base_name.
   std::string file_name_pattern_{".{SEVERITY}.%Y%m%d-%H%M%S.log"};
   std::string symlink_{".{SEVERITY}"};
@@ -142,7 +143,7 @@ class LogOptions {
 
   LogOptions(char const* argv0);
   ~LogOptions();  // Needed to allow forward declarations within std::unique_ptr.
-  boost::filesystem::path full_log_dir() const;
+  std::filesystem::path full_log_dir() const;
   boost::program_options::options_description const& get_options() const;
   void parse_command_line(int, char const* const*);
   void set_base_path(std::string const& base_path);

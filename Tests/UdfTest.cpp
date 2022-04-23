@@ -88,8 +88,8 @@ CudaMgr_Namespace::NvidiaDeviceArch g_device_arch = init_nvidia_device_arch();
 class SQLTestEnv : public ::testing::Environment {
  public:
   void SetUp() override {
-    boost::filesystem::path udf_file((get_udf_filename()));
-    if (!boost::filesystem::exists(udf_file)) {
+    std::filesystem::path udf_file((get_udf_filename()));
+    if (!std::filesystem::exists(udf_file)) {
       throw std::runtime_error("udf file: " + udf_file.string() + " does not exist");
     }
 
@@ -105,19 +105,19 @@ class SQLTestEnv : public ::testing::Environment {
   }
 
   void TearDown() override {
-    boost::filesystem::path cpu_ir_file(get_udf_cpu_ir_filename());
-    if (boost::filesystem::exists(cpu_ir_file)) {
-      boost::filesystem::remove(cpu_ir_file);
+    std::filesystem::path cpu_ir_file(get_udf_cpu_ir_filename());
+    if (std::filesystem::exists(cpu_ir_file)) {
+      std::filesystem::remove(cpu_ir_file);
     }
 
-    boost::filesystem::path gpu_ir_file(get_udf_gpu_ir_filename());
-    if (boost::filesystem::exists(gpu_ir_file)) {
-      boost::filesystem::remove(gpu_ir_file);
+    std::filesystem::path gpu_ir_file(get_udf_gpu_ir_filename());
+    if (std::filesystem::exists(gpu_ir_file)) {
+      std::filesystem::remove(gpu_ir_file);
     }
 
-    boost::filesystem::path udf_ast_file(get_udf_ast_filename());
-    if (boost::filesystem::exists(udf_ast_file)) {
-      boost::filesystem::remove(udf_ast_file);
+    std::filesystem::path udf_ast_file(get_udf_ast_filename());
+    if (std::filesystem::exists(udf_ast_file)) {
+      std::filesystem::remove(udf_ast_file);
     }
 
     reset();
@@ -127,8 +127,8 @@ class SQLTestEnv : public ::testing::Environment {
 
 class UDFCompilerTest : public ::testing::Test {
  protected:
-  UDFCompilerTest() : udf_file_(boost::filesystem::path(get_udf_filename())) {
-    if (!boost::filesystem::exists(udf_file_)) {
+  UDFCompilerTest() : udf_file_(std::filesystem::path(get_udf_filename())) {
+    if (!std::filesystem::exists(udf_file_)) {
       throw std::runtime_error("udf file: " + udf_file_.string() + " does not exist");
     }
 
@@ -148,7 +148,7 @@ class UDFCompilerTest : public ::testing::Test {
   std::string getUdfFileName() const { return udf_file_.string(); }
 
  private:
-  boost::filesystem::path udf_file_;
+  std::filesystem::path udf_file_;
 };
 
 TEST_F(UDFCompilerTest, CompileTest) {

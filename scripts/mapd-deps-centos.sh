@@ -40,8 +40,8 @@ SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source $SCRIPTS_DIR/common-functions.sh
 
 
-sudo yum groupinstall -y "Development Tools"
-sudo yum install -y \
+sudo -E yum groupinstall -y "Development Tools"
+sudo -E yum install -y \
     ca-certificates \
     zlib-devel \
     epel-release \
@@ -60,7 +60,7 @@ sudo yum install -y \
     curl \
     python3 \
     openldap-devel
-sudo yum install -y \
+sudo -E yum install -y \
     jq \
     pxz
 

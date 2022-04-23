@@ -26,7 +26,6 @@ bool g_enable_debug_timer{false};
 
 #include <boost/algorithm/string.hpp>
 #include <boost/config.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/log/common.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks.hpp>
@@ -42,6 +41,7 @@ bool g_enable_debug_timer{false};
 
 #include <atomic>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <mutex>
 #include <regex>
@@ -81,11 +81,11 @@ BOOST_LOG_GLOBAL_LOGGER_DEFAULT(gSeverityLogger, SeverityLogger)
 
 // Return last component of path
 std::string filename(char const* path) {
-  return boost::filesystem::path(path).filename().string();
+  return std::filesystem::path(path).filename().string();
 }
 
 LogOptions::LogOptions(char const* argv0)
-    : log_dir_(std::make_unique<boost::filesystem::path>("mapd_log")) {
+    : log_dir_(std::make_unique<std::filesystem::path>("mapd_log")) {
   // Log file base_name matches name of program.
   std::string const base_name =
       argv0 == nullptr ? std::string("omnisci_server") : filename(argv0);
@@ -97,7 +97,7 @@ LogOptions::LogOptions(char const* argv0)
 // Needed to allow forward declarations within std::unique_ptr.
 LogOptions::~LogOptions() {}
 
-boost::filesystem::path LogOptions::full_log_dir() const {
+std::filesystem::path LogOptions::full_log_dir() const {
   return log_dir_->has_root_directory() ? *log_dir_ : base_path_ / *log_dir_;
 }
 
@@ -136,7 +136,7 @@ void LogOptions::set_options() {
   }
   options_->add_options()(
       "log-directory",
-      po::value<boost::filesystem::path>(&*log_dir_)->default_value(*log_dir_),
+      po::value<std::filesystem::path>(&*log_dir_)->default_value(*log_dir_),
       "Logging directory. May be relative to data directory, or absolute.");
   options_->add_options()(
       "log-file-name",
@@ -196,11 +196,12 @@ template <typename SINK>
 sinks::text_file_backend::open_handler_type create_or_replace_symlink(
     boost::weak_ptr<SINK> weak_ptr,
     std::string&& symlink) {
-  namespace fs = boost::filesystem;
+  namespace fs = std::filesystem;
   return [weak_ptr,
           symlink = std::move(symlink)](sinks::text_file_backend::stream_type& stream) {
     if (boost::shared_ptr<SINK> sink = weak_ptr.lock()) {
-      boost::system::error_code ec;
+      // boost::system::error_code ec;
+      std::error_code ec;
       fs::path const& file_name = sink->locked_backend()->get_current_file_name();
       fs::path const symlink_path = file_name.parent_path() / symlink;
       fs::remove(symlink_path, ec);
@@ -248,7 +249,7 @@ void set_formatter(SINK& sink) {
 
 template <typename FILE_SINK, typename TAG>
 boost::shared_ptr<FILE_SINK> make_sink(LogOptions const& log_opts,
-                                       boost::filesystem::path const& full_log_dir,
+                                       std::filesystem::path const& full_log_dir,
                                        TAG const tag) {
   auto sink = boost::make_shared<FILE_SINK>(
       keywords::file_name =
@@ -308,8 +309,8 @@ void init(LogOptions const& log_opts) {
   core->add_global_attribute("TimeStamp", attr::local_clock());
   core->add_global_attribute("ProcessID", attr::current_process_id());
   if (0 < log_opts.max_files_) {
-    boost::filesystem::path const full_log_dir = log_opts.full_log_dir();
-    bool const log_dir_was_created = boost::filesystem::create_directory(full_log_dir);
+    std::filesystem::path const full_log_dir = log_opts.full_log_dir();
+    bool const log_dir_was_created = std::filesystem::create_directory(full_log_dir);
     // Don't create separate log sinks for anything less than Severity::INFO.
     Severity const min_sink_level = std::max(Severity::INFO, log_opts.severity_);
     for (int i = min_sink_level; i < Severity::_NSEVERITIES; ++i) {

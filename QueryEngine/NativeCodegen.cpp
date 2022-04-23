@@ -1373,12 +1373,12 @@ llvm::Module* read_libdevice_module(llvm::LLVMContext& context) {
   llvm::SMDiagnostic err;
   const auto env = get_cuda_home();
 
-  boost::filesystem::path cuda_path{env};
+  std::filesystem::path cuda_path{env};
   cuda_path /= "nvvm";
   cuda_path /= "libdevice";
   cuda_path /= "libdevice.10.bc";
 
-  if (!boost::filesystem::exists(cuda_path)) {
+  if (!std::filesystem::exists(cuda_path)) {
     LOG(WARNING) << "Could not find CUDA libdevice; support for some UDF "
                     "functions might not be available.";
     return nullptr;

@@ -123,7 +123,7 @@ void create_stub_aws_profile(const std::string& aws_credentials_dir) {
   setenv(
       "AWS_SHARED_CREDENTIALS_FILE", (aws_credentials_dir + "/credentials").c_str(), 1);
   setenv("AWS_PROFILE", "omnisci_test", 1);
-  boost::filesystem::create_directory(aws_credentials_dir);
+  std::filesystem::create_directory(aws_credentials_dir);
   std::ofstream credentials_file(aws_credentials_dir + "/credentials");
   credentials_file << "[omnisci_test]\n";
   credentials_file.close();

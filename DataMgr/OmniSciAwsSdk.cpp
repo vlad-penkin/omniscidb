@@ -82,7 +82,7 @@ SslConfig omnisci_aws_sdk::get_ssl_config() {
     v_known_ca_paths.push_front(env);
   }
   for (const auto& known_ca_path : v_known_ca_paths) {
-    if (boost::filesystem::exists(known_ca_path)) {
+    if (std::filesystem::exists(known_ca_path)) {
       ssl_config.ca_file = known_ca_path;
       break;
     }

@@ -39,7 +39,7 @@ std::string get_root_abs_path() {
 #endif
   CHECK_GT(path_len, 0);
   CHECK_LT(static_cast<size_t>(path_len), sizeof(abs_exe_path));
-  boost::filesystem::path abs_exe_dir(std::string(abs_exe_path, path_len));
+  std::filesystem::path abs_exe_dir(std::string(abs_exe_path, path_len));
   abs_exe_dir.remove_filename();
 #ifdef XCODE
   const auto mapd_root = abs_exe_dir.parent_path().parent_path();

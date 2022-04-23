@@ -49,11 +49,11 @@ void fill_options(std::vector<CUjit_option>& option_keys,
   option_values.push_back(reinterpret_cast<void*>((long)JIT_LOG_SIZE));
 }
 
-boost::filesystem::path get_gpu_rt_path() {
-  boost::filesystem::path gpu_rt_path{omnisci::get_root_abs_path()};
+std::filesystem::path get_gpu_rt_path() {
+  std::filesystem::path gpu_rt_path{omnisci::get_root_abs_path()};
   gpu_rt_path /= "QueryEngine";
   gpu_rt_path /= "cuda_mapd_rt.fatbin";
-  if (!boost::filesystem::exists(gpu_rt_path)) {
+  if (!std::filesystem::exists(gpu_rt_path)) {
     throw std::runtime_error("OmniSci GPU runtime library not found at " +
                              gpu_rt_path.string());
   }
@@ -76,7 +76,7 @@ void nvidia_jit_warmup() {
       << std::string(error_log);
   VLOG(1) << "CUDA JIT time to create link: "
           << *reinterpret_cast<float*>(&option_values[2]);
-  boost::filesystem::path gpu_rt_path = get_gpu_rt_path();
+  std::filesystem::path gpu_rt_path = get_gpu_rt_path();
   CHECK(!gpu_rt_path.empty());
   checkCudaErrors(cuLinkAddFile(
       link_state, CU_JIT_INPUT_FATBINARY, gpu_rt_path.c_str(), 0, nullptr, nullptr))
@@ -119,7 +119,7 @@ CubinResult ptx_to_cubin(const std::string& ptx,
   VLOG(1) << "CUDA JIT time to create link: "
           << *reinterpret_cast<float*>(&option_values[2]);
 
-  boost::filesystem::path gpu_rt_path = get_gpu_rt_path();
+  std::filesystem::path gpu_rt_path = get_gpu_rt_path();
   CHECK(!gpu_rt_path.empty());
   // How to create a static CUDA library:
   // 1. nvcc -std=c++11 -arch=sm_35 --device-link -c [list of .cu files]

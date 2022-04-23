@@ -58,15 +58,15 @@ namespace {
 std::vector<std::string> glob_local_recursive_files(const std::string& file_path) {
   std::vector<std::string> file_paths;
 
-  if (boost::filesystem::is_regular_file(file_path)) {
+  if (std::filesystem::is_regular_file(file_path)) {
     file_paths.emplace_back(file_path);
-  } else if (boost::filesystem::is_directory(file_path)) {
-    for (boost::filesystem::recursive_directory_iterator
-             it(file_path, boost::filesystem::symlink_option::recurse),
+  } else if (std::filesystem::is_directory(file_path)) {
+    for (std::filesystem::recursive_directory_iterator
+             it(file_path, std::filesystem::symlink_option::recurse),
          eit;
          it != eit;
          ++it) {
-      if (!boost::filesystem::is_directory(it->path())) {
+      if (!std::filesystem::is_directory(it->path())) {
         file_paths.emplace_back(it->path().string());
       }
     }
@@ -74,7 +74,7 @@ std::vector<std::string> glob_local_recursive_files(const std::string& file_path
   } else {
     auto glob_results = omnisci::glob(file_path);
     for (const auto& path : glob_results) {
-      if (boost::filesystem::is_directory(path)) {
+      if (std::filesystem::is_directory(path)) {
         auto expanded_paths = glob_local_recursive_files(path);
         file_paths.insert(file_paths.end(), expanded_paths.begin(), expanded_paths.end());
       } else {

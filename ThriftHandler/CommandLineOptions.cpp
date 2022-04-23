@@ -837,7 +837,7 @@ std::stringstream sanitize_config_file(std::ifstream& in) {
 bool trim_and_check_file_exists(std::string& filename, const std::string desc) {
   if (!filename.empty()) {
     boost::algorithm::trim_if(filename, boost::is_any_of("\"'"));
-    if (!boost::filesystem::exists(filename)) {
+    if (!std::filesystem::exists(filename)) {
       std::cerr << desc << " " << filename << " does not exist." << std::endl;
       return false;
     }
@@ -849,21 +849,21 @@ bool trim_and_check_file_exists(std::string& filename, const std::string desc) {
 
 void CommandLineOptions::validate_base_path() {
   boost::algorithm::trim_if(base_path, boost::is_any_of("\"'"));
-  if (!boost::filesystem::exists(base_path)) {
+  if (!std::filesystem::exists(base_path)) {
     throw std::runtime_error("OmniSci base directory does not exist at " + base_path);
   }
 }
 
 void CommandLineOptions::validate() {
   boost::algorithm::trim_if(base_path, boost::is_any_of("\"'"));
-  const auto data_path = boost::filesystem::path(base_path) / "mapd_data";
-  if (!boost::filesystem::exists(data_path)) {
+  const auto data_path = std::filesystem::path(base_path) / "mapd_data";
+  if (!std::filesystem::exists(data_path)) {
     throw std::runtime_error("OmniSci data directory does not exist at '" + base_path +
                              "'");
   }
 
   {
-    const auto lock_file = boost::filesystem::path(base_path) / "omnisci_server_pid.lck";
+    const auto lock_file = std::filesystem::path(base_path) / "omnisci_server_pid.lck";
     auto pid = std::to_string(getpid());
 
     int pid_fd = omnisci::open(lock_file.string().c_str(), O_RDWR | O_CREAT, 0644);
@@ -895,7 +895,7 @@ void CommandLineOptions::validate() {
     }
   }
   boost::algorithm::trim_if(db_query_file, boost::is_any_of("\"'"));
-  if (db_query_file.length() > 0 && !boost::filesystem::exists(db_query_file)) {
+  if (db_query_file.length() > 0 && !std::filesystem::exists(db_query_file)) {
     throw std::runtime_error("File containing DB queries " + db_query_file +
                              " does not exist.");
   }
@@ -1054,7 +1054,7 @@ boost::optional<int> CommandLineOptions::parse_command_line(
   if (vm.count("udf")) {
     boost::algorithm::trim_if(udf_file_name, boost::is_any_of("\"'"));
 
-    if (!boost::filesystem::exists(udf_file_name)) {
+    if (!std::filesystem::exists(udf_file_name)) {
       LOG(ERROR) << " User defined function file " << udf_file_name << " does not exist.";
       return 1;
     }

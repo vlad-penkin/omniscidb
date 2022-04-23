@@ -193,8 +193,8 @@ class FileOrderLocal : public FileOrderBase<LocalFileComparator> {
        [](const std::string& lhs, const std::string& rhs) -> bool { return lhs < rhs; }},
       {DATE_MODIFIED_ORDER_TYPE,
        [](const std::string& lhs, const std::string& rhs) -> bool {
-         return boost::filesystem::last_write_time(lhs) <
-                boost::filesystem::last_write_time(rhs);
+         return std::filesystem::last_write_time(lhs) <
+                std::filesystem::last_write_time(rhs);
        }},
       {REGEX_ORDER_TYPE,
        [this](const std::string& lhs, const std::string& rhs) -> bool {

@@ -219,15 +219,15 @@ size_t fileSize(FILE* f) {
 // physical files from large disks
 void renameForDelete(const std::string directoryName) {
   boost::system::error_code ec;
-  boost::filesystem::path directoryPath(directoryName);
+  std::filesystem::path directoryPath(directoryName);
   using namespace std::chrono;
   milliseconds ms = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
 
-  if (boost::filesystem::exists(directoryPath) &&
-      boost::filesystem::is_directory(directoryPath)) {
-    boost::filesystem::path newDirectoryPath(directoryName + "_" +
+  if (std::filesystem::exists(directoryPath) &&
+      std::filesystem::is_directory(directoryPath)) {
+    std::filesystem::path newDirectoryPath(directoryName + "_" +
                                              std::to_string(ms.count()) + "_DELETE_ME");
-    boost::filesystem::rename(directoryPath, newDirectoryPath, ec);
+    std::filesystem::rename(directoryPath, newDirectoryPath, ec);
 
 #ifdef _WIN32
     // On Windows we sometimes fail to rename a directory with System: 5 error
@@ -242,14 +242,14 @@ void renameForDelete(const std::string directoryName) {
                  << " (" << tries << " attempts left)";
       std::this_thread::sleep_for(std::chrono::milliseconds(100 / tries));
       tries--;
-      boost::filesystem::rename(directoryPath, newDirectoryPath, ec);
+      std::filesystem::rename(directoryPath, newDirectoryPath, ec);
     }
 #endif
 
     if (ec.value() == boost::system::errc::success) {
       std::thread th([newDirectoryPath]() {
         boost::system::error_code ec;
-        boost::filesystem::remove_all(newDirectoryPath, ec);
+        std::filesystem::remove_all(newDirectoryPath, ec);
         // We dont check error on remove here as we cant log the
         // issue fromdetached thrad, its not safe to LOG from here
         // This is under investigation as clang detects TSAN issue data race
@@ -283,23 +283,23 @@ void file_delete(std::atomic<bool>& program_is_running,
                  const unsigned int wait_interval_seconds,
                  const std::string base_path) {
   const auto wait_duration = std::chrono::seconds(wait_interval_seconds);
-  const boost::filesystem::path path(base_path);
+  const std::filesystem::path path(base_path);
   while (program_is_running) {
-    using vec = std::vector<boost::filesystem::path>;  // store paths,
+    using vec = std::vector<std::filesystem::path>;  // store paths,
     vec v;
     boost::system::error_code ec;
 
     // copy vector from iterator as was getting weird random errors if
     // removed direct from iterator
-    copy(boost::filesystem::directory_iterator(path),
-         boost::filesystem::directory_iterator(),
+    copy(std::filesystem::directory_iterator(path),
+         std::filesystem::directory_iterator(),
          back_inserter(v));
     for (vec::const_iterator it(v.begin()); it != v.end(); ++it) {
       std::string object_name(it->string());
 
       if (boost::algorithm::ends_with(object_name, "DELETE_ME")) {
         LOG(INFO) << " removing object " << object_name;
-        boost::filesystem::remove_all(*it, ec);
+        std::filesystem::remove_all(*it, ec);
         if (ec.value() != boost::system::errc::success) {
           LOG(ERROR) << "Failed to remove object " << object_name << " error was " << ec;
         }

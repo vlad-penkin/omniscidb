@@ -80,7 +80,7 @@ inline nvtxEventAttributes_t make_omnisci_event(Category c, const char* name) {
 
 // Return last component of path
 std::string filename(char const* path) {
-  return boost::filesystem::path(path).filename().string();
+  return std::filesystem::path(path).filename().string();
 }
 }  // namespace
 

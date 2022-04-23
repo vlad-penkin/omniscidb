@@ -408,7 +408,7 @@ std::string get_cuda_home(void) {
 
   if (!(env = getenv("CUDA_HOME")) && !(env = getenv("CUDA_DIR"))) {
     // check if the default CUDA directory exists: /usr/local/cuda
-    if (boost::filesystem::exists(boost::filesystem::path(CUDA_DEFAULT_PATH))) {
+    if (std::filesystem::exists(std::filesystem::path(CUDA_DEFAULT_PATH))) {
       env = CUDA_DEFAULT_PATH;
     }
   }
@@ -422,7 +422,7 @@ std::string get_cuda_home(void) {
   // check if the CUDA directory is sensible:
   auto cuda_include_dir = env + std::string("/include");
   auto cuda_h_file = cuda_include_dir + "/cuda.h";
-  if (!boost::filesystem::exists(boost::filesystem::path(cuda_h_file))) {
+  if (!std::filesystem::exists(std::filesystem::path(cuda_h_file))) {
     LOG(WARNING) << "cuda.h does not exist in `" << cuda_include_dir << "`. Discarding `"
                  << env << "` as CUDA installation path.";
     return "";

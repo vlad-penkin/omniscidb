@@ -7,7 +7,7 @@
 
 extern bool g_enable_heterogeneous_execution;
 extern bool g_enable_multifrag_heterogeneous_execution;
-boost::filesystem::path g_data_path;
+std::filesystem::path g_data_path;
 size_t g_fragment_size = 1'000'000;
 
 using namespace TestHelpers::ArrowSQLRunner;
@@ -24,7 +24,7 @@ static void createTaxiReducedTable() {
               to);
 }
 static void populateTaxiReducedTable() {
-  namespace fs = boost::filesystem;
+  namespace fs = std::filesystem;
   ArrowStorage::CsvParseOptions po;
   po.header = false;
   if (fs::is_directory(g_data_path)) {
@@ -94,7 +94,7 @@ int main(int argc, char* argv[]) {
   ::benchmark::Initialize(&argc, argv);
 
   namespace po = boost::program_options;
-  namespace fs = boost::filesystem;
+  namespace fs = std::filesystem;
 
   po::options_description desc("Options");
   desc.add_options()("enable-heterogeneous",
