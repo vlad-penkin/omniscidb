@@ -748,6 +748,63 @@ void sort_onecol_cpu(int8_t* val_buff,
   }
 }
 
+void ResultSet::copyColumnIntoBuffer1(
+    const std::list<Analyzer::OrderEntry>& order_entries,
+    const size_t column_idx,
+    int8_t* output_buffer,
+    const size_t output_buffer_size,
+    PermutationView& pv,
+    const Executor* executor) const {
+  auto rsc = ResultSet::ResultSetComparator<ResultSet::ColumnWiseTargetAccessor>(
+      order_entries, this, pv, executor, false);
+
+  CHECK(output_buffer_size > 0);
+  CHECK(output_buffer);
+  const auto column_width_size = query_mem_desc_.getPaddedSlotWidthBytes(column_idx);
+  const size_t crt_storage_row_count = storage_->query_mem_desc_.getEntryCount();
+  const size_t crt_buffer_size = crt_storage_row_count * column_width_size;
+  CHECK(crt_buffer_size <= output_buffer_size);
+
+  for (PermutationIdx idx = 0; idx < pv.size(); ++idx) {
+    const auto lhs_storage_lookup_result = findStorage(pv[idx]);
+    const auto lhs_storage = lhs_storage_lookup_result.storage_ptr;
+    const auto fixedup_lhs = lhs_storage_lookup_result.fixedup_entry_idx;
+    auto order_entry = order_entries.front();
+    CHECK_GE(order_entry.tle_no, 1);
+    const auto& agg_info = targets_[order_entry.tle_no - 1];
+    const auto entry_ti = get_compact_type(agg_info);
+    bool float_argument_input = takes_float_argument(agg_info);
+    const auto lhs_v = rsc.buffer_itr_.getColumnInternal(lhs_storage->buff_,
+                                                         fixedup_lhs,
+                                                         order_entry.tle_no - 1,
+                                                         lhs_storage_lookup_result);
+
+    bool isnull = isNull(entry_ti, lhs_v, float_argument_input);
+
+    switch (column_width_size) {
+      case 8:
+        reinterpret_cast<int64_t*>(output_buffer)[pv[idx]] =
+            isnull ? inline_null_value<int64_t>() : (int64_t)(lhs_v.i1);
+        break;
+      case 4:
+        reinterpret_cast<int32_t*>(output_buffer)[pv[idx]] =
+            isnull ? inline_null_value<int32_t>() : (int32_t)(lhs_v.i1);
+        break;
+      case 2:
+        reinterpret_cast<int16_t*>(output_buffer)[pv[idx]] =
+            isnull ? inline_null_value<int16_t>() : (int16_t)(lhs_v.i1);
+        break;
+      case 1:
+        reinterpret_cast<int8_t*>(output_buffer)[pv[idx]] =
+            isnull ? inline_null_value<int8_t>() : (int8_t)(lhs_v.i1);
+        break;
+      default:
+        UNREACHABLE();
+        break;
+    }
+  }
+}
+
 void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
                      size_t top_n,
                      const Executor* executor) {
@@ -794,8 +851,7 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
     }
 
     if (top_n == 0 && size_t(1) == order_entries.size() &&
-        isDirectColumnarConversionPossible() && query_mem_desc_.didOutputColumnar() &&
-        query_mem_desc_.getQueryDescriptionType() == QueryDescriptionType::Projection) {
+        isDirectColumnarConversionPossible() && query_mem_desc_.didOutputColumnar()) {
       const auto& order_entry = order_entries.front();
       const auto target_idx = order_entry.tle_no - 1;
       const auto& lazy_fetch_info = getLazyFetchInfo();
@@ -805,13 +861,50 @@ void ResultSet::sort(const std::list<Analyzer::OrderEntry>& order_entries,
       const auto slot_width = query_mem_desc_.getPaddedSlotWidthBytes(target_idx);
       if (is_not_lazy && slot_width > 0 && entry_ti.is_number()) {
         const size_t buf_size = query_mem_desc_.getEntryCount() * slot_width;
-        // std::vector<int8_t> sortkey_val_buff(buf_size);
         std::unique_ptr<int8_t[]> sortkey_val_buff(new int8_t[buf_size]);
-        copyColumnIntoBuffer(
-            target_idx, reinterpret_cast<int8_t*>(&sortkey_val_buff[0]), buf_size);
+        if (query_mem_desc_.getQueryDescriptionType() ==
+            QueryDescriptionType::Projection) {
+          copyColumnIntoBuffer(
+              target_idx, reinterpret_cast<int8_t*>(&sortkey_val_buff[0]), buf_size);
+        }
         permutation_.resize(query_mem_desc_.getEntryCount());
         PermutationView pv(permutation_.data(), 0, permutation_.size());
         pv = initPermutationBuffer(pv, 0, permutation_.size());
+        if (query_mem_desc_.getQueryDescriptionType() !=
+            QueryDescriptionType::Projection) {
+          copyColumnIntoBuffer1(order_entries,
+                                target_idx,
+                                reinterpret_cast<int8_t*>(&sortkey_val_buff[0]),
+                                buf_size,
+                                pv,
+                                executor);
+        }
+        // Delete EMPTY values from the permutation
+        int idx = 0;
+        for (auto p : pv) {
+          switch (slot_width) {
+            case 8:
+              reinterpret_cast<int64_t*>(&sortkey_val_buff[0])[idx] =
+                  reinterpret_cast<int64_t*>(&sortkey_val_buff[0])[p];
+              break;
+            case 4:
+              reinterpret_cast<int32_t*>(&sortkey_val_buff[0])[idx] =
+                  reinterpret_cast<int32_t*>(&sortkey_val_buff[0])[p];
+              break;
+            case 2:
+              reinterpret_cast<int16_t*>(&sortkey_val_buff[0])[idx] =
+                  reinterpret_cast<int16_t*>(&sortkey_val_buff[0])[p];
+              break;
+            case 1:
+              reinterpret_cast<int8_t*>(&sortkey_val_buff[0])[idx] =
+                  reinterpret_cast<int8_t*>(&sortkey_val_buff[0])[p];
+              break;
+            default:
+              UNREACHABLE();
+              break;
+          }
+          ++idx;
+        }
         sort_onecol_cpu(reinterpret_cast<int8_t*>(&sortkey_val_buff[0]),
                         pv,
                         entry_ti,

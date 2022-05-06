@@ -450,6 +450,13 @@ class ResultSet {
                             int8_t* output_buffer,
                             const size_t output_buffer_size) const;
 
+  void copyColumnIntoBuffer1(const std::list<Analyzer::OrderEntry>& order_entries,
+                             const size_t column_idx,
+                             int8_t* output_buffer,
+                             const size_t output_buffer_size,
+                             PermutationView& pv,
+                             const Executor* executor) const;
+
   bool didOutputColumnar() const { return this->query_mem_desc_.didOutputColumnar(); }
 
   //  Columnar Conversion checker functions
