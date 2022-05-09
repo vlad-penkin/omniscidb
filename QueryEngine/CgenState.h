@@ -29,6 +29,12 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Transforms/Utils/ValueMapper.h>
 
+#if LLVM_VERSION_MAJOR >= 14
+#define GET_PARAM_ATTRIBUTES getParamAttrs
+#else
+#define GET_PARAM_ATTRIBUTES getParamAttributes
+#endif
+
 struct ArrayLoadCodegen {
   llvm::Value* buffer;
   llvm::Value* size;
@@ -243,7 +249,7 @@ struct CgenState {
       const auto arg_ti = func_type->getParamType(0);
       CHECK(arg_ti->isPointerTy() && arg_ti->getPointerElementType()->isStructTy());
       auto attr_list = func->getAttributes();
-      llvm::AttrBuilder arr_arg_builder(attr_list.getParamAttributes(0));
+      llvm::AttrBuilder arr_arg_builder(context_, attr_list.GET_PARAM_ATTRIBUTES(0));
       arr_arg_builder.addAttribute(llvm::Attribute::StructRet);
       func->addParamAttrs(0, arr_arg_builder);
     }
@@ -252,7 +258,7 @@ struct CgenState {
       const auto arg_ti = func_type->getParamType(i);
       if (arg_ti->isPointerTy() && arg_ti->getPointerElementType()->isStructTy()) {
         auto attr_list = func->getAttributes();
-        llvm::AttrBuilder arr_arg_builder(attr_list.getParamAttributes(i));
+        llvm::AttrBuilder arr_arg_builder(context_,  attr_list.GET_PARAM_ATTRIBUTES(i));
         arr_arg_builder.addByValAttr(arg_ti->getPointerElementType());
         func->addParamAttrs(i, arr_arg_builder);
       }
