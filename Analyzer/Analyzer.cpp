@@ -3447,6 +3447,8 @@ bool exprs_share_one_and_same_rte_idx(const std::shared_ptr<Analyzer::Expr>& lhs
   return lhs_rte_idx.size() == 1UL && lhs_rte_idx == rhs_rte_idx;
 }
 
+#if 0
+
 SQLTypeInfo const& get_str_dict_cast_type(const SQLTypeInfo& lhs_type_info,
                                           const SQLTypeInfo& rhs_type_info,
                                           const Executor* executor) {
@@ -3724,6 +3726,8 @@ std::shared_ptr<Analyzer::Expr> normalizeCaseExpr(
   auto case_expr = makeExpr<Analyzer::CaseExpr>(ti, has_agg, cast_expr_pair_list, else_e);
   return case_expr;
 }
+
+#endif 
 
 std::shared_ptr<Analyzer::Expr> getLikeExpr(std::shared_ptr<Analyzer::Expr> arg_expr,
                                             std::shared_ptr<Analyzer::Expr> like_expr,
