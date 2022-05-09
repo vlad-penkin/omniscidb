@@ -1030,19 +1030,19 @@ inline int8_t* appendDatum(int8_t* buf, Datum d, const SQLTypeInfo& ti) {
   }
 }
 
-inline auto generate_array_type(const SQLTypes subtype) {
+inline SQLTypeInfo generate_array_type(const SQLTypes subtype) {
   auto ti = SQLTypeInfo(kARRAY, false);
   ti.set_subtype(subtype);
   return ti;
 }
 
-inline auto generate_column_type(const SQLTypes subtype) {
+inline SQLTypeInfo generate_column_type(const SQLTypes subtype) {
   auto ti = SQLTypeInfo(kCOLUMN, false);
   ti.set_subtype(subtype);
   return ti;
 }
 
-inline auto generate_column_type(const SQLTypes subtype, EncodingType c, int p) {
+inline SQLTypeInfo generate_column_type(const SQLTypes subtype, EncodingType c, int p) {
   auto ti = SQLTypeInfo(kCOLUMN, false);
   ti.set_subtype(subtype);
   ti.set_compression(c);
@@ -1050,7 +1050,7 @@ inline auto generate_column_type(const SQLTypes subtype, EncodingType c, int p) 
   return ti;
 }
 
-inline auto generate_column_list_type(const SQLTypes subtype) {
+inline SQLTypeInfo generate_column_list_type(const SQLTypes subtype) {
   auto ti = SQLTypeInfo(kCOLUMN_LIST, false);
   ti.set_subtype(subtype);
   return ti;
