@@ -262,7 +262,7 @@ set(QUERY_ENGINE_LIBS
         Shared
         SchemaMgr
         SqliteConnector
-        sqlite3
+        SQLite::SQLite3
         ${Arrow_LIBRARIES}
         )
 
