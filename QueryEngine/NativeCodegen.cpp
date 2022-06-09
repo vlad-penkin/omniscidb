@@ -2370,7 +2370,8 @@ bool is_gpu_shared_mem_supported(const QueryMemoryDescriptor* query_mem_desc_ptr
                                  const CudaMgr_Namespace::CudaMgr* cuda_mgr,
                                  const ExecutorDeviceType device_type,
                                  const unsigned gpu_blocksize,
-                                 const unsigned num_blocks_per_mp) {
+                                 const unsigned num_blocks_per_mp,
+                                 bool bigint_count) {
   if (device_type == ExecutorDeviceType::CPU) {
     return false;
   }
@@ -2402,8 +2403,8 @@ bool is_gpu_shared_mem_supported(const QueryMemoryDescriptor* query_mem_desc_ptr
     }
     // skip shared memory usage when dealing with 1) variable length targets, 2)
     // not a COUNT aggregate
-    const auto target_infos =
-        target_exprs_to_infos(ra_exe_unit.target_exprs, *query_mem_desc_ptr);
+    const auto target_infos = target_exprs_to_infos(
+        ra_exe_unit.target_exprs, *query_mem_desc_ptr, bigint_count);
     std::unordered_set<SQLAgg> supported_aggs{kCOUNT};
     if (std::find_if(target_infos.begin(),
                      target_infos.end(),
@@ -2454,8 +2455,8 @@ bool is_gpu_shared_mem_supported(const QueryMemoryDescriptor* query_mem_desc_ptr
       // skip shared memory usage when dealing with 1) variable length targets, 2)
       // non-basic aggregates (COUNT, SUM, MIN, MAX, AVG)
       // TODO: relax this if necessary
-      const auto target_infos =
-          target_exprs_to_infos(ra_exe_unit.target_exprs, *query_mem_desc_ptr);
+      const auto target_infos = target_exprs_to_infos(
+          ra_exe_unit.target_exprs, *query_mem_desc_ptr, bigint_count);
       std::unordered_set<SQLAgg> supported_aggs{kCOUNT};
       if (g_enable_smem_grouped_non_count_agg) {
         supported_aggs = {kCOUNT, kMIN, kMAX, kSUM, kAVG};
@@ -2614,7 +2615,8 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
                                   cuda_mgr,
                                   co.device_type,
                                   cuda_mgr ? this->blockSize() : 1,
-                                  cuda_mgr ? this->numBlocksPerMP() : 1);
+                                  cuda_mgr ? this->numBlocksPerMP() : 1,
+                                  getConfig().exec.group_by.bigint_count);
   if (gpu_shared_mem_optimization) {
     // disable interleaved bins optimization on the GPU
     query_mem_desc->setHasInterleavedBinsOnGpu(false);
@@ -2798,8 +2800,10 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
   }
 
   // Aggregate
-  plan_state_->init_agg_vals_ =
-      init_agg_val_vec(ra_exe_unit.target_exprs, ra_exe_unit.quals, *query_mem_desc);
+  plan_state_->init_agg_vals_ = init_agg_val_vec(ra_exe_unit.target_exprs,
+                                                 ra_exe_unit.quals,
+                                                 *query_mem_desc,
+                                                 getConfig().exec.group_by.bigint_count);
 
   /*
    * If we have decided to use GPU shared memory (decision is not made here), then
@@ -2816,7 +2820,9 @@ Executor::compileWorkUnit(const std::vector<InputTableInfo>& query_infos,
           cgen_state_->module_,
           cgen_state_->context_,
           *query_mem_desc,
-          target_exprs_to_infos(ra_exe_unit.target_exprs, *query_mem_desc),
+          target_exprs_to_infos(ra_exe_unit.target_exprs,
+                                *query_mem_desc,
+                                getConfig().exec.group_by.bigint_count),
           plan_state_->init_agg_vals_,
           executor_id_,
           getConfig());
