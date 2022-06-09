@@ -1559,9 +1559,15 @@ extern "C" RUNTIME_EXPORT NEVER_INLINE void query_stub_hoisted_literals(
 #endif
 }
 
+#ifndef _MSC_VER
+#define RESTRICT __restrict__
+#else
+#define RESTRICT
+#endif
+
 extern "C" RUNTIME_EXPORT void multifrag_query_hoisted_literals(
     const int8_t*** col_buffers,
-    const uint64_t* __restrict__ num_fragments,
+    const uint64_t* RESTRICT num_fragments,
     const int8_t* literals,
     const int64_t* num_rows,
     const uint64_t* frag_row_offsets,
@@ -1570,7 +1576,7 @@ extern "C" RUNTIME_EXPORT void multifrag_query_hoisted_literals(
     const int64_t* init_agg_value,
     int64_t** out,
     int32_t* error_code,
-    const uint32_t* __restrict__ num_tables_ptr,
+    const uint32_t* RESTRICT num_tables_ptr,
     const int64_t* join_hash_tables) {
   for (uint32_t i = 0; i < *num_fragments; ++i) {
     query_stub_hoisted_literals(col_buffers ? col_buffers[i] : nullptr,
@@ -1603,18 +1609,17 @@ extern "C" RUNTIME_EXPORT NEVER_INLINE void query_stub(const int8_t** col_buffer
 #endif
 }
 
-extern "C" RUNTIME_EXPORT void multifrag_query(
-    const int8_t*** col_buffers,
-    const uint64_t* __restrict__ num_fragments,
-    const int64_t* num_rows,
-    const uint64_t* frag_row_offsets,
-    const int32_t* max_matched,
-    int32_t* total_matched,
-    const int64_t* init_agg_value,
-    int64_t** out,
-    int32_t* error_code,
-    const uint32_t* __restrict__ num_tables_ptr,
-    const int64_t* join_hash_tables) {
+extern "C" RUNTIME_EXPORT void multifrag_query(const int8_t*** col_buffers,
+                                               const uint64_t* RESTRICT num_fragments,
+                                               const int64_t* num_rows,
+                                               const uint64_t* frag_row_offsets,
+                                               const int32_t* max_matched,
+                                               int32_t* total_matched,
+                                               const int64_t* init_agg_value,
+                                               int64_t** out,
+                                               int32_t* error_code,
+                                               const uint32_t* RESTRICT num_tables_ptr,
+                                               const int64_t* join_hash_tables) {
   for (uint32_t i = 0; i < *num_fragments; ++i) {
     query_stub(col_buffers ? col_buffers[i] : nullptr,
                &num_rows[i * (*num_tables_ptr)],
