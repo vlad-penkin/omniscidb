@@ -70,8 +70,7 @@ jobs:
         run: |
           rm -rf data/.git
           
-          $CONDA/bin/conda run -n omnisci-dev python -V
-          $CONDA/bin/conda run -n omnisci-dev which python
+          $CONDA/bin/conda run -n omnisci-dev pip install matplotlib
           $CONDA/bin/conda run -n omnisci-dev python3 .github/workflows/scripts/run-taxi.py
 
       - name: Upload perf results
@@ -79,6 +78,6 @@ jobs:
         with:
           name: ${{ env.RUN_STAMP }}-taxi
           path: |
-            taxi.log
-
+            *.pdf
+            perf.json
 
