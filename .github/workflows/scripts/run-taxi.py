@@ -62,8 +62,8 @@ def draw_all(perf_json):
     draw_graphs('cpu', perf_json[1])
 
 
-#time, cpu = do_runs()
+time, cpu = do_runs()
 perf_json = load_json()
-#perf_json = process_runs(perf_json, time, cpu)
+perf_json = process_runs(perf_json, time, cpu)
 draw_all(perf_json)
 
