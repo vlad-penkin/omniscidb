@@ -48,7 +48,8 @@
 
 DEFINE_ENUM_WITH_STRING_CONVERSIONS(
     MgrType,
-    (CACHING_FILE_MGR)(FILE_MGR)(CPU_MGR)(GPU_MGR)(GLOBAL_FILE_MGR)(PERSISTENT_STORAGE_MGR)(FOREIGN_STORAGE_MGR)(TIERED_CPU_MGR))
+    (CACHING_FILE_MGR)(FILE_MGR)(CPU_MGR)(GPU_MGR)(GLOBAL_FILE_MGR)(
+        PERSISTENT_STORAGE_MGR)(FOREIGN_STORAGE_MGR)(TIERED_CPU_MGR))
 
 struct DictDescriptor;
 
@@ -101,10 +102,6 @@ class AbstractBufferMgr {
   virtual size_t getInUseSize() = 0;
   virtual size_t getAllocated() = 0;
   virtual bool isAllocationCapped() = 0;
-
-  virtual void checkpoint() = 0;
-  virtual void checkpoint(const int db_id, const int tb_id) = 0;
-  virtual void removeTableRelatedDS(const int db_id, const int table_id) = 0;
 
   virtual const DictDescriptor* getDictMetadata(int dict_id, bool load_dict = true) = 0;
 
